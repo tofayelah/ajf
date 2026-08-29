@@ -1,0 +1,11 @@
+import fs from 'fs';
+import { validateCashMovementsReconciliation } from './src/utils/accountingIntegrity';
+const db = JSON.parse(fs.readFileSync('database.json', 'utf8') || '{}');
+const res = validateCashMovementsReconciliation(db);
+console.log("Admission Variance:", res.modules.admission.variance);
+console.log("Subledger Admission:", res.modules.admission.subledgerAmount);
+console.log("Cashbook Admission:", res.modules.admission.cashBookAmount);
+console.log("Capital Variance:", res.modules.capital.variance);
+console.log("Subledger Capital:", res.modules.capital.subledgerAmount);
+console.log("Cashbook Capital:", res.modules.capital.cashBookAmount);
+console.log(JSON.stringify(res.allUnreconciledItems, null, 2));

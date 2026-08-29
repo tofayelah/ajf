@@ -1,0 +1,34 @@
+src/services/accounting.ts(270,11): error TS1117: An object literal cannot have multiple properties with the same name.
+src/services/accounting.ts(309,38): error TS2322: Type '"POSTED"' is not assignable to type '"ACTIVE" | "REVERSED"'.
+src/services/accounting.ts(381,11): error TS1117: An object literal cannot have multiple properties with the same name.
+src/services/accounting.ts(1934,36): error TS2322: Type '"POSTED"' is not assignable to type '"ACTIVE" | "REVERSED"'.
+src/services/accounting.ts(2650,36): error TS2353: Object literal may only specify known properties, and 'status' does not exist in type 'Expense'.
+src/services/accounting.ts(4217,40): error TS2322: Type '"POSTED"' is not assignable to type '"ACTIVE" | "REVERSED"'.
+src/services/accounting.ts(4313,40): error TS2322: Type '"POSTED"' is not assignable to type '"ACTIVE" | "REVERSED"'.
+src/services/accounting.ts(4418,40): error TS2322: Type '"POSTED"' is not assignable to type '"ACTIVE" | "REVERSED"'.
+src/services/accounting.ts(4472,36): error TS1117: An object literal cannot have multiple properties with the same name.
+src/services/accounting.ts(6272,7): error TS2353: Object literal may only specify known properties, and 'status' does not exist in type 'BankTransaction'.
+src/services/accounting.ts(6485,7): error TS2353: Object literal may only specify known properties, and 'updatedAt' does not exist in type 'Income'.
+src/services/accounting.ts(6530,9): error TS2353: Object literal may only specify known properties, and 'sourceType' does not exist in type '{ type: "IN" | "OUT"; amount: number; date: string; description: string; reference?: string; voucherNo?: string; postedByUserId?: string; postedByUserName?: string; }'.
+src/services/accounting.ts(6543,9): error TS2322: Type '"DEPOSIT"' is not assignable to type '"IN" | "OUT"'.
+src/services/accounting.ts(6562,7): error TS2353: Object literal may only specify known properties, and 'postedByUserName' does not exist in type 'Omit<JournalEntry, "id" | "createdAt">'.
+src/services/accounting.ts(6580,25): error TS2339: Property 'updatedDb' does not exist on type '{ success: boolean; message: string; entry?: JournalEntry; lines?: JournalEntryLine[]; }'.
+src/services/accounting.ts(6583,109): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(6657,7): error TS2353: Object literal may only specify known properties, and 'postedByUserName' does not exist in type 'Omit<JournalEntry, "id" | "createdAt">'.
+src/services/accounting.ts(6674,25): error TS2339: Property 'updatedDb' does not exist on type '{ success: boolean; message: string; entry?: JournalEntry; lines?: JournalEntryLine[]; }'.
+src/services/accounting.ts(6682,9): error TS2353: Object literal may only specify known properties, and 'sourceType' does not exist in type '{ type: "IN" | "OUT"; amount: number; date: string; description: string; reference?: string; voucherNo?: string; postedByUserId?: string; postedByUserName?: string; }'.
+src/services/accounting.ts(6694,9): error TS2322: Type '"WITHDRAWAL"' is not assignable to type '"IN" | "OUT"'.
+src/services/accounting.ts(6706,111): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(6836,7): error TS2353: Object literal may only specify known properties, and 'updatedAt' does not exist in type 'Expense'.
+src/services/accounting.ts(6867,124): error TS2304: Cannot find name 'ExpenseStatus'.
+src/services/accounting.ts(6886,116): error TS2304: Cannot find name 'ExpenseStatus'.
+src/services/accounting.ts(6915,9): error TS2353: Object literal may only specify known properties, and 'sourceType' does not exist in type '{ type: "IN" | "OUT"; amount: number; date: string; description: string; reference?: string; voucherNo?: string; postedByUserId?: string; postedByUserName?: string; }'.
+src/services/accounting.ts(6928,9): error TS2322: Type '"WITHDRAWAL"' is not assignable to type '"IN" | "OUT"'.
+src/services/accounting.ts(6946,7): error TS2353: Object literal may only specify known properties, and 'postedByUserName' does not exist in type 'Omit<JournalEntry, "id" | "createdAt">'.
+src/services/accounting.ts(6964,25): error TS2339: Property 'updatedDb' does not exist on type '{ success: boolean; message: string; entry?: JournalEntry; lines?: JournalEntryLine[]; }'.
+src/services/accounting.ts(6966,121): error TS2304: Cannot find name 'ExpenseStatus'.
+src/services/accounting.ts(7019,7): error TS2353: Object literal may only specify known properties, and 'postedByUserName' does not exist in type 'Omit<JournalEntry, "id" | "createdAt">'.
+src/services/accounting.ts(7036,25): error TS2339: Property 'updatedDb' does not exist on type '{ success: boolean; message: string; entry?: JournalEntry; lines?: JournalEntryLine[]; }'.
+src/services/accounting.ts(7043,9): error TS2353: Object literal may only specify known properties, and 'sourceType' does not exist in type '{ type: "IN" | "OUT"; amount: number; date: string; description: string; reference?: string; voucherNo?: string; postedByUserId?: string; postedByUserName?: string; }'.
+src/services/accounting.ts(7055,9): error TS2322: Type '"DEPOSIT"' is not assignable to type '"IN" | "OUT"'.
+src/services/accounting.ts(7067,123): error TS2304: Cannot find name 'ExpenseStatus'.

@@ -1,0 +1,1 @@
+export const SOCIETY_OPENING_DATE = "2026-06-01";

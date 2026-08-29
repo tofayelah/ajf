@@ -1,0 +1,82 @@
+src/components/member-portal/MemberDashboard.tsx:76:            .map(l => (
+src/components/member-portal/MemberLedgerView.tsx:39:                ledgers.map(l => (
+src/components/shared/AttachmentManager.tsx:54:    const updated = (db.attachments || []).map(a => 
+src/components/shared/AttachmentManager.tsx:83:          {(attachments || []).map(att => (
+src/components/profit/ProfitDistributionView.tsx:247:              {((activeUser?.role === 'MEMBER' ? (db.members || []).filter(m => m.memberId === activeUser.linkedMemberId) : (db.members || [])) || []).map((m, idx) => {
+src/components/profit/ProfitDistributionView.tsx:300:                {(db.historicalProfits || []).map((hp: any) => (
+src/components/members/MemberProfileModal.tsx:68:      users: (prev.users || []).map(u => u.userId === userAccount.userId ? { ...u, status: newStatus as any } : u)
+src/components/members/AddMemberModal.tsx:412:              {(nominees || []).map((nom, idx) => (
+src/components/members/MemberMasterView.tsx:168:          {filteredMembers.map(member => {
+src/components/reports/DueReport.tsx:79:            {(Object.keys(agingGroups) as AgeCategory[]).map(cat => {
+src/components/reports/DueReport.tsx:109:              members.map((m, idx) => (
+src/components/reports/CollectionReport.tsx:126:         {Object.entries(methodBreakdown).map(([method, amount]) => (
+src/components/reports/CollectionReport.tsx:146:            {filteredCollections.map((c) => (
+src/components/reports/ReserveFundReport.tsx:107:            {filteredUtils.map((u, idx) => (
+src/components/reports/ReportsCenterView.tsx:99:        ].map(tab => (
+src/components/reports/ReportsCenterView.tsx:301:                    {(db.expenses || []).map(e => (
+src/components/reports/ReportsCenterView.tsx:368:                {(db.members || []).map(m => (
+src/components/reports/ReportsCenterView.tsx:408:                {(db.loans || []).map(l => (
+src/components/reports/ProfitReport.tsx:27:            {records.map(r => {
+src/components/reports/InvestmentReport.tsx:65:            {investments.map(i => {
+src/components/reports/WelfareReport.tsx:66:            {transactions.map(w => (
+src/components/reports/IncomeExpenseReports.tsx:47:            {Array.from(new Set((db.incomes || []).map(i => i.incomeHead))).map(h => (
+src/components/reports/IncomeExpenseReports.tsx:70:           {Object.entries(breakdown).map(([h, amount]) => (
+src/components/reports/IncomeExpenseReports.tsx:91:            {filteredIncomes.map(i => (
+src/components/reports/IncomeExpenseReports.tsx:156:            {Array.from(new Set((db.expenses || []).map(e => e.expenseHead))).map(h => (
+src/components/reports/IncomeExpenseReports.tsx:199:            {filteredExpenses.map(e => (
+src/components/users/UsersRolesView.tsx:97:                filteredUsers.map((user) => (
+src/components/accounts/IncomeExpenseView.tsx:196:                {(db.incomes || []).map(i => (
+src/components/accounts/IncomeExpenseView.tsx:235:                {(db.expenses || []).map(e => (
+src/components/accounts/ChartOfAccountsView.tsx:104:              {filteredCOA.map(acc => (
+src/components/accounts/CashBookView.tsx:167:                filteredTxns.map(t => (
+src/components/accounts/BankBookView.tsx:138:                filteredTxns.map(t => (
+src/components/dashboard/DashboardView.tsx:506:            {monthNames.map((month, idx) => {
+src/components/dashboard/DashboardView.tsx:635:              {recentActivities.map(act => (
+src/components/capital/CapitalDepositView.tsx:163:                filteredDeposits.map(c => (
+src/components/capital/CapitalDepositView.tsx:213:                  {(db.members || []).filter(m => canAccessMember(m.memberId)).map(m => (
+src/components/meetings/MeetingsView.tsx:39:    const updatedAttendances = (selectedMeetingForAttendance.attendances || []).map(a => 
+src/components/meetings/MeetingsView.tsx:51:    const updatedAttendances = (selectedMeetingForAttendance.attendances || []).map(a => 
+src/components/meetings/MeetingsView.tsx:66:      .map(a => a.trim())
+src/components/meetings/MeetingsView.tsx:69:    const attendances: MeetingAttendance[] = (db.members || []).map(m => ({
+src/components/meetings/MeetingsView.tsx:131:        {(db.meetings || []).map(meeting => {
+src/components/meetings/MeetingsView.tsx:179:                    {(meeting.agendas || []).map((ag, idx) => (
+src/components/meetings/MeetingsView.tsx:252:              {(selectedMeetingForAttendance.attendances || []).map((att, idx) => (
+src/components/meetings/ResolutionsView.tsx:102:        {filteredResolutions.map(res => (
+src/components/meetings/ResolutionsView.tsx:197:                  {(db.meetings || []).map(m => (
+src/components/loans/LoansView.tsx:228:                filteredLoans.map(loan => {
+src/components/loans/LoansView.tsx:364:                  {(db.members || []).map(m => (
+src/components/loans/LoansView.tsx:484:                  {activeLoans.map(l => (
+src/components/collections/MonthlyCollectionView.tsx:143:                {(db.members || []).filter(m => canAccessMember(m.memberId)).map(m => (
+src/components/collections/MonthlyCollectionView.tsx:343:                  filteredCollections.map(c => (
+src/components/collections/DueManagementView.tsx:59:              {(memberDue.dueInfo.unpaidMonthDetails || []).map((detail: any, idx: number) => (
+src/components/collections/DueManagementView.tsx:99:    .map(member => {
+src/components/collections/DueManagementView.tsx:175:        ].map(cat => (
+src/components/collections/DueManagementView.tsx:244:                filteredDues.map(item => (
+src/components/layout/TopAppBar.tsx:178:                  {(roles || []).map(r => (
+src/components/layout/GlobalSearchModal.tsx:131:                {(results || []).map((result, i) => (
+src/components/layout/BottomNavigationBar.tsx:60:      {navItems.map(item => {
+src/components/layout/SpeedDialFab.tsx:97:          {actions.map(act => {
+src/components/layout/AppDrawer.tsx:191:          {sections.map((section, sIdx) => (
+src/components/layout/AppDrawer.tsx:197:                {section.items.map(item => {
+src/components/investments/InvestmentsView.tsx:130:        {(db.investments || []).map(project => (
+src/components/audit/AuditLogView.tsx:79:                filteredLogs.map((log) => (
+src/components/welfare/ReserveFundSection.tsx:158:          {['OVERVIEW', 'REQUESTS', 'UNDER_REVIEW', 'APPROVED', 'PAID', 'REJECTED'].map(tab => (
+src/components/welfare/ReserveFundSection.tsx:193:            {filteredUtils.map(u => (
+src/components/welfare/WelfareFundView.tsx:211:                {(db.reserveUtilizations || []).map((ru: ReserveUtilization) => (
+src/components/welfare/WelfareFundView.tsx:310:                filteredDistributions.map(w => (
+src/components/welfare/WelfareFundView.tsx:404:                  {(db.members || []).map(m => (
+src/components/admission/AdmissionWorkflowView.tsx:188:          ].map(s => {
+src/services/db.ts:671:  const capitalDeposits: CapitalDeposit[] = members.map((m, idx) => ({
+src/services/pdfService.ts:21:      .map(sheet => {
+src/services/pdfService.ts:24:            .map(rule => rule.cssText)
+src/services/accounting.ts:47:    const newLines: JournalEntryLine[] = (lines || []).map((line, idx) => ({
+src/services/accounting.ts:58:      .map(m => {
+src/services/accounting.ts:711:        loans: (db.loans || []).map(l => (l.loanId === loan.loanId ? updatedLoan : l)),
+src/services/accounting.ts:852:        loans: (db.loans || []).map(l => (l.loanId === loan.loanId ? updatedLoan : l)),
+src/services/accounting.ts:1214:    const updatedCollections = (db.collections || []).map(c =>
+src/repository/UserRepository.ts:56:    const newId = users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1;
+src/context/AppContext.tsx:580:      members: (prev.members || []).map((m) =>
+src/context/AppContext.tsx:830:      const updatedMeetings = (db.meetings || []).map((m) =>
+src/context/AppContext.tsx:853:      const utils = (db.reserveUtilizations || []).map(u => 
+src/context/AppContext.tsx:960:      resolutions: (prev.resolutions || []).map((r) =>
+src/utils/crypto.ts:12:  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');

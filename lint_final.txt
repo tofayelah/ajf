@@ -1,0 +1,58 @@
+
+> react-example@0.0.0 lint
+> tsc --noEmit
+
+src/services/accounting.ts(145,11): error TS2741: Property 'updatedAt' is missing in type '{ memberId: string; membershipNo: string; fullName: string; fatherName: string; motherName: string; dateOfBirth: string; nid: string; occupation: string; maritalStatus: string; mobile: string; ... 12 more ...; status: "ACTIVE"; }' but required in type 'Member'.
+src/services/accounting.ts(217,58): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(238,60): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(269,60): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(270,11): error TS1117: An object literal cannot have multiple properties with the same name.
+src/services/accounting.ts(349,60): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(380,60): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(381,11): error TS1117: An object literal cannot have multiple properties with the same name.
+src/services/accounting.ts(1263,59): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(1301,59): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(1319,59): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(1623,59): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(1663,59): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(1682,59): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(1978,58): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(2449,59): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(2529,56): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(2552,58): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(2672,60): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(3066,37): error TS2304: Cannot find name 'ExpenseStatus'.
+src/services/accounting.ts(3067,29): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(4183,60): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(4279,60): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(5084,29): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(5949,26): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(6174,27): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(6369,29): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(6484,26): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(6557,54): error TS2345: Argument of type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' is not assignable to parameter of type 'Omit<JournalEntry, "id" | "createdAt">'.
+  Property 'journalNo' is missing in type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' but required in type 'Omit<JournalEntry, "id" | "createdAt">'.
+src/services/accounting.ts(6584,109): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(6652,54): error TS2345: Argument of type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' is not assignable to parameter of type 'Omit<JournalEntry, "id" | "createdAt">'.
+  Property 'journalNo' is missing in type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' but required in type 'Omit<JournalEntry, "id" | "createdAt">'.
+src/services/accounting.ts(6707,111): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(6767,26): error TS2304: Cannot find name 'IncomeStatus'.
+src/services/accounting.ts(6833,34): error TS2304: Cannot find name 'ExpenseStatus'.
+src/services/accounting.ts(6873,27): error TS2322: Type '(Expense | { approvalStatus: string; updatedAt: string; expenseId: string; voucherNo: string; date: string; expenseHead: string; payee: string; amount: number; paymentMethod: PaymentMethod; ... 13 more ...; correctionJournalEntryId?: string; })[]' is not assignable to type 'Expense[]'.
+  Type 'Expense | { approvalStatus: string; updatedAt: string; expenseId: string; voucherNo: string; date: string; expenseHead: string; payee: string; amount: number; paymentMethod: PaymentMethod; ... 13 more ...; correctionJournalEntryId?: string; }' is not assignable to type 'Expense'.
+    Type '{ approvalStatus: string; updatedAt: string; expenseId: string; voucherNo: string; date: string; expenseHead: string; payee: string; amount: number; paymentMethod: PaymentMethod; bankAccountId?: string; ... 12 more ...; correctionJournalEntryId?: string; }' is not assignable to type 'Expense'.
+      Types of property 'approvalStatus' are incompatible.
+        Type 'string' is not assignable to type 'ExpenseStatus'.
+src/services/accounting.ts(6892,27): error TS2322: Type '(Expense | { approvalStatus: string; approvedBy: string; updatedAt: string; expenseId: string; voucherNo: string; date: string; expenseHead: string; payee: string; amount: number; paymentMethod: PaymentMethod; ... 12 more ...; correctionJournalEntryId?: string; })[]' is not assignable to type 'Expense[]'.
+  Type 'Expense | { approvalStatus: string; approvedBy: string; updatedAt: string; expenseId: string; voucherNo: string; date: string; expenseHead: string; payee: string; amount: number; paymentMethod: PaymentMethod; ... 12 more ...; correctionJournalEntryId?: string; }' is not assignable to type 'Expense'.
+    Type '{ approvalStatus: string; approvedBy: string; updatedAt: string; expenseId: string; voucherNo: string; date: string; expenseHead: string; payee: string; amount: number; paymentMethod: PaymentMethod; ... 12 more ...; correctionJournalEntryId?: string; }' is not assignable to type 'Expense'.
+      Types of property 'approvalStatus' are incompatible.
+        Type 'string' is not assignable to type 'ExpenseStatus'.
+src/services/accounting.ts(6934,9): error TS2353: Object literal may only specify known properties, and 'createdBy' does not exist in type '{ type: "IN" | "OUT"; amount: number; date: string; description: string; reference?: string; voucherNo?: string; postedByUserId?: string; postedByUserName?: string; bankAccountId?: string; }'.
+src/services/accounting.ts(6941,54): error TS2345: Argument of type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' is not assignable to parameter of type 'Omit<JournalEntry, "id" | "createdAt">'.
+  Property 'journalNo' is missing in type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' but required in type 'Omit<JournalEntry, "id" | "createdAt">'.
+src/services/accounting.ts(6967,121): error TS2304: Cannot find name 'ExpenseStatus'.
+src/services/accounting.ts(7014,54): error TS2345: Argument of type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' is not assignable to parameter of type 'Omit<JournalEntry, "id" | "createdAt">'.
+  Property 'journalNo' is missing in type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' but required in type 'Omit<JournalEntry, "id" | "createdAt">'.
+src/services/accounting.ts(7068,123): error TS2304: Cannot find name 'ExpenseStatus'.
+src/services/accounting.ts(7109,34): error TS2304: Cannot find name 'ExpenseStatus'.

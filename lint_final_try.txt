@@ -1,0 +1,31 @@
+
+> react-example@0.0.0 lint
+> tsc --noEmit
+
+src/services/accounting.ts(147,11): error TS2741: Property 'updatedAt' is missing in type '{ memberId: string; membershipNo: string; fullName: string; fatherName: string; motherName: string; dateOfBirth: string; nid: string; occupation: string; maritalStatus: string; mobile: string; ... 12 more ...; status: "ACTIVE"; }' but required in type 'Member'.
+src/services/accounting.ts(311,56): error TS2353: Object literal may only specify known properties, and 'journalNo' does not exist in type 'CapitalDeposit'.
+src/services/accounting.ts(1936,54): error TS2353: Object literal may only specify known properties, and 'journalNo' does not exist in type 'CapitalDeposit'.
+src/services/accounting.ts(4218,58): error TS1117: An object literal cannot have multiple properties with the same name.
+src/services/accounting.ts(4218,90): error TS1117: An object literal cannot have multiple properties with the same name.
+src/services/accounting.ts(4314,58): error TS1117: An object literal cannot have multiple properties with the same name.
+src/services/accounting.ts(4314,90): error TS1117: An object literal cannot have multiple properties with the same name.
+src/services/accounting.ts(4419,58): error TS1117: An object literal cannot have multiple properties with the same name.
+src/services/accounting.ts(4419,90): error TS1117: An object literal cannot have multiple properties with the same name.
+src/services/accounting.ts(6559,54): error TS2345: Argument of type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' is not assignable to parameter of type 'Omit<JournalEntry, "id" | "createdAt">'.
+  Property 'journalNo' is missing in type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' but required in type 'Omit<JournalEntry, "id" | "createdAt">'.
+src/services/accounting.ts(6654,54): error TS2345: Argument of type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' is not assignable to parameter of type 'Omit<JournalEntry, "id" | "createdAt">'.
+  Property 'journalNo' is missing in type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' but required in type 'Omit<JournalEntry, "id" | "createdAt">'.
+src/services/accounting.ts(6875,27): error TS2322: Type '(Expense | { approvalStatus: string; updatedAt: string; expenseId: string; voucherNo: string; date: string; expenseHead: string; payee: string; amount: number; paymentMethod: PaymentMethod; ... 13 more ...; correctionJournalEntryId?: string; })[]' is not assignable to type 'Expense[]'.
+  Type 'Expense | { approvalStatus: string; updatedAt: string; expenseId: string; voucherNo: string; date: string; expenseHead: string; payee: string; amount: number; paymentMethod: PaymentMethod; ... 13 more ...; correctionJournalEntryId?: string; }' is not assignable to type 'Expense'.
+    Type '{ approvalStatus: string; updatedAt: string; expenseId: string; voucherNo: string; date: string; expenseHead: string; payee: string; amount: number; paymentMethod: PaymentMethod; bankAccountId?: string; ... 12 more ...; correctionJournalEntryId?: string; }' is not assignable to type 'Expense'.
+      Types of property 'approvalStatus' are incompatible.
+        Type 'string' is not assignable to type 'ExpenseStatus'.
+src/services/accounting.ts(6894,27): error TS2322: Type '(Expense | { approvalStatus: string; approvedBy: string; updatedAt: string; expenseId: string; voucherNo: string; date: string; expenseHead: string; payee: string; amount: number; paymentMethod: PaymentMethod; ... 12 more ...; correctionJournalEntryId?: string; })[]' is not assignable to type 'Expense[]'.
+  Type 'Expense | { approvalStatus: string; approvedBy: string; updatedAt: string; expenseId: string; voucherNo: string; date: string; expenseHead: string; payee: string; amount: number; paymentMethod: PaymentMethod; ... 12 more ...; correctionJournalEntryId?: string; }' is not assignable to type 'Expense'.
+    Type '{ approvalStatus: string; approvedBy: string; updatedAt: string; expenseId: string; voucherNo: string; date: string; expenseHead: string; payee: string; amount: number; paymentMethod: PaymentMethod; ... 12 more ...; correctionJournalEntryId?: string; }' is not assignable to type 'Expense'.
+      Types of property 'approvalStatus' are incompatible.
+        Type 'string' is not assignable to type 'ExpenseStatus'.
+src/services/accounting.ts(6943,54): error TS2345: Argument of type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' is not assignable to parameter of type 'Omit<JournalEntry, "id" | "createdAt">'.
+  Property 'journalNo' is missing in type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' but required in type 'Omit<JournalEntry, "id" | "createdAt">'.
+src/services/accounting.ts(7016,54): error TS2345: Argument of type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' is not assignable to parameter of type 'Omit<JournalEntry, "id" | "createdAt">'.
+  Property 'journalNo' is missing in type '{ date: string; description: string; sourceType: string; sourceId: string; createdBy: string; status: "ACTIVE"; }' but required in type 'Omit<JournalEntry, "id" | "createdAt">'.

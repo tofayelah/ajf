@@ -1,0 +1,350 @@
+  static postWelfarePayment(
+    db: AppDatabaseState,
+    params: {
+      fundType: 'WELFARE' | 'EMERGENCY' | 'RESERVE';
+      amount: number;
+      beneficiary: string;
+      reason: string;
+      memberId?: string;
+      approvedByPresident?: boolean;
+      approvedBySecretary?: boolean;
+      approvedByTreasurer?: boolean;
+      resolutionNo?: string;
+      remarks?: string;
+    }
+  ): { success: boolean; message: string; updatedDb?: AppDatabaseState } {
+    if (params.amount <= 0) return { success: false, message: 'অনুদান/ব্যয়ের পরিমাণ সঠিক নয়!' };
+
+    // Check emergency requirements
+    if (params.fundType === 'EMERGENCY' && db.settings.requireThreeSignaturesForEmergency) {
+      if (!params.approvedByPresident || !params.approvedBySecretary || !params.approvedByTreasurer) {
+        return {
+          success: false,
+          message: 'জরুরী তহবিল অনুদানের ক্ষেত্রে সভাপতি, সাধারণ সম্পাদক ও কোষাধ্যক্ষ—তিনজনেরই অনুমোদন আবশ্যক!'
+        };
+      }
+    }
+
+    const cash = this.getCashBalance(db.cashTransactions);
+    if (cash < params.amount) {
+      return { success: false, message: `পর্যাপ্ত নগদ ক্যাশ নেই! বর্তমান ক্যাশ: ৳${cash}` };
+    }
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const voucherNo = this.generateVoucherNo(db, 'WLF');
+
+    const member = params.memberId ? (db.members || []).find(m => m.memberId === params.memberId) : undefined;
+
+    const welfareTx: any = {
+      fundId: `WLF-${Date.now()}`,
+      date: dateStr,
+      fundType: params.fundType,
+      income: 0,
+      expense: params.amount,
+      beneficiary: params.beneficiary,
+      memberId: member?.memberId,
+      memberName: member?.fullName,
+      reason: params.reason,
+      amount: params.amount,
+      approvedByPresident: params.approvedByPresident,
+      approvedBySecretary: params.approvedBySecretary,
+      approvedByTreasurer: params.approvedByTreasurer,
+      approvalStatus: 'APPROVED',
+      resolutionNo: params.resolutionNo,
+      voucherNo,
+      remarks: params.remarks,
+      createdAt: new Date().toISOString()
+    };
+
+    const currentCash = this.getCashBalance(db.cashTransactions);
+    const cashEntry: any = {
+      transactionId: `CSH-${Date.now()}`,
+      date: dateStr,
+      voucherNo,
+      reference: `${params.fundType} তহবিল অনুদান`,
+      description: `${params.beneficiary} কে সহায়তা (${params.reason})`,
+      accountId: '5020',
+      accountName: 'কল্যাণ অনুদান ব্যয়',
+      cashIn: 0,
+      cashOut: params.amount,
+      balance: currentCash - params.amount,
+      sourceType: 'WELFARE',
+      sourceId: welfareTx.fundId,
+      createdBy: 'কোষাধ্যক্ষ',
+      createdAt: new Date().toISOString()
+    };
+
+    return {
+      success: true,
+      message: `${params.fundType} তহবিল অনুদান ভাউচার ${voucherNo} সফলভাবে প্রদান করা হয়েছে!`,
+      updatedDb: {
+        ...db,
+        welfareTransactions: [welfareTx, ...(db.welfareTransactions || [])],
+        cashTransactions: [...db.cashTransactions, cashEntry],
+        auditLogs: [
+          {
+            auditId: `AUD-${Date.now()}`,
+            userId: db.activeUserId || 'SYSTEM',
+            userName: 'কোষাধ্যক্ষ',
+            dateTime: new Date().toISOString(),
+            module: 'WELFARE',
+            action: 'PAYMENT',
+            recordId: welfareTx.fundId,
+            newValue: `${params.fundType} অনুদান প্রদান: ৳${params.amount} - ${params.beneficiary}`,
+            remarks: params.reason
+          },
+          ...(db.auditLogs || [])
+        ]
+      }
+    };
+  }
+
+  static postInvestmentProject(
+    db: AppDatabaseState,
+    params: {
+      projectName: string;
+      projectType: string;
+      amount: number;
+      expectedReturnRate: number;
+      manager: string;
+      paymentMethod?: import('../types').PaymentMethod;
+      description: string;
+    }
+  ): { success: boolean; message: string; updatedDb?: AppDatabaseState } {
+    const investmentId = `INV-${Date.now()}`;
+    const newInvestment = {
+      investmentId,
+      investmentDate: new Date().toISOString().split('T')[0],
+      investmentType: params.projectType,
+      partner: params.manager,
+      description: params.projectName + ' - ' + params.description,
+      investmentAmount: params.amount,
+      originalPrincipal: params.amount,
+      returnedPrincipal: 0,
+      outstandingPrincipal: params.amount,
+      expectedReturn: params.amount + (params.amount * params.expectedReturnRate) / 100,
+      actualReturn: 0,
+      profit: 0,
+      loss: 0,
+      roiPercentage: params.expectedReturnRate,
+      maturityDate: '',
+      status: 'PENDING_APPROVAL' as any,
+      createdAt: new Date().toISOString()
+    };
+
+    return {
+      success: true,
+      message: 'বিনিয়োগ প্রস্তাব সফলভাবে এন্ট্রি করা হয়েছে এবং অনুমোদনের অপেক্ষায় আছে।',
+      updatedDb: {
+        ...db,
+        investments: [newInvestment, ...(db.investments || [])]
+      }
+    };
+  }
+
+  static approveInvestment(
+    db: AppDatabaseState,
+    params: {
+      projectId: string;
+      approvedAmount: number;
+      approvedBy: string;
+      remarks?: string;
+    }
+  ): { success: boolean; message: string; updatedDb?: AppDatabaseState } {
+    const invIndex = (db.investments || []).findIndex(i => i.investmentId === params.projectId);
+    if (invIndex === -1) return { success: false, message: 'Investment not found' };
+    
+    const inv = db.investments[invIndex];
+    if (inv.status === 'APPROVED') return { success: false, message: 'This investment is already approved.' };
+    if (inv.status !== 'PENDING_APPROVAL' && inv.status !== ('PROPOSED' as any)) return { success: false, message: 'Investment must be pending approval.' };
+    if (params.approvedAmount <= 0) return { success: false, message: 'Approved amount must be greater than 0.' };
+
+    const updatedInv = {
+      ...inv,
+      status: 'APPROVED' as any,
+      investmentAmount: params.approvedAmount,
+      originalPrincipal: params.approvedAmount,
+      outstandingPrincipal: params.approvedAmount,
+      expectedReturn: params.approvedAmount + (params.approvedAmount * inv.roiPercentage) / 100,
+      approvedAmount: params.approvedAmount,
+      approvedBy: params.approvedBy,
+      approvalDate: new Date().toISOString(),
+      approvalRemarks: params.remarks
+    };
+
+    const newInvestments = [...db.investments];
+    newInvestments[invIndex] = updatedInv;
+
+    return {
+      success: true,
+      message: 'বিনিয়োগ সফলভাবে অনুমোদন করা হয়েছে।',
+      updatedDb: {
+        ...db,
+        investments: newInvestments,
+        auditLogs: [
+          {
+            id: Date.now().toString(),
+            date: new Date().toISOString(),
+            action: 'INVESTMENT_APPROVED',
+            performedBy: params.approvedBy,
+            details: `Approved investment ${params.projectId} for ${params.approvedAmount}`,
+            ipAddress: '127.0.0.1',
+          },
+          ...(db.auditLogs || [])
+        ]
+      }
+    };
+  }
+
+  static executeInvestment(
+    db: AppDatabaseState,
+    params: {
+      projectId: string;
+      paymentMethod: import('../types').PaymentMethod;
+    }
+  ): { success: boolean; message: string; updatedDb?: AppDatabaseState } {
+    const invIndex = (db.investments || []).findIndex(i => i.investmentId === params.projectId);
+    if (invIndex === -1) return { success: false, message: 'Investment not found' };
+    
+    const inv = db.investments[invIndex];
+    if (inv.status === 'ACTIVE') return { success: false, message: 'This investment has already been executed.' };
+    if (inv.status !== 'APPROVED') return { success: false, message: 'Investment must be approved before execution.' };
+
+    const amount = inv.originalPrincipal || inv.investmentAmount;
+
+    const updatedInv = {
+      ...inv,
+      status: 'ACTIVE' as any
+    };
+
+    const newInvestments = [...db.investments];
+    newInvestments[invIndex] = updatedInv;
+
+    let updatedCash = [...db.cashTransactions];
+    let updatedBank = [...db.bankTransactions];
+
+    if (params.paymentMethod === 'Cash') {
+      const currentCash = this.getCashBalance(db.cashTransactions);
+      updatedCash.push({
+        transactionId: `CSH-${Date.now()}`,
+        date: new Date().toISOString().split('T')[0],
+        voucherNo: inv.investmentId,
+        description: `বিনিয়োগ: ${inv.description || inv.partner}`,
+        accountId: '1500',
+        accountName: 'বিনিয়োগ হিসাব',
+        cashIn: 0,
+        cashOut: amount,
+        balance: currentCash - amount,
+        reference: inv.investmentId,
+        sourceType: 'MANUAL',
+        sourceId: inv.investmentId,
+        createdBy: 'SYSTEM', 
+        createdAt: new Date().toISOString()
+      });
+    } else {
+      const currentBank = this.getBankBalance(db.bankTransactions);
+      updatedBank.push({
+        transactionId: `BNK-${Date.now()}`,
+        date: new Date().toISOString().split('T')[0],
+        description: `বিনিয়োগ: ${inv.description || inv.partner}`,
+        bankName: db.settings.bankName,
+        accountNumberMasked: db.settings.bankAccountMask,
+        deposit: 0,
+        withdrawal: amount,
+        transactionNo: inv.investmentId,
+        balance: currentBank - amount,
+        reference: inv.investmentId,
+        sourceType: 'MANUAL',
+        sourceId: inv.investmentId,
+        
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    return {
+      success: true,
+      message: 'বিনিয়োগ সফলভাবে প্রদান করা হয়েছে।',
+      updatedDb: {
+        ...db,
+        investments: newInvestments,
+        cashTransactions: updatedCash,
+        bankTransactions: updatedBank,
+        auditLogs: [
+          {
+            id: Date.now().toString(),
+            date: new Date().toISOString(),
+            action: 'INVESTMENT_EXECUTED',
+            performedBy: 'SYSTEM',
+            details: `Executed investment ${params.projectId} for ${amount} via ${params.paymentMethod}`,
+            ipAddress: '127.0.0.1',
+          },
+          ...(db.auditLogs || [])
+        ]
+      }
+    };
+  }nt,
+      sourceType: 'WELFARE',
+      sourceId: welfareTx.fundId,
+      createdBy: 'কোষাধ্যক্ষ',
+      createdAt: new Date().toISOString()
+    };
+
+    return {
+      success: true,
+      message: `${params.fundType} তহবিল অনুদান ভাউচার ${voucherNo} সফলভাবে প্রদান করা হয়েছে!`,
+      updatedDb: {
+        ...db,
+        welfareTransactions: [welfareTx, ...db.welfareTransactions],
+        cashTransactions: [...db.cashTransactions, cashEntry],
+        auditLogs: [
+          {
+            auditId: `AUD-${Date.now()}`,
+            userId: db.activeUserId || 'SYSTEM',
+            userName: 'কোষাধ্যক্ষ',
+            dateTime: new Date().toISOString(),
+            module: 'WELFARE',
+            action: 'POST',
+            recordId: voucherNo,
+            newValue: `তহবিল: ${params.fundType}, প্রাপক: ${params.beneficiary}, পরিমাণ: ৳${params.amount}`,
+            remarks: 'কল্যাণ/জরুরী তহবিল অনুদান অনুমোদন ও প্রদান'
+          },
+          ...db.auditLogs
+        ]
+      }
+    };
+  }
+
+  // Reverse Transaction Safely
+  static reverseCollection(
+    db: AppDatabaseState,
+    receiptNo: string,
+    reason: string,
+    userName: string
+  ): { success: boolean; message: string; updatedDb?: AppDatabaseState } {
+    const matchingColls = (db.collections || []).filter(c => c.receiptNo === receiptNo && c.status === 'ACTIVE');
+    if (matchingColls.length === 0) return { success: false, message: 'সক্রিয় রসিদ পাওয়া যায়নি!' };
+
+    const coll = matchingColls[0];
+    const totalPaidAmount = matchingColls.reduce((sum, c) => sum + c.paidAmount, 0);
+    const dateStr = new Date().toISOString().split('T')[0];
+
+    // Mark collection reversed
+    const updatedCollections = (db.collections || []).map(c =>
+      c.receiptNo === receiptNo ? { ...c, status: 'REVERSED' as const, reversedReason: reason } : c
+    );
+
+    // Add reversing ledger entry
+    const currentBalance = this.getMemberRunningBalance(db.memberLedgers, coll.memberId);
+    const ledgerEntry: MemberLedgerEntry = {
+      ledgerId: `LED-${Date.now()}`,
+      memberId: coll.memberId,
+      date: dateStr,
+      voucherNo: `REV-${receiptNo}`,
+      receiptNo,
+      description: `চাঁদা রসিদ রিভার্সাল (${receiptNo}${matchingColls.length > 1 ? ` - ${matchingColls.length} মাস` : ''}): ${reason}`,
+      transactionType: 'REVERSAL',
+      debit: totalPaidAmount,
+      credit: 0,
+      balance: currentBalance - totalPaidAmount,
+      reference: receiptNo,
+      sourceType: 'REVERSAL',

@@ -1,0 +1,3 @@
+LOG: [vite] connecting...
+LOG: [vite] connected.
+LOG: %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
