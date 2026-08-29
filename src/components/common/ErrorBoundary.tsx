@@ -26,7 +26,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error caught by ErrorBoundary:', error, errorInfo);
+    console.group('🔴 FATAL RENDERING ERROR (Inner Boundary)');
+    console.error('Error Message:', error.message);
+    console.error('Stack Trace:', error.stack);
+    console.error('Component Stack:', errorInfo.componentStack);
+    console.groupEnd();
     this.setState({ error, errorInfo });
   }
 
