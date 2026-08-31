@@ -31,6 +31,7 @@ import {
   Building2
 } from 'lucide-react';
 import { MemberProfileModal } from './MemberProfileModal';
+import { AJFLogo } from '../common/AJFLogo';
 
 interface MemberLedgerViewProps {
   initialMemberId?: string;
@@ -1005,11 +1006,14 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
         
         {/* Institutional Header */}
         <div className="text-center border-b-2 border-slate-800 pb-4 space-y-1">
+          <div className="flex justify-center mb-2">
+            <AJFLogo variant="print" className="w-14 h-14" />
+          </div>
           <h1 className="text-2xl font-black tracking-wide text-slate-950 uppercase">
-            AJ Welfare Society
+            {db.settings?.orgName || 'AJ Welfare Society'}
           </h1>
           <h2 className="text-lg font-bold text-slate-800">
-            আটারগাঁও জাগরণী ক্লাব ও এজে ওয়েলফেয়ার সোসাইটি
+            {db.settings?.orgNameBangla || 'তাতরগাঁও জাগরণী ক্লাব ব্যবসায়িক তহবিল ও কল্যাণ সমিতি'}
           </h2>
           <p className="text-xs text-slate-600">
             {db.settings?.address || (db.settings as any)?.addressBangla || 'আটারগাঁও, ডাকঘর: আটারগাঁও, উপজেলা: রাণীশংকৈল, জেলা: ঠাকুরগাঁও'}

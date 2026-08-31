@@ -1,0 +1,267 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600">
+  <defs>
+    <!-- Filters -->
+    <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <filter id="innerGlow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="shadowDiff"/>
+      <feFlood flood-color="#fff" flood-opacity="0.3"/>
+      <feComposite in2="shadowDiff" operator="in"/>
+      <feComposite in2="SourceGraphic" operator="over"/>
+    </filter>
+    <filter id="goldEmboss">
+      <feDropShadow dx="1" dy="2" stdDeviation="1.5" flood-color="#3d2200" flood-opacity="0.7"/>
+    </filter>
+
+    <!-- Gradients -->
+    <!-- Outer Blue Disc Gradient -->
+    <radialGradient id="outerBlueGrad" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#144fb8"/>
+      <stop offset="45%" stop-color="#0e378f"/>
+      <stop offset="80%" stop-color="#072263"/>
+      <stop offset="100%" stop-color="#04143d"/>
+    </radialGradient>
+
+    <!-- Inner Shield Blue Gradient -->
+    <radialGradient id="innerBlueGrad" cx="50%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#1b63d9"/>
+      <stop offset="50%" stop-color="#1042a0"/>
+      <stop offset="90%" stop-color="#0a296e"/>
+      <stop offset="100%" stop-color="#061c4d"/>
+    </radialGradient>
+
+    <!-- Gold Metallic Gradients -->
+    <linearGradient id="goldRimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe885"/>
+      <stop offset="20%" stop-color="#e2ab2c"/>
+      <stop offset="45%" stop-color="#fff6b3"/>
+      <stop offset="60%" stop-color="#b67a14"/>
+      <stop offset="85%" stop-color="#f5d058"/>
+      <stop offset="100%" stop-color="#8a5303"/>
+    </linearGradient>
+
+    <linearGradient id="goldBevelGrad" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8f5904"/>
+      <stop offset="25%" stop-color="#ffea94"/>
+      <stop offset="50%" stop-color="#be841a"/>
+      <stop offset="75%" stop-color="#fff19e"/>
+      <stop offset="100%" stop-color="#693b00"/>
+    </linearGradient>
+
+    <linearGradient id="goldHandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff3ad"/>
+      <stop offset="30%" stop-color="#f7c543"/>
+      <stop offset="70%" stop-color="#c98a1a"/>
+      <stop offset="100%" stop-color="#8a5505"/>
+    </linearGradient>
+
+    <linearGradient id="goldRibbonGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fff1a1"/>
+      <stop offset="35%" stop-color="#e8b131"/>
+      <stop offset="70%" stop-color="#c28315"/>
+      <stop offset="100%" stop-color="#ffe885"/>
+    </linearGradient>
+
+    <linearGradient id="ribbonDarkFold" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#542e00"/>
+      <stop offset="100%" stop-color="#8a5303"/>
+    </linearGradient>
+
+    <!-- Green Leaves Gradient -->
+    <linearGradient id="leafGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7be834"/>
+      <stop offset="40%" stop-color="#3eb81a"/>
+      <stop offset="85%" stop-color="#196907"/>
+      <stop offset="100%" stop-color="#0e4503"/>
+    </linearGradient>
+
+    <!-- Text Curved Paths -->
+    <!-- Arc for Bengali Organization Name (approx 210px radius) -->
+    <path id="textArcBengali" d="M 75,300 A 225,225 0 1,1 525,300" fill="none"/>
+    <!-- Arc for ESTD text at bottom -->
+    <path id="textArcEstd" d="M 180,480 A 240,240 0 0,0 420,480" fill="none"/>
+    <!-- Arc for Ribbon Banner -->
+    <path id="ribbonTextArc" d="M 150,460 Q 300,430 450,460" fill="none"/>
+  </defs>
+
+  <!-- Base Circle & Shadows -->
+  <g filter="url(#dropShadow)">
+    <!-- Outer Thick Gold Rim -->
+    <circle cx="300" cy="300" r="285" fill="url(#goldRimGrad)" stroke="#613700" stroke-width="2"/>
+    <!-- Inner Groove Gold Ring -->
+    <circle cx="300" cy="300" r="274" fill="#5c3400" />
+    <circle cx="300" cy="300" r="270" fill="url(#goldBevelGrad)" />
+    <!-- Royal Blue Main Background -->
+    <circle cx="300" cy="300" r="260" fill="url(#outerBlueGrad)" stroke="url(#goldRimGrad)" stroke-width="4"/>
+    
+    <!-- Concentric Decorative Thin Gold Rings -->
+    <circle cx="300" cy="300" r="256" fill="none" stroke="#e8b131" stroke-width="1.5" stroke-opacity="0.8"/>
+    <circle cx="300" cy="300" r="172" fill="none" stroke="url(#goldRimGrad)" stroke-width="3.5" filter="url(#softShadow)"/>
+    <circle cx="300" cy="300" r="166" fill="none" stroke="#663b00" stroke-width="1"/>
+  </g>
+
+  <!-- Outer Ring Bengali Text -->
+  <g filter="url(#goldEmboss)">
+    <text font-family="'Kalpurush', 'SolaimanLipi', 'Noto Sans Bengali', 'Siyam Rupali', 'Arial', sans-serif" font-size="28.5" font-weight="900" fill="url(#goldRimGrad)" letter-spacing="1.5px">
+      <textPath href="#textArcBengali" startOffset="50%" text-anchor="middle">
+        তাতরগাঁও জাগরণী ক্লাব ব্যবসায়িক তহবিল ও কল্যাণ সমিতি
+      </textPath>
+    </text>
+  </g>
+
+  <!-- Top Star and Cog Gear -->
+  <g filter="url(#softShadow)">
+    <!-- Golden Star at Top -->
+    <polygon points="300,108 308,130 331,130 312,143 319,165 300,151 281,165 288,143 269,130 292,130" fill="url(#goldRimGrad)" stroke="#593100" stroke-width="1.5"/>
+    
+    <!-- Cogwheel / Gear Behind Shield (Top Right) -->
+    <g transform="translate(365, 175) scale(0.65)">
+      <circle cx="0" cy="0" r="42" fill="url(#goldRimGrad)" stroke="#593100" stroke-width="2"/>
+      <circle cx="0" cy="0" r="22" fill="#0c2d73" stroke="url(#goldRimGrad)" stroke-width="3"/>
+      <!-- Gear Teeth -->
+      <g fill="url(#goldRimGrad)" stroke="#593100" stroke-width="1.5">
+        <rect x="-8" y="-55" width="16" height="18" rx="3"/>
+        <rect x="-8" y="37" width="16" height="18" rx="3"/>
+        <rect x="-55" y="-8" width="18" height="16" rx="3"/>
+        <rect x="37" y="-8" width="18" height="16" rx="3"/>
+        <rect x="-40" y="-40" width="16" height="16" rx="3" transform="rotate(45)"/>
+        <rect x="24" y="-40" width="16" height="16" rx="3" transform="rotate(45)"/>
+        <rect x="-40" y="24" width="16" height="16" rx="3" transform="rotate(45)"/>
+        <rect x="24" y="24" width="16" height="16" rx="3" transform="rotate(45)"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Center Shield -->
+  <g filter="url(#dropShadow)">
+    <!-- Shield Outer Gold Border -->
+    <path d="M 300,155 Q 385,170 395,245 C 395,335 300,395 300,410 C 300,395 205,335 205,245 Q 215,170 300,155 Z" fill="url(#goldRimGrad)" stroke="#542e00" stroke-width="2"/>
+    
+    <!-- Shield Inner Bevel -->
+    <path d="M 300,165 Q 375,178 383,245 C 383,325 300,380 300,395 C 300,380 217,325 217,245 Q 225,178 300,165 Z" fill="url(#innerBlueGrad)" stroke="url(#goldBevelGrad)" stroke-width="3.5"/>
+    
+    <!-- Shield Subtle Inner Line -->
+    <path d="M 300,172 Q 365,185 372,245 C 372,315 300,368 300,380 C 300,368 228,315 228,245 Q 235,185 300,172 Z" fill="none" stroke="#2575fc" stroke-width="1.5" opacity="0.6"/>
+  </g>
+
+  <!-- Clasped Handshake in Gold (Inside Shield) -->
+  <g filter="url(#goldEmboss)" transform="translate(300, 260) scale(0.95)">
+    <!-- Left Hand / Arm Sleeve Cuff -->
+    <path d="M -90,-25 L -55,-40 L -45,-15 L -80,0 Z" fill="url(#goldBevelGrad)" stroke="#593100" stroke-width="1.5"/>
+    <path d="M -55,-40 L -35,-20 L -48,-5 L -68,-25 Z" fill="url(#goldHandGrad)" stroke="#593100" stroke-width="1.5"/>
+    
+    <!-- Right Hand / Arm Sleeve Cuff -->
+    <path d="M 90,-25 L 55,-40 L 45,-15 L 80,0 Z" fill="url(#goldBevelGrad)" stroke="#593100" stroke-width="1.5"/>
+    <path d="M 55,-40 L 35,-20 L 48,-5 L 68,-25 Z" fill="url(#goldHandGrad)" stroke="#593100" stroke-width="1.5"/>
+
+    <!-- Interlocking Fingers and Clasp -->
+    <!-- Left Hand Base & Thumb -->
+    <path d="M -45,-15 C -35,-28 -15,-32 5,-22 C 12,-18 15,-10 10,-2 C 5,6 -10,12 -30,8 Z" fill="url(#goldHandGrad)" stroke="#593100" stroke-width="2"/>
+    
+    <!-- Right Hand Base & Grip -->
+    <path d="M 45,-15 C 35,-28 15,-32 -5,-22 C -12,-18 -15,-10 -10,-2 C -5,6 10,12 30,8 Z" fill="url(#goldHandGrad)" stroke="#593100" stroke-width="2"/>
+
+    <!-- Four Folded Fingers Left-to-Right -->
+    <g fill="url(#goldRimGrad)" stroke="#593100" stroke-width="2">
+      <!-- Finger 1 -->
+      <path d="M -22,-8 L 22,-8 C 28,-8 28,2 22,2 L -22,2 C -28,2 -28,-8 -22,-8 Z"/>
+      <!-- Finger 2 -->
+      <path d="M -28,4 L 16,4 C 22,4 22,14 16,14 L -28,14 C -34,14 -34,4 -28,4 Z"/>
+      <!-- Finger 3 -->
+      <path d="M -34,16 L 10,16 C 16,16 16,26 10,26 L -34,26 C -40,26 -40,16 -34,16 Z"/>
+      <!-- Finger 4 -->
+      <path d="M -40,28 L 4,28 C 10,28 10,38 4,38 L -40,38 C -46,38 -46,28 -40,28 Z"/>
+    </g>
+  </g>
+
+  <!-- Green Laurel Branches (Flanking Left & Right) -->
+  <g filter="url(#dropShadow)">
+    <!-- Golden Branch Stems -->
+    <path d="M 235,385 C 190,360 160,290 170,230" fill="none" stroke="url(#goldRimGrad)" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M 365,385 C 410,360 440,290 430,230" fill="none" stroke="url(#goldRimGrad)" stroke-width="4.5" stroke-linecap="round"/>
+
+    <!-- Left Leaves -->
+    <g fill="url(#leafGrad)" stroke="#0c3d02" stroke-width="1.5">
+      <!-- Leaf 1 (Top Left) -->
+      <path d="M 170,230 C 160,205 185,190 195,215 C 190,230 180,235 170,230 Z"/>
+      <!-- Leaf 2 -->
+      <path d="M 165,260 C 135,250 145,225 175,245 C 170,255 165,260 165,260 Z"/>
+      <!-- Leaf 3 -->
+      <path d="M 175,280 C 150,295 140,270 170,265 C 175,270 175,280 175,280 Z"/>
+      <!-- Leaf 4 -->
+      <path d="M 185,315 C 155,320 155,290 185,295 C 185,305 185,315 185,315 Z"/>
+      <!-- Leaf 5 -->
+      <path d="M 205,345 C 175,360 170,330 200,325 C 205,335 205,345 205,345 Z"/>
+      <!-- Leaf 6 (Bottom Left) -->
+      <path d="M 235,370 C 205,395 195,365 225,355 C 230,360 235,370 235,370 Z"/>
+    </g>
+
+    <!-- Right Leaves -->
+    <g fill="url(#leafGrad)" stroke="#0c3d02" stroke-width="1.5">
+      <!-- Leaf 1 (Top Right) -->
+      <path d="M 430,230 C 440,205 415,190 405,215 C 410,230 420,235 430,230 Z"/>
+      <!-- Leaf 2 -->
+      <path d="M 435,260 C 465,250 455,225 425,245 C 430,255 435,260 435,260 Z"/>
+      <!-- Leaf 3 -->
+      <path d="M 425,280 C 450,295 460,270 430,265 C 425,270 425,280 425,280 Z"/>
+      <!-- Leaf 4 -->
+      <path d="M 415,315 C 445,320 445,290 415,295 C 415,305 415,315 415,315 Z"/>
+      <!-- Leaf 5 -->
+      <path d="M 395,345 C 425,360 430,330 400,325 C 395,335 395,345 395,345 Z"/>
+      <!-- Leaf 6 (Bottom Right) -->
+      <path d="M 365,370 C 395,395 405,365 375,355 C 370,360 365,370 365,370 Z"/>
+    </g>
+  </g>
+
+  <!-- Golden Diya / Pradip Flame Lamp at Shield Base -->
+  <g filter="url(#goldEmboss)">
+    <!-- Diya Bowl -->
+    <path d="M 280,388 Q 300,402 320,388 Q 325,398 300,403 Q 275,398 280,388 Z" fill="url(#goldRimGrad)" stroke="#593100" stroke-width="1.5"/>
+    <!-- Flame / Light -->
+    <path d="M 300,365 C 293,375 293,385 300,390 C 307,385 307,375 300,365 Z" fill="#ffec3d" stroke="#f59e0b" stroke-width="1"/>
+    <circle cx="300" cy="380" r="3" fill="#ff4d4f" />
+  </g>
+
+  <!-- Golden 3D Ribbon Banner Across Lower Section -->
+  <g filter="url(#dropShadow)">
+    <!-- Ribbon Tail Left Fold (Under) -->
+    <polygon points="90,445 130,425 130,465 90,485 110,465" fill="url(#ribbonDarkFold)" stroke="#593100" stroke-width="1.5"/>
+    <polygon points="120,428 165,420 165,475 125,482" fill="url(#goldBevelGrad)" stroke="#593100" stroke-width="1.5"/>
+
+    <!-- Ribbon Tail Right Fold (Under) -->
+    <polygon points="510,445 470,425 470,465 510,485 490,465" fill="url(#ribbonDarkFold)" stroke="#593100" stroke-width="1.5"/>
+    <polygon points="480,428 435,420 435,475 475,482" fill="url(#goldBevelGrad)" stroke="#593100" stroke-width="1.5"/>
+
+    <!-- Main Front Ribbon Body -->
+    <path d="M 140,430 Q 300,395 460,430 L 460,485 Q 300,450 140,485 Z" fill="url(#goldRibbonGrad)" stroke="#542e00" stroke-width="2.5"/>
+    <path d="M 143,434 Q 300,400 457,434" fill="none" stroke="#fff8c4" stroke-width="1.5" opacity="0.8"/>
+    <path d="M 143,480 Q 300,446 457,480" fill="none" stroke="#8a5303" stroke-width="1.5" opacity="0.8"/>
+
+    <!-- Bengali Text on Ribbon: ঐক্য • প্রগতি • কল্যাণ -->
+    <g filter="url(#goldEmboss)">
+      <text font-family="'Kalpurush', 'SolaimanLipi', 'Noto Sans Bengali', 'Siyam Rupali', 'Arial', sans-serif" font-size="29" font-weight="900" fill="#2d1700" letter-spacing="1px">
+        <textPath href="#ribbonTextArc" startOffset="50%" text-anchor="middle">
+          ঐক্য • প্রগতি • কল্যাণ
+        </textPath>
+      </text>
+    </g>
+  </g>
+
+  <!-- Bottom ESTD Text & Decorative Flank Lines -->
+  <g filter="url(#goldEmboss)">
+    <!-- Left Curved Line -->
+    <path d="M 180,518 Q 230,528 250,528" fill="none" stroke="url(#goldRimGrad)" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Right Curved Line -->
+    <path d="M 350,528 Q 370,528 420,518" fill="none" stroke="url(#goldRimGrad)" stroke-width="2.5" stroke-linecap="round"/>
+
+    <!-- ESTD Text -->
+    <text x="300" y="534" text-anchor="middle" font-family="'Kalpurush', 'SolaimanLipi', 'Noto Sans Bengali', 'Arial', sans-serif" font-size="22" font-weight="900" fill="url(#goldRimGrad)" letter-spacing="2px">
+      ESTD. ০১-০৬-২০২৬
+    </text>
+  </g>
+</svg>

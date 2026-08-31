@@ -27,6 +27,7 @@ import {
   Check,
   AlertTriangle
 } from 'lucide-react';
+import { AJFLogo } from '../common/AJFLogo';
 
 export const ContraReport: React.FC = () => {
   const {
@@ -1239,8 +1240,11 @@ export const ContraReport: React.FC = () => {
             <div id="printable-single-voucher" className="p-6 bg-white border border-slate-300 rounded-xl space-y-5 text-slate-900">
               {/* Org Header */}
               <div className="text-center border-b pb-4 space-y-1">
+                <div className="flex justify-center mb-1">
+                  <AJFLogo variant="receipt" className="w-10 h-10" />
+                </div>
                 <h2 className="text-lg font-black text-emerald-900 tracking-wide">
-                  {db.settings?.orgNameBangla || db.settings?.orgName || 'সংস্থা/সমিতি'}
+                  {db.settings?.orgNameBangla || db.settings?.orgName || 'তাতরগাঁও জাগরণী ক্লাব ব্যবসায়িক তহবিল ও কল্যাণ সমিতি'}
                 </h2>
                 <p className="text-xs text-slate-600">{db.settings?.address || 'বাংলাদেশ'}</p>
                 <div className="inline-block px-3 py-1 bg-slate-100 border border-slate-300 rounded-full font-bold text-xs mt-2 uppercase tracking-wider">

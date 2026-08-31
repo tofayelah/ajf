@@ -13,6 +13,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { UserRole } from '../../types';
+import { AJFLogo } from '../common/AJFLogo';
 
 interface TopAppBarProps {
   onOpenDrawer: () => void;
@@ -83,9 +84,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenDrawer }) => {
             onClick={() => navigateTo('DASHBOARD')}
             className="cursor-pointer select-none flex items-center gap-2"
           >
-            <div className="w-9 h-9 rounded-xl bg-white text-emerald-800 flex items-center justify-center font-black text-lg shadow-sm">
-              AJ
-            </div>
+            <AJFLogo variant="header" className="w-9 h-9" />
             <div>
               <div className="flex items-center gap-1.5">
                 <h1 className="font-bold text-sm sm:text-base leading-tight tracking-tight">

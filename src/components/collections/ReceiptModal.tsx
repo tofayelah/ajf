@@ -12,6 +12,7 @@ import {
   Share2,
   FileText
 } from 'lucide-react';
+import { AJFLogo } from '../common/AJFLogo';
 
 interface ReceiptModalProps {
   receiptNo: string;
@@ -150,9 +151,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receiptNo, isOpen, o
             {/* Receipt Header */}
             <div className="text-center border-b-2 border-emerald-800 pb-3 mb-3">
               <div className="flex items-center justify-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-lg bg-emerald-800 text-white flex items-center justify-center font-black text-sm">
-                  AJ
-                </div>
+                <AJFLogo variant="receipt" className="w-8 h-8" />
                 <h2 className="font-black text-sm sm:text-base tracking-tight text-emerald-900">
                   {db.settings.orgNameBangla}
                 </h2>

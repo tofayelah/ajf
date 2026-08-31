@@ -39,6 +39,7 @@ export const DEFAULT_SETTINGS: AppSetting = {
   orgName: "Atorgao Jagoroni Club Business Fund & Welfare Society",
   orgNameBangla: "আতরগাঁও জাগরণী ক্লাব ব্যবসায়িক তহবিল ও কল্যাণ সমিতি",
   orgShortName: "AJ Welfare Society",
+  orgLogoUrl: "/logo.png",
   slogan: "উন্নয়নের পথে, মানবতার সাথে",
   sloganEnglish: "Towards Development, With Humanity",
   address: "Atargaon, Bajitpur, Kishoreganj, Bangladesh",

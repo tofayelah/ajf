@@ -23,6 +23,7 @@ import { GeneralLedgerReport } from './GeneralLedgerReport';
 import { MemberFinancialStatementReport } from './MemberFinancialStatementReport';
 import { LoanReportView } from './LoanReportView';
 import { SettlementReportsContainer } from './SettlementReportsContainer';
+import { AJFLogo } from '../common/AJFLogo';
 import { AuditTrailView } from './AuditTrailView';
 import { AuditExceptionsView, scanAuditExceptions } from './AuditExceptionsView';
 import { AccountingDiagnosticView } from './AccountingDiagnosticView';
@@ -1234,9 +1235,9 @@ export const ReportsCenterView: React.FC = () => {
       >
         {/* Official Society Header */}
         <div className="text-center border-b-2 border-emerald-900 pb-4 space-y-1 relative">
-          {db.settings.orgLogoUrl && (
-            <img src={db.settings.orgLogoUrl} alt="Logo" className="absolute left-0 top-0 w-16 h-16 object-contain" />
-          )}
+          <div className="absolute left-0 top-0">
+            <AJFLogo variant="print" className="w-14 h-14 sm:w-16 sm:h-16" />
+          </div>
           <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-900 bg-emerald-50 px-2.5 py-0.5 rounded">
             {db.settings.slogan || 'সামাজিক উন্নয়ন ও কল্যাণ'}
           </span>

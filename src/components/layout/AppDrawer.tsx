@@ -8,6 +8,7 @@ import {
   Building2, Users2, LineChart, Briefcase, ChevronDown, ChevronRight, UserMinus, ShieldCheck, CheckCircle, HeartHandshake
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { AJFLogo } from '../common/AJFLogo';
 
 interface AppDrawerProps {
   isOpen?: boolean;
@@ -138,12 +139,12 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ isOpen = false, onClose })
       `}>
         <div className={`flex items-center p-4 border-b border-slate-700/50 bg-slate-900/50 overflow-hidden h-16 shrink-0 ${!isDesktopExpanded ? 'lg:justify-center lg:px-2' : 'justify-between'}`}>
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0">
-              <Users className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 flex items-center justify-center shrink-0">
+              <AJFLogo variant="sidebar" className="w-8 h-8" />
             </div>
             <div className={`transition-opacity duration-200 overflow-hidden ${!isDesktopExpanded ? 'lg:opacity-0 lg:w-0' : 'opacity-100 w-auto'}`}>
               <h1 className="font-bold text-lg leading-tight tracking-tight whitespace-nowrap">AJF</h1>
-              <p className="text-[10px] text-emerald-400 font-medium uppercase tracking-wider whitespace-nowrap">Management System</p>
+              <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider whitespace-nowrap">MANAGEMENT SYSTEM</p>
             </div>
           </div>
           <button 

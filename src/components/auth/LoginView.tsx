@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { User, KeyRound, LogIn, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { AJFLogo } from '../common/AJFLogo';
 
 export const LoginView: React.FC = () => {
   const { login, language, db } = useApp();
@@ -31,45 +32,33 @@ export const LoginView: React.FC = () => {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 sm:p-6 select-none font-sans">
       <div className="w-full max-w-[420px] my-auto">
         {/* Main Login Card */}
-        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-200/90 p-6 sm:p-9 transition-all">
+        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-200/90 p-6 sm:p-8 transition-all">
           
           {/* Header Section */}
-          <div className="flex flex-col items-center justify-center text-center mb-7 sm:mb-8">
-            {/* AJF Official Logo */}
-            <div className="mb-4">
-              {db.settings.orgLogoUrl ? (
-                <img
-                  src={db.settings.orgLogoUrl}
-                  alt="AJF Logo"
-                  className="w-20 h-20 sm:w-22 sm:h-22 object-contain rounded-2xl shadow-sm"
-                />
+          <div className="flex flex-col items-center justify-center text-center mb-6">
+            {/* Official AJF Logo */}
+            <div className="mb-3 flex justify-center">
+              <AJFLogo variant="login" />
+            </div>
+
+            {/* Application Branding */}
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight leading-none">
+              AJF
+            </h1>
+            <p className="text-xs sm:text-sm font-bold text-emerald-800 tracking-widest uppercase mt-1">
+              MANAGEMENT SYSTEM
+            </p>
+
+            {/* Configured Society Name */}
+            <div className="text-xs sm:text-sm text-slate-600 font-medium mt-2 max-w-xs mx-auto leading-relaxed">
+              {isBangla ? (
+                <span>{db.settings.orgNameBangla || 'তাতরগাঁও জাগরণী ক্লাব ব্যবসায়িক তহবিল ও কল্যাণ সমিতি'}</span>
               ) : (
-                <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-2xl bg-gradient-to-tr from-emerald-800 via-emerald-700 to-teal-700 text-white flex flex-col items-center justify-center shadow-lg shadow-emerald-800/15 border border-emerald-600/30">
-                  <div className="flex items-center justify-center gap-0.5">
-                    <span className="font-black text-2xl tracking-tighter text-amber-300">AJF</span>
-                  </div>
-                  <span className="text-[9px] font-bold tracking-widest uppercase text-emerald-100 -mt-0.5">
-                    ESTD 2026
-                  </span>
-                </div>
+                <span>{db.settings.orgName}</span>
               )}
             </div>
 
-            {/* Organization Title */}
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 leading-snug tracking-tight mb-2">
-              {isBangla ? (
-                <>
-                  <span className="block font-black text-slate-900">আতরগাঁও জাগরণী ক্লাব</span>
-                  <span className="block text-emerald-800 text-base sm:text-lg font-bold mt-0.5">
-                    ব্যবসায়িক তহবিল ও কল্যাণ সমিতি
-                  </span>
-                </>
-              ) : (
-                db.settings.orgName
-              )}
-            </h1>
-
-            <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed">
+            <p className="text-[11px] sm:text-xs text-slate-400 font-normal mt-1">
               {isBangla ? 'সিস্টেমে প্রবেশ করতে লগইন করুন' : 'Login to access the system'}
             </p>
           </div>

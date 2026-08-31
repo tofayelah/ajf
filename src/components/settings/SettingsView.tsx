@@ -22,6 +22,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { AccountingMigrationView } from './AccountingMigrationView';
+import { AJFLogo } from '../common/AJFLogo';
 
 export const SettingsView: React.FC = () => {
   const appCtx = useApp();
@@ -225,11 +226,11 @@ export const SettingsView: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             <div className="md:col-span-2 flex flex-col sm:flex-row items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <div className="relative w-24 h-24 rounded-2xl border-4 border-white shadow-md overflow-hidden bg-slate-200 flex-shrink-0 flex items-center justify-center">
+              <div className="relative w-24 h-24 rounded-2xl border-4 border-white shadow-md overflow-hidden bg-white flex-shrink-0 flex items-center justify-center p-2">
                 {formData.orgLogoUrl ? (
                   <img src={formData.orgLogoUrl} alt="Logo" className="w-full h-full object-contain bg-white" />
                 ) : (
-                  <Building className="w-8 h-8 text-slate-400" />
+                  <AJFLogo variant="md" className="w-20 h-20" />
                 )}
               </div>
               <div className="flex-1 w-full space-y-2">
