@@ -297,7 +297,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition-all"
-                  placeholder={isBangla ? 'উদা: মো: রফিকুল ইসলাম' : 'e.g. John Doe'}
+                  placeholder={isBangla ? 'উদা: তোফায়েল আহমেদ' : 'e.g. Tofayel Ahmed'}
                   id="user-fullname-input"
                 />
               </div>
@@ -314,7 +314,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition-all"
-                placeholder="e.g. rafiqul_admin"
+                placeholder="e.g. tofayel_admin"
                 id="user-username-input"
               />
             </div>

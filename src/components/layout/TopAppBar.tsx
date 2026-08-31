@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { UserRole } from '../../types';
 import { AJFLogo } from '../common/AJFLogo';
+import { RuntimeStatus } from '../common/RuntimeStatus';
 
 interface TopAppBarProps {
   onOpenDrawer: () => void;
@@ -68,45 +69,44 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenDrawer }) => {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2">
-        {/* Left: Drawer Menu & Org Header */}
-        <div className="flex items-center gap-2 sm:gap-3">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2 sm:gap-4">
+        {/* Left Section: Navigation Toggle, Brand Identity & Dynamic Runtime Status */}
+        <div className="flex items-center justify-start gap-2 sm:gap-3 min-w-0 flex-1">
+          {/* Navigation Drawer Button (Mobile/Tablet) */}
           <button
             id="btn-app-drawer"
             onClick={onOpenDrawer}
-            className="p-2 rounded-lg hover:bg-emerald-700 active:bg-emerald-900 transition-colors focus:outline-none lg:hidden"
+            className="p-1.5 sm:p-2 rounded-lg hover:bg-emerald-700 active:bg-emerald-900 transition-colors focus:outline-none lg:hidden shrink-0"
             aria-label="Open Navigation Drawer"
           >
             <Menu className="w-5 h-5 text-white" />
           </button>
 
+          {/* Logo & Brand Info */}
           <div
             onClick={() => navigateTo('DASHBOARD')}
-            className="cursor-pointer select-none flex items-center gap-2"
+            className="cursor-pointer select-none flex items-center gap-2 sm:gap-2.5 min-w-0"
           >
-            <AJFLogo variant="header" className="w-9 h-9" />
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="font-bold text-sm sm:text-base leading-tight tracking-tight">
+            <AJFLogo variant="header" className="w-8 h-8 sm:w-9 sm:h-9 shrink-0" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <h1 className="font-bold text-xs sm:text-sm md:text-base leading-tight tracking-tight whitespace-nowrap">
                   {isBangla ? db.settings.orgShortName : 'AJ Welfare Society'}
                 </h1>
-                <span className="hidden md:inline-block text-[10px] bg-emerald-700 text-emerald-100 px-1.5 py-0.5 rounded-full border border-emerald-600">
+                <span className="hidden xl:inline-block text-[10px] bg-emerald-700/90 text-emerald-100 px-1.5 py-0.5 rounded-full border border-emerald-600/60 shrink-0">
                   {db.settings.location}
                 </span>
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] bg-emerald-950/60 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-600/40">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  {isBangla ? 'লাইভ প্রোডাকশন • অর্থবছর ২০২৬-২০২৭' : 'LIVE • FY 2026-2027'}
-                </span>
+                <RuntimeStatus className="shrink-0" hideTextOnMobile={true} />
               </div>
-              <p className="text-[11px] text-emerald-200 leading-none truncate max-w-[200px] sm:max-w-[320px]">
+              <p className="text-[10px] sm:text-[11px] text-emerald-200/90 leading-none truncate max-w-[140px] sm:max-w-[260px] md:max-w-[360px] mt-0.5">
                 "{isBangla ? db.settings.slogan : db.settings.sloganEnglish}"
               </p>
             </div>
           </div>
         </div>
 
-        {/* Right Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Right Section: Header Utilities & User Profile Actions */}
+        <div className="flex items-center justify-end gap-1.5 sm:gap-2.5 shrink-0">
           {/* Quick Search */}
           <button
             id="btn-global-search"

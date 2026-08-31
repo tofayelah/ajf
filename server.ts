@@ -92,6 +92,15 @@ function logAudit(db: any, req: any, action: string, module: string, remarks: st
   db.auditLogs = auditLogs;
 }
 
+// --- Health Check Route (Read-Only, Safe, No DB Mutations) ---
+app.get('/api/health', (req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    runtime: 'AJF Welfare ERP Runtime OK',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // --- Auth Routes ---
 app.post('/api/auth/login', async (req: any, res: any) => {
   const { username, password } = req.body;

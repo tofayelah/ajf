@@ -234,7 +234,7 @@ export const AdmissionWorkflowView: React.FC = () => {
                 <label className="block font-semibold text-slate-700 mb-1">সদস্যের পূর্ণ নাম *</label>
                 <input
                   type="text"
-                  placeholder="যেমন: মো: রফিকুল ইসলাম"
+                  placeholder="যেমন: তোফায়েল আহমেদ"
                   value={fullName}
                   onChange={e => setFullName(e.target.value)}
                   className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium"

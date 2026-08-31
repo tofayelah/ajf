@@ -321,7 +321,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="যেমন: মো: রফিকুল ইসলাম"
+                  placeholder="যেমন: তোফায়েল আহমেদ"
                   value={fullName}
                   onChange={e => setFullName(e.target.value)}
                   className="w-full border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs font-medium"
