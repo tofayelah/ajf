@@ -920,6 +920,54 @@ export function reconcileCashBookWithSubLedger(
  * of individual transactions (Admission, Capital, Collection, Loans, Expenses, Incomes)
  * for a user-specified date range.
  */
+function resolveCanonicalModule(c: any, db: any): string {
+  const sId = c.sourceId || '';
+  const sType = (c.sourceType || '').toUpperCase();
+  const vNo = c.voucherNo || '';
+  const desc = (c.description || c.reference || '').toLowerCase();
+  const acctId = c.accountId || c.accountCode || '';
+
+  // 1. Linked sourceId or voucherNo matching Subledgers
+  if (sId || vNo) {
+    if (db.admissions?.some((a: any) => a.admissionId === sId || (vNo && a.voucherNo === vNo) || a.admissionId === c.transactionId)) return 'ADMISSION';
+    if (db.capitalDeposits?.some((cap: any) => cap.depositId === sId || (vNo && cap.voucherNo === vNo) || cap.depositId === c.transactionId)) return 'CAPITAL';
+    if (db.collections?.some((col: any) => col.collectionId === sId || (vNo && col.receiptNo === vNo) || (vNo && col.voucherNo === vNo) || col.collectionId === c.transactionId)) return 'COLLECTION';
+    if (db.welfareTransactions?.some((w: any) => w.id === sId || (vNo && w.voucherNo === vNo) || w.id === c.transactionId)) return 'WELFARE';
+    if (db.expenses?.some((e: any) => e.expenseId === sId || (vNo && e.voucherNo === vNo) || e.expenseId === c.transactionId)) return 'EXPENSE';
+    if (db.incomes?.some((i: any) => i.incomeId === sId || (vNo && i.voucherNo === vNo) || i.incomeId === c.transactionId)) {
+       if (desc.includes('admission') || desc.includes('ভর্তি')) return 'ADMISSION';
+       return 'INCOME';
+    }
+    if (db.memberExits?.some((m: any) => m.id === sId || (vNo && m.voucherNo === vNo) || m.id === c.transactionId)) return 'MEMBER_SETTLEMENT';
+    if (db.contraTransactions?.some((con: any) => con.id === sId || (vNo && con.voucherNo === vNo) || con.id === c.transactionId)) return 'CONTRA';
+    if (db.loans?.some((l: any) => l.loanId === sId || l.loanId === c.transactionId)) return 'LOAN';
+    if (db.loanRepayments?.some((r: any) => r.repaymentId === sId || (vNo && r.receiptNo === vNo) || r.repaymentId === c.transactionId)) return 'LOAN';
+  }
+
+  // 2. Explicit canonical sourceType
+  if (sType === 'ADMISSION') return 'ADMISSION';
+  if (sType === 'CAPITAL') return 'CAPITAL';
+  if (sType === 'COLLECTION') return 'COLLECTION';
+  if (sType === 'WELFARE') return 'WELFARE';
+  if (sType === 'EXPENSE') return 'EXPENSE';
+  if (sType === 'MEMBER_SETTLEMENT' || sType === 'MEMBER_EXIT' || sType === 'CAPITAL_REFUND' || sType === 'SETTLEMENT') return 'MEMBER_SETTLEMENT';
+  if (sType === 'CONTRA' || (vNo && vNo.startsWith('CON-')) || (sId && sId.startsWith('CON-'))) return 'CONTRA';
+  if (sType.includes('LOAN')) return 'LOAN';
+
+  // 3. Legacy compatibility and account mapping fallback
+  if (acctId === '4000' || acctId === '4010' || (sType === 'INCOME' && (desc.includes('admission') || desc.includes('ভর্তি')))) return 'ADMISSION';
+  if (acctId === '3000' || desc.includes('মূলধন')) return 'CAPITAL';
+  if (acctId === '4020' || acctId === '4300' || desc.includes('চাঁদা') || desc.includes('বিলম্ব ফি')) return 'COLLECTION';
+  if (sType.includes('WELF') || sType.includes('EMERG') || (vNo && vNo.startsWith('WLF')) || desc.includes('welfare') || desc.includes('কল্যাণ') || acctId === '3001' || acctId === '5100' || acctId === '5110' || (acctId === '5020' && (desc.includes('অনুদান') || desc.includes('সহায়তা') || desc.includes('চিকিৎসা')))) return 'WELFARE';
+  if ((acctId === '5000' || acctId === '5010' || acctId === '5030' || acctId === '5040' || acctId === '5050' || acctId === '5200' || acctId === '5300') && !desc.includes('কল্যাণ')) return 'EXPENSE';
+  if (acctId === '1100' || desc.includes('ঋণ')) return 'LOAN';
+  if (desc.includes('member exit') || desc.includes('exit refund') || desc.includes('সদস্য প্রস্থান') || desc.includes('নিষ্পত্তি')) return 'MEMBER_SETTLEMENT';
+  if (desc.includes('নগদ জমা') || desc.includes('নগদ উত্তোলন') || desc.includes('contra')) return 'CONTRA';
+  if (sType === 'INCOME' || (acctId.startsWith('4') && acctId !== '4000' && acctId !== '4010' && acctId !== '4020')) return 'INCOME';
+
+  return 'OTHER';
+}
+
 export function validateCashMovementsReconciliation(
   db: AppDatabaseState,
   dateRange?: { startDate?: string; endDate?: string; tolerance?: number }
@@ -962,111 +1010,11 @@ export function validateCashMovementsReconciliation(
     totalCashBookIn += cIn;
     totalCashBookOut += cOut;
 
-    const sType = (c.sourceType || '').toUpperCase();
-    const desc = (c.description || c.reference || '').toLowerCase();
-    const acctId = c.accountId || c.accountCode || '';
-
-    // Structured matching: STRICT sourceType priority BEFORE account prefix fallback
-    if (
-      sType === 'CONTRA' ||
-      (c.voucherNo && c.voucherNo.startsWith('CON-')) ||
-      (c.sourceId && c.sourceId.startsWith('CON-')) ||
-      (c.transactionId && c.transactionId.includes('CON')) ||
-      desc.includes('নগদ জমা') ||
-      desc.includes('নগদ উত্তোলন') ||
-      desc.includes('contra')
-    ) {
-      cashBookByModule.CONTRA.in += cIn;
-      cashBookByModule.CONTRA.out += cOut;
-      cashBookByModule.CONTRA.count++;
-      cashBookByModule.CONTRA.txns.push(c);
-    } else if (
-      sType === 'WELFARE' ||
-      sType.includes('WELF') ||
-      sType.includes('EMERG') ||
-      (c.voucherNo && (c.voucherNo.startsWith('WLF') || c.voucherNo.startsWith('WELFARE'))) ||
-      (c.sourceId && (c.sourceId.startsWith('WLF') || c.sourceId.startsWith('WELFARE'))) ||
-      (c.reference && (c.reference.toUpperCase().includes('WELFARE') || c.reference.includes('কল্যাণ'))) ||
-      desc.includes('welfare') ||
-      desc.includes('কল্যাণ') ||
-      acctId === '3001' ||
-      acctId === '5100' ||
-      acctId === '5110' ||
-      (acctId === '5020' && (sType.includes('WELF') || desc.includes('অনুদান') || desc.includes('সহায়তা') || desc.includes('চিকিৎসা') || desc.includes('কল্যাণ')))
-    ) {
-      cashBookByModule.WELFARE.in += cIn;
-      cashBookByModule.WELFARE.out += cOut;
-      cashBookByModule.WELFARE.count++;
-      cashBookByModule.WELFARE.txns.push(c);
-    } else if (
-      sType === 'MEMBER_EXIT' ||
-      sType === 'SETTLEMENT' ||
-      sType === 'MEMBER_SETTLEMENT' ||
-      sType === 'CAPITAL_REFUND' ||
-      (c.voucherNo && c.voucherNo.startsWith('MREF')) ||
-      (c.sourceId && c.sourceId.startsWith('ER')) ||
-      (c.reference && (c.reference.startsWith('ER') || c.reference.startsWith('MREF'))) ||
-      desc.includes('member exit') ||
-      desc.includes('exit refund') ||
-      desc.includes('সদস্য প্রস্থান') ||
-      desc.includes('প্রস্থান') ||
-      desc.includes('settlement') ||
-      desc.includes('নিষ্পত্তি')
-    ) {
-      cashBookByModule.MEMBER_SETTLEMENT.in += cIn;
-      cashBookByModule.MEMBER_SETTLEMENT.out += cOut;
-      cashBookByModule.MEMBER_SETTLEMENT.count++;
-      cashBookByModule.MEMBER_SETTLEMENT.txns.push(c);
-    } else if (
-      sType === 'ADMISSION' ||
-      acctId === '4000' ||
-      acctId === '4010' ||
-      (sType === 'INCOME' && (desc.includes('admission') || desc.includes('ভর্তি')))
-    ) {
-      cashBookByModule.ADMISSION.in += cIn;
-      cashBookByModule.ADMISSION.out += cOut;
-      cashBookByModule.ADMISSION.count++;
-      cashBookByModule.ADMISSION.txns.push(c);
-    } else if (sType === 'CAPITAL' || acctId === '3000' || desc.includes('মূলধন')) {
-      cashBookByModule.CAPITAL.in += cIn;
-      cashBookByModule.CAPITAL.out += cOut;
-      cashBookByModule.CAPITAL.count++;
-      cashBookByModule.CAPITAL.txns.push(c);
-    } else if (sType === 'COLLECTION' || acctId === '4020' || acctId === '4300' || desc.includes('চাঁদা') || desc.includes('বিলম্ব ফি')) {
-      cashBookByModule.COLLECTION.in += cIn;
-      cashBookByModule.COLLECTION.out += cOut;
-      cashBookByModule.COLLECTION.count++;
-      cashBookByModule.COLLECTION.txns.push(c);
-    } else if (
-      sType.includes('LOAN') ||
-      acctId === '1100' ||
-      desc.includes('ঋণ')
-    ) {
-      cashBookByModule.LOAN.in += cIn;
-      cashBookByModule.LOAN.out += cOut;
-      cashBookByModule.LOAN.count++;
-      cashBookByModule.LOAN.txns.push(c);
-    } else if (
-      sType === 'EXPENSE' ||
-      (sType !== 'WELFARE' && !desc.includes('কল্যাণ') && !desc.includes('অনুদান') && (
-        acctId === '5000' || acctId === '5010' || acctId === '5030' || acctId === '5040' || acctId === '5050' || acctId === '5200' || acctId === '5300'
-      ))
-    ) {
-      cashBookByModule.EXPENSE.in += cIn;
-      cashBookByModule.EXPENSE.out += cOut;
-      cashBookByModule.EXPENSE.count++;
-      cashBookByModule.EXPENSE.txns.push(c);
-    } else if (sType === 'INCOME' || (acctId.startsWith('4') && acctId !== '4000' && acctId !== '4010' && acctId !== '4020')) {
-      cashBookByModule.INCOME.in += cIn;
-      cashBookByModule.INCOME.out += cOut;
-      cashBookByModule.INCOME.count++;
-      cashBookByModule.INCOME.txns.push(c);
-    } else {
-      cashBookByModule.OTHER.in += cIn;
-      cashBookByModule.OTHER.out += cOut;
-      cashBookByModule.OTHER.count++;
-      cashBookByModule.OTHER.txns.push(c);
-    }
+    const moduleKey = resolveCanonicalModule(c, db) as keyof typeof cashBookByModule;
+    cashBookByModule[moduleKey].in += cIn;
+    cashBookByModule[moduleKey].out += cOut;
+    cashBookByModule[moduleKey].count++;
+    cashBookByModule[moduleKey].txns.push(c as any);
   }
 
   // 2. Fetch Individual Sub-Ledger transactions in date range (Admission, Capital, Collection, Loans, etc.)

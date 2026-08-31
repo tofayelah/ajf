@@ -464,99 +464,23 @@ export async function loadDatabaseFromStorage(): Promise<AppDatabaseState> {
       prodDb = createFreshDatabase(false);
     }
     
-    // 2. Check offline local storage for any pending uncommitted records
-    let offlineDb: AppDatabaseState | null = null;
-    try {
-      const raw = await localforage.getItem<string>(STORAGE_KEY);
-      if (raw) {
-        offlineDb = JSON.parse(raw);
-      }
-    } catch (e) {
-      console.warn("Could not read localforage offline cache", e);
-    }
-
-    let hasUnsyncedChanges = false;
-    if (offlineDb) {
-      // Ensure prodDb arrays exist before attempting to push
-      prodDb.members = prodDb.members || [];
-      prodDb.admissions = prodDb.admissions || [];
-      prodDb.collections = prodDb.collections || [];
-      prodDb.capitalDeposits = prodDb.capitalDeposits || [];
-      prodDb.journalEntries = prodDb.journalEntries || [];
-      prodDb.journalLines = prodDb.journalLines || [];
-
-      // Reconcile members created locally that may not yet be in Supabase
-      if (Array.isArray(offlineDb.members) && offlineDb.members.length > 0) {
-        const prodMemberIds = new Set(prodDb.members.map(m => m.memberId));
-        for (const m of offlineDb.members) {
-          if (m && m.memberId && !prodMemberIds.has(m.memberId)) {
-            prodDb.members.push(m);
-            prodMemberIds.add(m.memberId);
-            hasUnsyncedChanges = true;
-          }
-        }
-      }
-
-      // Reconcile admissions
-      if (Array.isArray(offlineDb.admissions) && offlineDb.admissions.length > 0) {
-        const prodAdmIds = new Set((prodDb.admissions || []).map(a => a.admissionId));
-        for (const a of offlineDb.admissions) {
-          if (a && a.admissionId && !prodAdmIds.has(a.admissionId)) {
-            prodDb.admissions.push(a);
-            prodAdmIds.add(a.admissionId);
-            hasUnsyncedChanges = true;
-          }
-        }
-      }
-
-      // Reconcile collections
-      if (Array.isArray(offlineDb.collections) && offlineDb.collections.length > 0) {
-        const prodColIds = new Set((prodDb.collections || []).map(c => c.collectionId));
-        for (const c of offlineDb.collections) {
-          if (c && c.collectionId && !prodColIds.has(c.collectionId)) {
-            prodDb.collections.push(c);
-            prodColIds.add(c.collectionId);
-            hasUnsyncedChanges = true;
-          }
-        }
-      }
-
-      // Reconcile capital deposits
-      if (Array.isArray(offlineDb.capitalDeposits) && offlineDb.capitalDeposits.length > 0) {
-        const prodDepIds = new Set((prodDb.capitalDeposits || []).map(d => d.depositId));
-        for (const d of offlineDb.capitalDeposits) {
-          if (d && d.depositId && !prodDepIds.has(d.depositId)) {
-            prodDb.capitalDeposits.push(d);
-            prodDepIds.add(d.depositId);
-            hasUnsyncedChanges = true;
-          }
-        }
-      }
-
-      // Reconcile journal entries
-      if (Array.isArray(offlineDb.journalEntries) && offlineDb.journalEntries.length > 0) {
-        const prodJeIds = new Set((prodDb.journalEntries || []).map(j => j.id));
-        for (const j of offlineDb.journalEntries) {
-          if (j && j.id && !prodJeIds.has(j.id)) {
-            prodDb.journalEntries.push(j);
-            prodJeIds.add(j.id);
-            hasUnsyncedChanges = true;
-          }
-        }
-      }
-
-      // Reconcile journal lines
-      if (Array.isArray(offlineDb.journalLines) && offlineDb.journalLines.length > 0) {
-        const prodJlIds = new Set((prodDb.journalLines || []).map(jl => jl.id));
-        for (const jl of offlineDb.journalLines) {
-          if (jl && jl.id && !prodJlIds.has(jl.id)) {
-            prodDb.journalLines.push(jl);
-            prodJlIds.add(jl.id);
-            hasUnsyncedChanges = true;
-          }
-        }
-      }
-    }
+    // 2. Discard stale offline local storage for financial records
+    // Always trust the server authoritative database
+    
+    // Ensure prodDb arrays exist
+    prodDb.members = prodDb.members || [];
+    prodDb.admissions = prodDb.admissions || [];
+    prodDb.collections = prodDb.collections || [];
+    prodDb.capitalDeposits = prodDb.capitalDeposits || [];
+    prodDb.journalEntries = prodDb.journalEntries || [];
+    prodDb.journalLines = prodDb.journalLines || [];
+    prodDb.cashTransactions = prodDb.cashTransactions || [];
+    prodDb.expenses = prodDb.expenses || [];
+    prodDb.incomes = prodDb.incomes || [];
+    prodDb.welfareTransactions = prodDb.welfareTransactions || [];
+    prodDb.contraTransactions = prodDb.contraTransactions || [];
+    prodDb.memberExits = prodDb.memberExits || [];
+    prodDb.loans = prodDb.loans || [];
 
     // Repair/ensure integrity
     repairAccounts(prodDb.accounts);
@@ -566,7 +490,7 @@ export async function loadDatabaseFromStorage(): Promise<AppDatabaseState> {
     repairDuplicateCollections(prodDb);
 
     
-    // Keep localforage in sync as an offline mirror
+    // Overwrite localforage with the single source of truth from the server
     try {
       await localforage.setItem(STORAGE_KEY, JSON.stringify(prodDb));
     } catch (err) {
