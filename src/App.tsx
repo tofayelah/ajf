@@ -238,22 +238,24 @@ const MainLayout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      <TopAppBar onOpenDrawer={() => setIsDrawerOpen(true)} />
+    <div className="min-h-screen bg-slate-50 flex font-sans overflow-hidden">
       <AppDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
       
-      <BackupPromptAlert />
-      <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
-        <RoleGuard>
-          <ErrorBoundary>
-            <ScreenRenderer onQuickAction={handleQuickAction} />
-          </ErrorBoundary>
-        </RoleGuard>
-      </main>
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+        <TopAppBar onOpenDrawer={() => setIsDrawerOpen(true)} />
+        <BackupPromptAlert />
+        <main className="flex-1 relative pb-16 md:pb-0">
+          <RoleGuard>
+            <ErrorBoundary>
+              <ScreenRenderer onQuickAction={handleQuickAction} />
+            </ErrorBoundary>
+          </RoleGuard>
+        </main>
 
-      {/* Mobile-only bottom nav */}
-      <div className="md:hidden">
-        <BottomNavigationBar />
+        {/* Mobile-only bottom nav */}
+        <div className="md:hidden">
+          <BottomNavigationBar />
+        </div>
       </div>
 
       <SpeedDialFab onQuickAction={handleQuickAction} />

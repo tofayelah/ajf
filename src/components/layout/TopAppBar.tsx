@@ -73,7 +73,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenDrawer }) => {
           <button
             id="btn-app-drawer"
             onClick={onOpenDrawer}
-            className="p-2 rounded-lg hover:bg-emerald-700 active:bg-emerald-900 transition-colors focus:outline-none"
+            className="p-2 rounded-lg hover:bg-emerald-700 active:bg-emerald-900 transition-colors focus:outline-none lg:hidden"
             aria-label="Open Navigation Drawer"
           >
             <Menu className="w-5 h-5 text-white" />
