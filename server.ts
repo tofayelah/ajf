@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import cookieParser from 'cookie-parser';
 import bcrypt from 'bcryptjs';
+import { AccountingService } from './src/services/accounting';
 import jwt from 'jsonwebtoken';
 import { requireAuth, requireRole, requireMemberOwnership } from './src/rbac';
 import { getInitialDatabase } from './src/services/db';
@@ -316,10 +317,29 @@ app.post('/api/sync', async (req: any, res: any) => {
             }
           });
 
+          
+          // Protect financial and system arrays from being blindly overwritten by frontend
+          const protectedKeys = [
+            'admissions', 'collections', 'capitalDeposits', 'loans', 'loanRepayments',
+            'investments', 'cashTransactions', 'bankTransactions', 'contraTransactions',
+            'incomes', 'expenses', 'memberLedgers', 'welfareTransactions', 'profitAllocations',
+            'journalEntries', 'journalLines', 'memberExits', 'auditLogs', 'cashReconciliations',
+            'bankReconciliations', 'bankStatementTransactions'
+          ];
+          
           const dbToSave = {
             ...req.body,
             users: mergedUsers.length > 0 ? mergedUsers : currentUsers
           };
+          
+          for (const key of protectedKeys) {
+            if (currentDb[key] !== undefined) {
+              dbToSave[key] = currentDb[key];
+            } else {
+              dbToSave[key] = [];
+            }
+          }
+
 
           await writeDbFile(dbToSave);
           res.json({ success: true });
@@ -346,6 +366,47 @@ app.all(['/api/members', '/api/members/:memberId'], requireAuth, (req: any, res:
   }
   return res.status(405).json({ error: 'Method not allowed' });
 });
+
+
+// --- Canonical Server-Side Accounting RPC Engine ---
+app.post('/api/accounting/action', requireAuth, async (req: any, res: any) => {
+  try {
+    const { action, params } = req.body;
+    
+    // Security and structure check
+    if (!action || typeof action !== 'string') {
+      return res.status(400).json({ error: 'Missing action' });
+    }
+    if (typeof (AccountingService as any)[action] !== 'function') {
+      return res.status(400).json({ error: 'Invalid accounting action' });
+    }
+
+    // Read the authoritative production database atomically
+    const data = await fs.readFile(DB_FILE, 'utf8');
+    const db = JSON.parse(data);
+
+    // Provide server-side credentials
+    const callerId = req.user?.userId || 'SYSTEM';
+    const callerName = req.user?.username || 'SYSTEM';
+
+    // Call the canonical posting engine on the server
+    const result = (AccountingService as any)[action](db, ...params);
+
+    if (result && result.success && result.updatedDb) {
+      // Atomic commit
+      await writeDbFile(result.updatedDb);
+      // Remove updatedDb from response payload to save bandwidth
+      const { updatedDb, ...safeResult } = result;
+      res.json(safeResult);
+    } else {
+      res.json(result);
+    }
+  } catch (error: any) {
+    console.error('[Accounting API Error]:', error);
+    res.status(500).json({ error: error.message || 'Internal server error during accounting posting' });
+  }
+});
+
 
 // --- Cash Book / Sub-Ledger Reconciliation & Diagnostic API ---
 app.get('/api/reconciliation/diagnostic', requireAuth, async (req: any, res: any) => {

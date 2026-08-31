@@ -575,6 +575,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [db, setDb] = useState<AppDatabaseState>(() => getInitialDatabase());
+
+  const executeAccountingRPC = async (action: string, args: any[]) => {
+    try {
+      const response = await fetch('/api/accounting/action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`
+        },
+        body: JSON.stringify({ action, params: args })
+      });
+      if (!response.ok) {
+        throw new Error('RPC failed');
+      }
+      const result = await response.json();
+      
+      if (result && result.success) {
+        const newDbResponse = await fetch('/api/sync', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` }
+        });
+        if (newDbResponse.ok) {
+           const newDb = await newDbResponse.json();
+           (window as any).skipNextDbSave = true;
+           setDb(newDb);
+        }
+      }
+      
+      return result;
+    } catch (e: any) {
+      return { success: false, message: e.message || 'Network error' };
+    }
+  };
+
   const [isDbLoading, setIsDbLoading] = useState<boolean>(true);
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>("DASHBOARD");
   const [activeNavTab, setActiveNavTab] = useState<MainNavTab>("HOME");
@@ -837,20 +870,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   const checkMemberDependencies = (memberId: string) => {
     return AccountingService.checkMemberDependencies(db, memberId);
   };
-  const deactivateMember = async (...args: any[]) => {
-    const res = (AccountingService as any).deactivateMember(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const reactivateMember = async (...args: any[]) => {
-    const res = (AccountingService as any).reactivateMember(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
+  const deactivateMember = async (...args: any[]) => { return executeAccountingRPC('deactivateMember', args); };
+  const reactivateMember = async (...args: any[]) => { return executeAccountingRPC('reactivateMember', args); };
   const deleteMember = async (memberId: string) => {
     const user = (db.users || []).find(u => u.userId === db.activeUserId);
     const res = AccountingService.deleteMemberPermanently(db, memberId, db.activeUserId || 'SYSTEM', user?.fullName || 'SYSTEM');
@@ -859,286 +880,46 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     }
     return res;
   };
-  const postCollection = async (...args: any[]) => {
-    const res = (AccountingService as any).postCollection(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postBulkCollection = async (...args: any[]) => {
-    const res = (AccountingService as any).postBulkCollection(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const reverseCollection = async (...args: any[]) => {
-    const res = (AccountingService as any).reverseCollection(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postCapitalDeposit = async (...args: any[]) => {
-    const res = (AccountingService as any).postCapitalDeposit(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postLoanApplication = async (...args: any[]) => {
-    const res = (AccountingService as any).postLoanApplication(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const approveLoan = async (...args: any[]) => {
-    const res = (AccountingService as any).approveLoan(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const rejectLoan = async (...args: any[]) => {
-    const res = (AccountingService as any).rejectLoan(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const disburseLoan = async (...args: any[]) => {
-    const res = (AccountingService as any).disburseLoan(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postLoanRepayment = async (...args: any[]) => {
-    const res = (AccountingService as any).postLoanRepayment(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postIncome = async (...args: any[]) => {
-    const res = (AccountingService as any).postIncome(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postCashToBankDeposit = async (...args: any[]) => {
-    const res = (AccountingService as any).postCashToBankDeposit(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postContraEntry = async (...args: any[]) => {
-    const res = (AccountingService as any).postContraEntry(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const saveDraftContraEntry = async (...args: any[]) => {
-    const res = (AccountingService as any).postContraEntry(db, { ...args[0], isDraft: true, status: 'DRAFT' });
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const editDraftContraEntry = async (...args: any[]) => {
-    const res = (AccountingService as any).editDraftContraEntry(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const deleteDraftContraEntry = async (...args: any[]) => {
-    const res = (AccountingService as any).deleteDraftContraEntry(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postDraftContraEntry = async (...args: any[]) => {
-    const res = (AccountingService as any).postDraftContraEntry(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const reverseContraEntry = async (...args: any[]) => {
-    const res = (AccountingService as any).reverseContraEntry(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const reverseAndCorrectContraEntry = async (...args: any[]) => {
-    const res = (AccountingService as any).reverseAndCorrectContraEntry(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const addBankAccount = async (...args: any[]) => {
-    const res = (AccountingService as any).addBankAccount(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const updateBankAccount = async (...args: any[]) => {
-    const res = (AccountingService as any).updateBankAccount(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postExpense = async (...args: any[]) => {
-    const res = (AccountingService as any).postExpense(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postCashTransaction = async (...args: any[]) => {
-    const res = (AccountingService as any).postCashTransaction(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const saveCashTransactionDraft = async (...args: any[]) => {
-    const res = (AccountingService as any).saveCashTransactionDraft(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const editDraftCashTransaction = async (...args: any[]) => {
-    const res = (AccountingService as any).editDraftCashTransaction(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const deleteDraftCashTransaction = async (...args: any[]) => {
-    const res = (AccountingService as any).deleteDraftCashTransaction(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postDraftCashTransaction = async (...args: any[]) => {
-    const res = (AccountingService as any).postDraftCashTransaction(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const reverseCashTransaction = async (...args: any[]) => {
-    const res = (AccountingService as any).reverseCashTransaction(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const reverseAndCorrectCashTransaction = async (...args: any[]) => {
-    const res = (AccountingService as any).reverseAndCorrectCashTransaction(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postWelfarePayment = async (...args: any[]) => {
-    const res = (AccountingService as any).postWelfarePayment(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const updateWelfareTransaction = async (...args: any[]) => {
-    const res = (AccountingService as any).updateWelfareTransaction(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const deleteWelfareTransaction = async (...args: any[]) => {
-    const res = (AccountingService as any).deleteWelfareTransaction(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const reverseWelfareTransaction = async (...args: any[]) => {
-    const res = (AccountingService as any).reverseWelfareTransaction(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postInvestmentProject = async (...args: any[]) => {
-    const res = (AccountingService as any).postInvestmentProject(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const approveInvestment = async (...args: any[]) => {
-    const res = (AccountingService as any).approveInvestment(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const rejectInvestment = async (...args: any[]) => {
-    const res = (AccountingService as any).rejectInvestment(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const updateInvestment = async (...args: any[]) => {
-    const res = (AccountingService as any).updateInvestment(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const deleteInvestment = async (...args: any[]) => {
-    const res = (AccountingService as any).deleteInvestment(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const cancelInvestment = async (...args: any[]) => {
-    const res = (AccountingService as any).cancelInvestment(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const executeInvestment = async (...args: any[]) => {
-    const res = (AccountingService as any).executeInvestment(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
-  const postInvestmentReturn = async (...args: any[]) => {
-    const res = (AccountingService as any).postInvestmentReturn(db, ...args);
-    if (res && res.success && res.updatedDb) {
-      setDb(res.updatedDb);
-    }
-    return res;
-  };
+  const postCollection = async (...args: any[]) => { return executeAccountingRPC('postCollection', args); };
+  const postBulkCollection = async (...args: any[]) => { return executeAccountingRPC('postBulkCollection', args); };
+  const reverseCollection = async (...args: any[]) => { return executeAccountingRPC('reverseCollection', args); };
+  const postCapitalDeposit = async (...args: any[]) => { return executeAccountingRPC('postCapitalDeposit', args); };
+  const postLoanApplication = async (...args: any[]) => { return executeAccountingRPC('postLoanApplication', args); };
+  const approveLoan = async (...args: any[]) => { return executeAccountingRPC('approveLoan', args); };
+  const rejectLoan = async (...args: any[]) => { return executeAccountingRPC('rejectLoan', args); };
+  const disburseLoan = async (...args: any[]) => { return executeAccountingRPC('disburseLoan', args); };
+  const postLoanRepayment = async (...args: any[]) => { return executeAccountingRPC('postLoanRepayment', args); };
+  const postIncome = async (...args: any[]) => { return executeAccountingRPC('postIncome', args); };
+  const postCashToBankDeposit = async (...args: any[]) => { return executeAccountingRPC('postCashToBankDeposit', args); };
+  const postContraEntry = async (...args: any[]) => { return executeAccountingRPC('postContraEntry', args); };
+  const saveDraftContraEntry = async (...args: any[]) => { return executeAccountingRPC('postContraEntry', [{ ...args[0], isDraft: true, status: 'DRAFT' }]); };
+  const editDraftContraEntry = async (...args: any[]) => { return executeAccountingRPC('editDraftContraEntry', args); };
+  const deleteDraftContraEntry = async (...args: any[]) => { return executeAccountingRPC('deleteDraftContraEntry', args); };
+  const postDraftContraEntry = async (...args: any[]) => { return executeAccountingRPC('postDraftContraEntry', args); };
+  const reverseContraEntry = async (...args: any[]) => { return executeAccountingRPC('reverseContraEntry', args); };
+  const reverseAndCorrectContraEntry = async (...args: any[]) => { return executeAccountingRPC('reverseAndCorrectContraEntry', args); };
+  const addBankAccount = async (...args: any[]) => { return executeAccountingRPC('addBankAccount', args); };
+  const updateBankAccount = async (...args: any[]) => { return executeAccountingRPC('updateBankAccount', args); };
+  const postExpense = async (...args: any[]) => { return executeAccountingRPC('postExpense', args); };
+  const postCashTransaction = async (...args: any[]) => { return executeAccountingRPC('postCashTransaction', args); };
+  const saveCashTransactionDraft = async (...args: any[]) => { return executeAccountingRPC('saveCashTransactionDraft', args); };
+  const editDraftCashTransaction = async (...args: any[]) => { return executeAccountingRPC('editDraftCashTransaction', args); };
+  const deleteDraftCashTransaction = async (...args: any[]) => { return executeAccountingRPC('deleteDraftCashTransaction', args); };
+  const postDraftCashTransaction = async (...args: any[]) => { return executeAccountingRPC('postDraftCashTransaction', args); };
+  const reverseCashTransaction = async (...args: any[]) => { return executeAccountingRPC('reverseCashTransaction', args); };
+  const reverseAndCorrectCashTransaction = async (...args: any[]) => { return executeAccountingRPC('reverseAndCorrectCashTransaction', args); };
+  const postWelfarePayment = async (...args: any[]) => { return executeAccountingRPC('postWelfarePayment', args); };
+  const updateWelfareTransaction = async (...args: any[]) => { return executeAccountingRPC('updateWelfareTransaction', args); };
+  const deleteWelfareTransaction = async (...args: any[]) => { return executeAccountingRPC('deleteWelfareTransaction', args); };
+  const reverseWelfareTransaction = async (...args: any[]) => { return executeAccountingRPC('reverseWelfareTransaction', args); };
+  const postInvestmentProject = async (...args: any[]) => { return executeAccountingRPC('postInvestmentProject', args); };
+  const approveInvestment = async (...args: any[]) => { return executeAccountingRPC('approveInvestment', args); };
+  const rejectInvestment = async (...args: any[]) => { return executeAccountingRPC('rejectInvestment', args); };
+  const updateInvestment = async (...args: any[]) => { return executeAccountingRPC('updateInvestment', args); };
+  const deleteInvestment = async (...args: any[]) => { return executeAccountingRPC('deleteInvestment', args); };
+  const cancelInvestment = async (...args: any[]) => { return executeAccountingRPC('cancelInvestment', args); };
+  const executeInvestment = async (...args: any[]) => { return executeAccountingRPC('executeInvestment', args); };
+  const postInvestmentReturn = async (...args: any[]) => { return executeAccountingRPC('postInvestmentReturn', args); };
   const finalizeProfit = async (...args: any[]) => {
     console.warn("Dummy method called: finalizeProfit");
     return { success: true, message: "Action successful" };

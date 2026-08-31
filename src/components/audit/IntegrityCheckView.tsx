@@ -54,6 +54,7 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [expandedVoucherKey, setExpandedVoucherKey] = useState<string | null>(null);
   const [selectedReconModule, setSelectedReconModule] = useState<string | null>(null);
+  const [showDiagnosticTracer, setShowDiagnosticTracer] = useState<boolean>(false);
   const [lastAuditTimestamp, setLastAuditTimestamp] = useState<string>(new Date().toISOString());
 
   // Dedicated 3-Way Member Exit & Settlement Reconciliation Registry
@@ -113,6 +114,46 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
       };
     });
   }, [db.memberExits, db.members, db.cashTransactions, db.journalEntries]);
+
+  // Deep diagnostic tracing for missing cash postings
+  const cashDiagnostics = useMemo(() => {
+    const missingAdmissions = (db.admissions || []).filter(a =>
+      (a.paymentMethod as string).toUpperCase() === 'CASH' &&
+      a.status === 'APPROVED' &&
+      !(db.cashTransactions || []).find(c => 
+        (c.sourceId === a.admissionId && c.sourceType === 'ADMISSION') ||
+        (c.memberId === a.memberId && (c.accountId === '4000' || c.accountId === '4010') && c.sourceType === 'INCOME')
+      )
+    );
+
+    const missingCapitals = (db.capitalDeposits || []).filter(c =>
+      (c.paymentMethod as string).toUpperCase() === 'CASH' &&
+      c.status === 'POSTED' &&
+      !(db.cashTransactions || []).find(ct => ct.sourceId === c.depositId && ct.sourceType === 'CAPITAL')
+    );
+
+    const missingCollections = (db.collections || []).filter(c =>
+      (c.paymentMethod as string).toUpperCase() === 'CASH' &&
+      c.status === 'POSTED' &&
+      !(db.cashTransactions || []).find(ct => ct.sourceId === c.collectionId && ct.sourceType === 'COLLECTION')
+    );
+
+    const getAdmissionAmount = (a: any) => (Number(a.admissionFee) || 0) + (Number(a.capitalDeposit) || 0);
+
+    const varianceSum =
+      missingAdmissions.reduce((sum, a) => sum + getAdmissionAmount(a), 0) +
+      missingCapitals.reduce((sum, c) => sum + (c.amount || 0), 0) +
+      missingCollections.reduce((sum, c) => sum + (c.paidAmount || 0), 0);
+
+    return {
+      missingAdmissions,
+      missingCapitals,
+      missingCollections,
+      totalMissingCount: missingAdmissions.length + missingCapitals.length + missingCollections.length,
+      varianceSum,
+      getAdmissionAmount
+    };
+  }, [db.admissions, db.capitalDeposits, db.collections, db.cashTransactions]);
 
   // Date range presets handler
   const handlePresetChange = (preset: 'ALL' | 'THIS_YEAR' | 'THIS_MONTH' | 'CUSTOM') => {
@@ -842,6 +883,110 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
       {/* 8. TAB CONTENT 3: CASH BOOK VS. SUB-LEDGER RECONCILIATION */}
       {activeTab === 'CASH_RECON' && (
         <div className="space-y-6">
+          
+          {/* Deep Diagnostic Tracer Utility */}
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 md:p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Search className="w-4 h-4 text-indigo-600" />
+                  {isBangla ? 'গভীর ডায়াগনস্টিক ট্রেসার (অ্যাডমিশন, ক্যাপিটাল, কালেকশন)' : 'Deep Diagnostic Tracer (Admissions, Capital, Collections)'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  {isBangla 
+                    ? 'সরাসরি মূল সোর্স রেকর্ডগুলোর সাথে ক্যাশ বুকের এন্ট্রির তুলনা করে নিখোঁজ রেকর্ড শনাক্ত করুন।' 
+                    : 'Systematically compares source records directly against the Cash Book to identify exact missing postings.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDiagnosticTracer(!showDiagnosticTracer)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs shrink-0"
+              >
+                {showDiagnosticTracer ? (isBangla ? 'লুকান' : 'Hide Tracer') : (isBangla ? 'ট্রেসার চালান' : 'Run Tracer')}
+              </button>
+            </div>
+
+            {showDiagnosticTracer && (
+              <div className="mt-5 pt-5 border-t border-slate-200/80 space-y-4">
+                <div className="flex items-center gap-4 text-sm font-medium">
+                  <div className={`px-3 py-1.5 rounded-lg border ${cashDiagnostics.totalMissingCount > 0 ? 'bg-rose-50 border-rose-200 text-rose-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
+                    {isBangla ? 'সর্বমোট নিখোঁজ রেকর্ড:' : 'Total Missing Records:'} <span className="font-bold">{cashDiagnostics.totalMissingCount}</span>
+                  </div>
+                  <div className={`px-3 py-1.5 rounded-lg border ${cashDiagnostics.varianceSum > 0 ? 'bg-rose-50 border-rose-200 text-rose-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
+                    {isBangla ? 'সর্বমোট পার্থক্য:' : 'Total Variance:'} <span className="font-bold">৳{cashDiagnostics.varianceSum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+
+                {cashDiagnostics.totalMissingCount === 0 ? (
+                  <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold text-emerald-900">{isBangla ? 'কোন নিখোঁজ ক্যাশ এন্ট্রি নেই' : 'No Missing Cash Postings Found'}</p>
+                      <p className="text-xs text-emerald-700 mt-1">
+                        {isBangla ? 'অ্যাডমিশন, ক্যাপিটাল এবং কালেকশনের সব রেকর্ডের ক্যাশ এন্ট্রি সঠিকভাবে সংরক্ষিত আছে।' : 'All active Admissions, Capital Deposits, and Collections have corresponding Cash Book entries.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Admissions */}
+                    {cashDiagnostics.missingAdmissions.length > 0 && (
+                      <div className="bg-white border border-rose-100 rounded-xl overflow-hidden">
+                        <div className="bg-rose-50/50 px-4 py-2 border-b border-rose-100 flex items-center justify-between">
+                          <span className="text-xs font-bold text-rose-900">{isBangla ? 'নিখোঁজ অ্যাডমিশন ফি ক্যাশ এন্ট্রি' : 'Missing Admission Fee Cash Postings'} ({cashDiagnostics.missingAdmissions.length})</span>
+                          <span className="text-xs font-bold text-rose-700">৳{cashDiagnostics.missingAdmissions.reduce((s, a) => s + cashDiagnostics.getAdmissionAmount(a), 0).toLocaleString()}</span>
+                        </div>
+                        <ul className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                          {cashDiagnostics.missingAdmissions.map(a => (
+                            <li key={a.admissionId} className="px-4 py-2.5 text-xs flex justify-between">
+                              <div className="text-slate-600">ID: {a.admissionId} | <span className="text-slate-400">{format(new Date(a.applicationDate || new Date().toISOString()), 'dd MMM yyyy')}</span></div>
+                              <div className="font-bold text-slate-900">৳{cashDiagnostics.getAdmissionAmount(a).toLocaleString()}</div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {/* Capital */}
+                    {cashDiagnostics.missingCapitals.length > 0 && (
+                      <div className="bg-white border border-rose-100 rounded-xl overflow-hidden">
+                        <div className="bg-rose-50/50 px-4 py-2 border-b border-rose-100 flex items-center justify-between">
+                          <span className="text-xs font-bold text-rose-900">{isBangla ? 'নিখোঁজ ক্যাপিটাল ক্যাশ এন্ট্রি' : 'Missing Capital Deposit Cash Postings'} ({cashDiagnostics.missingCapitals.length})</span>
+                          <span className="text-xs font-bold text-rose-700">৳{cashDiagnostics.missingCapitals.reduce((s, c) => s + (c.amount || 0), 0).toLocaleString()}</span>
+                        </div>
+                        <ul className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                          {cashDiagnostics.missingCapitals.map(c => (
+                            <li key={c.depositId} className="px-4 py-2.5 text-xs flex justify-between">
+                              <div className="text-slate-600">ID: {c.depositId} | <span className="text-slate-400">{format(new Date(c.date || new Date().toISOString()), 'dd MMM yyyy')}</span></div>
+                              <div className="font-bold text-slate-900">৳{(c.amount || 0).toLocaleString()}</div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {/* Collections */}
+                    {cashDiagnostics.missingCollections.length > 0 && (
+                      <div className="bg-white border border-rose-100 rounded-xl overflow-hidden">
+                        <div className="bg-rose-50/50 px-4 py-2 border-b border-rose-100 flex items-center justify-between">
+                          <span className="text-xs font-bold text-rose-900">{isBangla ? 'নিখোঁজ কালেকশন ক্যাশ এন্ট্রি' : 'Missing Collection Cash Postings'} ({cashDiagnostics.missingCollections.length})</span>
+                          <span className="text-xs font-bold text-rose-700">৳{cashDiagnostics.missingCollections.reduce((s, c) => s + (c.paidAmount || 0), 0).toLocaleString()}</span>
+                        </div>
+                        <ul className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                          {cashDiagnostics.missingCollections.map(c => (
+                            <li key={c.collectionId} className="px-4 py-2.5 text-xs flex justify-between">
+                              <div className="text-slate-600">ID: {c.collectionId} | <span className="text-slate-400">{format(new Date(c.collectionDate), 'dd MMM yyyy')}</span></div>
+                              <div className="font-bold text-slate-900">৳{(c.paidAmount || 0).toLocaleString()}</div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Module Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {Object.values(auditReport.cashMovementAudit.modules).map((mod) => {
