@@ -8,8 +8,8 @@ export const DeathSettlementModal: React.FC<{ member: Member; onClose: () => voi
   const { db, activeUser, requestMemberExit, reviewMemberExit, approveMemberExit, rejectMemberExit, processMemberExitRefund } = useApp();
   const existingRequest = db.memberExits?.find(e => e.memberId === member.memberId && e.exitType === "DEATH_SETTLEMENT" && e.status !== "REJECTED" && e.status !== "EXITED" && e.status !== "REFUNDED" && e.status !== "SETTLED");
   
-  const isAdmin = activeUser?.role === 'SUPER_ADMIN' || activeUser?.role === 'ADMIN';
-  const isFinance = ['FINANCE_MANAGER', 'TREASURER', 'PRESIDENT', 'GENERAL_SECRETARY', 'ACCOUNTANT'].includes(activeUser?.role || '');
+  const isAdmin = activeUser?.role === 'ADMIN';
+  const isFinance = ['ACCOUNTANT', 'ACCOUNTANT', 'ADMIN', 'ADMIN', 'ACCOUNTANT'].includes(activeUser?.role || '');
   const canApprove = isAdmin || isFinance;
 
   const [dateOfDeath, setDateOfDeath] = useState('');

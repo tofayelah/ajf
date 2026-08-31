@@ -80,7 +80,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
 
   const getStatusBadge = (status?: string) => {
     const s = (status || 'COMPLETED').toUpperCase();
-    if (['POSTED', 'APPROVED', 'COMPLETED', 'SETTLED', 'ACTIVE', 'SUCCESS'].includes(s)) {
+    if (['POSTED','APPROVED','COMPLETED','SETTLED','ACTIVE','SUCCESS'].includes(s)) {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
           <CheckCircle2 className="w-3 h-3" />
@@ -88,7 +88,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
         </span>
       );
     }
-    if (['PENDING', 'UNDER_REVIEW', 'DRAFT', 'NORMAL_EXIT_REQUESTED', 'EARLY_EXIT_REQUESTED', 'DEATH_REPORTED'].includes(s)) {
+    if (['PENDING','UNDER_REVIEW','DRAFT','NORMAL_EXIT_REQUESTED','EARLY_EXIT_REQUESTED','DEATH_REPORTED'].includes(s)) {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
           <Clock className="w-3 h-3" />
@@ -96,7 +96,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
         </span>
       );
     }
-    if (['REJECTED', 'CANCELLED', 'VOIDED', 'REVERSED'].includes(s)) {
+    if (['REJECTED','CANCELLED','VOIDED','REVERSED'].includes(s)) {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
           <AlertCircle className="w-3 h-3" />

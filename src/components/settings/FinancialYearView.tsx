@@ -30,7 +30,7 @@ export const FinancialYearView: React.FC = () => {
   const [opRetained, setOpRetained] = useState<number>(0);
 
   // Permissions
-  const canManageFY = activeUser.role === 'ADMIN' || activeUser.role === 'SUPER_ADMIN' || activeUser.role === 'FINANCE_MANAGER';
+  const canManageFY = activeUser.role === 'ADMIN' || activeUser.role === 'ACCOUNTANT';
 
   if (!canManageFY) {
     return (

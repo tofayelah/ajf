@@ -101,7 +101,7 @@ export const ChartOfAccountsView: React.FC = () => {
   const handleCategoryChange = (cat: string) => {
     const category = cat as AccountCategory;
     let normalBalance: "DEBIT" | "CREDIT" = 'DEBIT';
-    if (['Liability', 'Member Capital', 'Income'].includes(category)) {
+    if (['Liability','Member Capital','Income'].includes(category)) {
       normalBalance = 'CREDIT';
     }
     setFormData({ ...formData, category, normalBalance });

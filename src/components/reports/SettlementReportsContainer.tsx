@@ -80,9 +80,9 @@ export const SettlementReportsContainer: React.FC<SettlementReportsContainerProp
   // Key KPI totals for settlement
   const totals = useMemo(() => {
     const totalRequests = enrichedExits.length;
-    const pendingCount = enrichedExits.filter(e => ['PENDING', 'UNDER_REVIEW', 'NORMAL_EXIT_REQUESTED', 'EARLY_EXIT_REQUESTED', 'DEATH_REPORTED'].includes(e.status)).length;
+    const pendingCount = enrichedExits.filter(e => ['PENDING','UNDER_REVIEW','NORMAL_EXIT_REQUESTED','EARLY_EXIT_REQUESTED','DEATH_REPORTED'].includes(e.status)).length;
     const approvedCount = enrichedExits.filter(e => e.status === 'APPROVED').length;
-    const settledCount = enrichedExits.filter(e => ['SETTLED', 'REFUNDED', 'COMPLETED', 'EXITED'].includes(e.status)).length;
+    const settledCount = enrichedExits.filter(e => ['SETTLED','REFUNDED','COMPLETED','EXITED'].includes(e.status)).length;
 
     const totalCapital = filteredExits.reduce((s, e) => s + e.capital, 0);
     const totalServiceCharge = filteredExits.reduce((s, e) => s + e.serviceCharge, 0);

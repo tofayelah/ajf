@@ -57,13 +57,13 @@ export const SettlementKpiCard: React.FC<SettlementKpiCardProps> = ({ onNavigate
       const requests = items.length;
       const underReview = items.filter(e => e.status === 'UNDER_REVIEW').length;
       const pending = items.filter(e =>
-        ['NORMAL_EXIT_REQUESTED', 'EARLY_EXIT_REQUESTED', 'DEATH_REPORTED', 'EXIT_REQUESTED', 'PENDING'].includes(e.status)
+        ['NORMAL_EXIT_REQUESTED','EARLY_EXIT_REQUESTED','DEATH_REPORTED','EXIT_REQUESTED','PENDING'].includes(e.status)
       ).length;
       const approved = items.filter(e =>
-        ['APPROVED', 'REFUND_PROCESSING', 'SETTLEMENT_PROCESSING'].includes(e.status)
+        ['APPROVED','REFUND_PROCESSING','SETTLEMENT_PROCESSING'].includes(e.status)
       ).length;
       const settledItems = items.filter(e =>
-        ['SETTLED', 'REFUNDED', 'EXITED', 'DECEASED'].includes(e.status)
+        ['SETTLED','REFUNDED','EXITED','DECEASED'].includes(e.status)
       );
       const settled = settledItems.length;
       const rejected = items.filter(e => e.status === 'REJECTED').length;

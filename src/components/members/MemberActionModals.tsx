@@ -37,7 +37,7 @@ export const MemberActionModals: React.FC<MemberActionModalsProps> = ({
   } = useApp();
   const isBangla = language === 'bn';
   const currentUser = getCurrentUser();
-  const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN';
+  const isAdmin = currentUser?.role === 'ADMIN';
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [overrideToDeactivate, setOverrideToDeactivate] = useState(false);

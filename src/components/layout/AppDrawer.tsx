@@ -30,77 +30,88 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ isOpen = false, onClose })
 
   const sections = [
     {
-      title: isBangla ? 'সদস্য ব্যবস্থাপনা' : 'Member Menu',
-      roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'],
+      title: isBangla ? 'আমার পোর্টাল' : 'My Portal',
+      roles: ['MEMBER'],
       items: [
-        { id: 'MEMBERS', icon: Users, label: isBangla ? 'সদস্য তালিকা ও রেজিস্টার' : 'Member Master / Register', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'] },
-        { id: 'MEMBER_LEDGER', icon: BookOpen, label: isBangla ? 'সদস্য খতিয়ান' : 'Member Ledger', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'] },
-        { id: 'COLLECTIONS', icon: CreditCard, label: isBangla ? 'সদস্য চাঁদা ও আদায়' : 'Member Collections', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'] },
-        { id: 'CAPITAL', icon: PiggyBank, label: isBangla ? 'সদস্য মূলধন' : 'Member Capital', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'SETTLEMENT_DASHBOARD', icon: Briefcase, label: isBangla ? 'সদস্য নিষ্পত্তি' : 'Member Settlement', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'] },
-        { id: 'ADMISSION', icon: UserPlus, label: isBangla ? 'নতুন সদস্য নিবন্ধন' : 'Member Registration', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
+        { id: 'DASHBOARD', icon: BarChart3, label: isBangla ? 'আমার ড্যাশবোর্ড' : 'Dashboard', roles: ['MEMBER'] },
+        { id: 'MEMBER_FINANCIAL_SUMMARY', icon: LineChart, label: isBangla ? 'সমিতির আর্থিক অবস্থা' : 'Financial Summary', roles: ['MEMBER'] },
+        { id: 'MEMBER_PROFILE', icon: Users, label: isBangla ? 'আমার প্রোফাইল' : 'My Profile', roles: ['MEMBER'] },
+        { id: 'MEMBER_LEDGER', icon: BookOpen, label: isBangla ? 'আমার খতিয়ান' : 'My Ledger', roles: ['MEMBER'] },
+      ]
+    },
+    {
+      title: isBangla ? 'সদস্য ব্যবস্থাপনা' : 'Member Menu',
+      roles: ['ADMIN', 'ACCOUNTANT'],
+      items: [
+        { id: 'MEMBERS', icon: Users, label: isBangla ? 'সদস্য তালিকা ও রেজিস্টার' : 'Member Master / Register', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'MEMBER_LEDGER', icon: BookOpen, label: isBangla ? 'সদস্য খতিয়ান' : 'Member Ledger', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'COLLECTIONS', icon: CreditCard, label: isBangla ? 'সদস্য চাঁদা ও আদায়' : 'Member Collections', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'CAPITAL', icon: PiggyBank, label: isBangla ? 'সদস্য মূলধন' : 'Member Capital', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'SETTLEMENT_DASHBOARD', icon: Briefcase, label: isBangla ? 'সদস্য নিষ্পত্তি' : 'Member Settlement', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'ADMISSION', icon: UserPlus, label: isBangla ? 'নতুন সদস্য নিবন্ধন' : 'Member Registration', roles: ['ADMIN', 'ACCOUNTANT'] },
       ]
     },
     {
       title: isBangla ? 'সদস্য নিষ্পত্তি মেনু' : 'Settlement Operations',
       id: 'member-settlement',
-      roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'],
+      roles: ['ADMIN', 'ACCOUNTANT'],
       items: [
-        { id: 'SETTLEMENT_DASHBOARD', icon: Briefcase, label: isBangla ? 'নিষ্পত্তি ড্যাশবোর্ড' : 'Settlement Dashboard', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'] },
-        { id: 'NORMAL_MEMBER_EXIT', icon: UserMinus, label: isBangla ? 'সাধারণ প্রস্থান' : 'Normal Member Exit', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'] },
-        { id: 'EARLY_MEMBER_EXIT', icon: UserMinus, label: isBangla ? 'আগাম প্রস্থান' : 'Early Member Exit', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'] },
-        { id: 'EARLY_EXIT_REQUESTS', icon: HandCoins, label: isBangla ? 'আগাম প্রস্থান অনুরোধ' : 'Early Exit Requests', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'DEATH_SETTLEMENT', icon: ShieldCheck, label: isBangla ? 'মৃত্যু নিষ্পত্তি' : 'Death Settlement', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'] },
-        { id: 'PENDING_SETTLEMENT_APPROVALS', icon: Shield, label: isBangla ? 'অপেক্ষমাণ অনুমোদন' : 'Pending Approvals', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'COMPLETED_SETTLEMENTS', icon: CheckCircle, label: isBangla ? 'সম্পন্ন নিষ্পত্তি' : 'Completed Settlements', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'] },
-        { id: 'SETTLEMENT_REPORTS', icon: FileSpreadsheet, label: isBangla ? 'নিষ্পত্তি রিপোর্ট' : 'Settlement Reports', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
+        { id: 'SETTLEMENT_DASHBOARD', icon: Briefcase, label: isBangla ? 'নিষ্পত্তি ড্যাশবোর্ড' : 'Settlement Dashboard', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'NORMAL_MEMBER_EXIT', icon: UserMinus, label: isBangla ? 'সাধারণ প্রস্থান' : 'Normal Member Exit', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'EARLY_MEMBER_EXIT', icon: UserMinus, label: isBangla ? 'আগাম প্রস্থান' : 'Early Member Exit', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'EARLY_EXIT_REQUESTS', icon: HandCoins, label: isBangla ? 'আগাম প্রস্থান অনুরোধ' : 'Early Exit Requests', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'DEATH_SETTLEMENT', icon: ShieldCheck, label: isBangla ? 'মৃত্যু নিষ্পত্তি' : 'Death Settlement', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'PENDING_SETTLEMENT_APPROVALS', icon: Shield, label: isBangla ? 'অপেক্ষমাণ অনুমোদন' : 'Pending Approvals', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'COMPLETED_SETTLEMENTS', icon: CheckCircle, label: isBangla ? 'সম্পন্ন নিষ্পত্তি' : 'Completed Settlements', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'SETTLEMENT_REPORTS', icon: FileSpreadsheet, label: isBangla ? 'নিষ্পত্তি রিপোর্ট' : 'Settlement Reports', roles: ['ADMIN', 'ACCOUNTANT'] },
       ]
     },
     {
       title: isBangla ? 'আর্থিক লেনদেন' : 'Financial Operations',
-      roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'],
+      roles: ['ADMIN', 'ACCOUNTANT'],
       items: [
-        { id: 'COLLECTIONS', icon: CreditCard, label: isBangla ? 'মাসিক জমা' : 'Collection', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'] },
-        { id: 'LOANS', icon: HandCoins, label: isBangla ? 'ঋণ ব্যবস্থাপনা' : 'Loan Management', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'] },
-        { id: 'CAPITAL', icon: PiggyBank, label: isBangla ? 'মূলধন জমা' : 'Capital Deposit', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'RESERVE_UTILIZATION', icon: TrendingUp, label: isBangla ? 'রিজার্ভ ব্যবহার' : 'Reserve Utilization', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'CASH_BOOK', icon: Landmark, label: isBangla ? 'নগদ হিসাব' : 'Cash Book', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'BANK_BOOK', icon: Building2, label: isBangla ? 'ব্যাংক হিসাব' : 'Bank Book', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'INCOME_EXPENSE', icon: PlusCircle, label: isBangla ? 'আয়-ব্যয় এন্ট্রি' : 'Income & Expense', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
+        { id: 'COLLECTIONS', icon: CreditCard, label: isBangla ? 'মাসিক জমা' : 'Collection', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'LOANS', icon: HandCoins, label: isBangla ? 'ঋণ ব্যবস্থাপনা' : 'Loan Management', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'CAPITAL', icon: PiggyBank, label: isBangla ? 'মূলধন জমা' : 'Capital Deposit', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'RESERVE_UTILIZATION', icon: TrendingUp, label: isBangla ? 'রিজার্ভ ব্যবহার' : 'Reserve Utilization', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'CASH_BOOK', icon: Landmark, label: isBangla ? 'নগদ হিসাব' : 'Cash Book', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'BANK_BOOK', icon: Building2, label: isBangla ? 'ব্যাংক হিসাব' : 'Bank Book', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'INCOME_EXPENSE', icon: PlusCircle, label: isBangla ? 'আয়-ব্যয় এন্ট্রি' : 'Income & Expense', roles: ['ADMIN', 'ACCOUNTANT'] },
       ]
     },
     {
       title: isBangla ? 'হিসাবরক্ষণ ও রিপোর্ট' : 'Accounting & Reports',
-      roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'],
+      roles: ['ADMIN', 'ACCOUNTANT', 'AUDITOR', 'COLLECTION_OFFICER'],
       items: [
-        { id: 'CASH_RECONCILIATION', icon: Scale, label: isBangla ? 'ক্যাশ মিলকরণ' : 'Cash Reconciliation', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'BANK_RECONCILIATION', icon: Building2, label: isBangla ? 'ব্যাংক রিকনসিলিয়েশন' : 'Bank Reconciliation', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'ACCOUNTS', icon: Briefcase, label: isBangla ? 'হিসাব খাত' : 'Chart of Accounts', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'LEDGER', icon: FileText, label: isBangla ? 'খতিয়ান' : 'Ledger', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'REPORTS', icon: FileSpreadsheet, label: isBangla ? 'আর্থিক রিপোর্ট ও বিবরণী' : 'Financial Reports', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'] },
-        { id: 'PROFIT', icon: Calculator, label: isBangla ? 'মুনাফা বন্টন' : 'Profit Distribution', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MEMBER'] },
+        { id: 'FINANCIAL_SUMMARY', icon: LineChart, label: isBangla ? 'মূল আর্থিক সূচক (সারসংক্ষেপ)' : 'Key Financial Indicators', roles: ['ADMIN', 'ACCOUNTANT', 'AUDITOR', 'COLLECTION_OFFICER'] },
+        { id: 'CASH_RECONCILIATION', icon: Scale, label: isBangla ? 'ক্যাশ মিলকরণ' : 'Cash Reconciliation', roles: ['ADMIN', 'ACCOUNTANT', 'AUDITOR'] },
+        { id: 'BANK_RECONCILIATION', icon: Building2, label: isBangla ? 'ব্যাংক রিকনসিলিয়েশন' : 'Bank Reconciliation', roles: ['ADMIN', 'ACCOUNTANT', 'AUDITOR'] },
+        { id: 'ACCOUNTS', icon: Briefcase, label: isBangla ? 'হিসাব খাত' : 'Chart of Accounts', roles: ['ADMIN', 'ACCOUNTANT', 'AUDITOR'] },
+        { id: 'LEDGER', icon: FileText, label: isBangla ? 'খতিয়ান' : 'Ledger', roles: ['ADMIN', 'ACCOUNTANT', 'AUDITOR'] },
+        { id: 'REPORTS', icon: FileSpreadsheet, label: isBangla ? 'আর্থিক রিপোর্ট ও বিবরণী' : 'Financial Reports', roles: ['ADMIN', 'ACCOUNTANT', 'AUDITOR'] },
+        { id: 'PROFIT', icon: Calculator, label: isBangla ? 'মুনাফা বন্টন' : 'Profit Distribution', roles: ['ADMIN', 'ACCOUNTANT'] },
       ]
     },
     {
       title: isBangla ? 'কল্যাণ তহবিল' : 'Welfare & Others',
-      roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'],
+      roles: ['ADMIN', 'ACCOUNTANT'],
       items: [
-        { id: 'WELFARE', icon: HeartHandshake, label: isBangla ? 'কল্যাণ তহবিল' : 'Welfare Fund', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'INVESTMENTS', icon: TrendingUp, label: isBangla ? 'বিনিয়োগ' : 'Investment', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'MEETINGS', icon: Users2, label: isBangla ? 'মিটিং' : 'Meetings', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-        { id: 'RESOLUTIONS', icon: FileText, label: isBangla ? 'রেজোলিউশন' : 'Resolutions', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
+        { id: 'WELFARE', icon: HeartHandshake, label: isBangla ? 'কল্যাণ তহবিল' : 'Welfare Fund', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'INVESTMENTS', icon: TrendingUp, label: isBangla ? 'বিনিয়োগ' : 'Investment', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'MEETINGS', icon: Users2, label: isBangla ? 'মিটিং' : 'Meetings', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'RESOLUTIONS', icon: FileText, label: isBangla ? 'রেজোলিউশন' : 'Resolutions', roles: ['ADMIN', 'ACCOUNTANT'] },
       ]
     },
     {
       title: isBangla ? 'প্রশাসন ও সেটিং' : 'Admin & Settings',
-      roles: ['SUPER_ADMIN', 'ADMIN'],
+      roles: ['ADMIN'],
       items: [
-        { id: 'COMMITTEE_MANAGEMENT', icon: Users, label: isBangla ? 'কমিটি ব্যবস্থাপনা' : 'Committee Management', roles: ['SUPER_ADMIN', 'ADMIN'] },
-        { id: 'USERS', icon: Shield, label: isBangla ? 'ব্যবহারকারী' : 'User Management', roles: ['SUPER_ADMIN'] },
-        { id: 'FINANCIAL_YEAR', icon: CalendarDays, label: isBangla ? 'অর্থবছর' : 'Financial Year', roles: ['SUPER_ADMIN', 'ADMIN'] },
-        { id: 'SETTINGS', icon: Settings, label: isBangla ? 'সেটিংস' : 'Settings', roles: ['SUPER_ADMIN', 'ADMIN'] },
-        { id: 'AUDIT_LOG', icon: History, label: isBangla ? 'অডিট ট্রেইল' : 'Audit Trail', roles: ['SUPER_ADMIN', 'ADMIN'] },
-        { id: 'INTEGRITY_CHECK', icon: ShieldCheck, label: isBangla ? 'অ্যাকাউন্টিং ইন্টিগ্রিটি চেক' : 'Integrity Auditor', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
+        { id: 'COMMITTEE_MANAGEMENT', icon: Users, label: isBangla ? 'কমিটি ব্যবস্থাপনা' : 'Committee Management', roles: ['ADMIN'] },
+        { id: 'USERS', icon: Shield, label: isBangla ? 'ব্যবহারকারী' : 'User Management', roles: ['ADMIN'] },
+        { id: 'FINANCIAL_YEAR', icon: CalendarDays, label: isBangla ? 'অর্থবছর' : 'Financial Year', roles: ['ADMIN'] },
+        { id: 'SETTINGS', icon: Settings, label: isBangla ? 'সেটিংস' : 'Settings', roles: ['ADMIN'] },
+        { id: 'AUDIT_LOG', icon: History, label: isBangla ? 'অডিট ট্রেইল' : 'Audit Trail', roles: ['ADMIN'] },
+        { id: 'INTEGRITY_CHECK', icon: ShieldCheck, label: isBangla ? 'অ্যাকাউন্টিং ইন্টিগ্রিটি চেক' : 'Integrity Auditor', roles: ['ADMIN', 'ACCOUNTANT'] },
       ]
     }
   ];

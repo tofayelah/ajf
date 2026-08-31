@@ -79,7 +79,7 @@ export function resolveTargetAccountForLine(
       confidence: 'HIGH',
       status: 'ALREADY_CORRECT',
       reason: 'Standard Cash/Bank asset debit line remains unchanged.',
-      fieldsUsed: ['debit', 'accountId'],
+      fieldsUsed: ['debit','accountId'],
       isEligible: false
     };
   }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { resetUserPasswordAPI, resetUserPinAPI } from '../../services/api';
 import { UserAccount } from '../../types';
 import { X, KeyRound, Lock, Eye, EyeOff, AlertTriangle, Check } from 'lucide-react';
 
@@ -16,7 +17,7 @@ export const ResetCredentialModal: React.FC<ResetCredentialModalProps> = ({
   user,
   mode,
 }) => {
-  const { language, resetUserPassword, resetUserPin } = useApp();
+  const { language, showNotification } = useApp();
   const isBangla = language === 'bn';
 
   const [credential, setCredential] = useState('');
@@ -74,22 +75,21 @@ export const ResetCredentialModal: React.FC<ResetCredentialModalProps> = ({
 
     try {
       if (isPassword) {
-        const res = await resetUserPassword(user.userId, cleanVal);
-        if (res.success) {
-          onClose();
-        } else {
-          setError(res.message);
-        }
+        await resetUserPasswordAPI(user.userId, cleanVal);
+        showNotification(
+          isBangla ? 'পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে' : 'Password reset successfully',
+          'success'
+        );
       } else {
-        const res = await resetUserPin(user.userId, cleanVal);
-        if (res.success) {
-          onClose();
-        } else {
-          setError(res.message);
-        }
+        await resetUserPinAPI(user.userId, cleanVal);
+        showNotification(
+          isBangla ? 'পিন সফলভাবে পরিবর্তন করা হয়েছে' : 'PIN reset successfully',
+          'success'
+        );
       }
+      onClose();
     } catch (err: any) {
-      setError(err?.message || 'Failed to update credential');
+      setError(err.message || 'An error occurred while resetting.');
     } finally {
       setIsSubmitting(false);
     }

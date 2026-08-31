@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { UserAccount, UserRole } from '../../types';
 import { UserFormModal, ROLE_OPTIONS } from './UserFormModal';
 import { ResetCredentialModal } from './ResetCredentialModal';
+import { PermissionMatrixModal } from './PermissionMatrixModal';
 import {
   ShieldCheck,
   UserPlus,
@@ -25,7 +26,7 @@ import {
 } from 'lucide-react';
 
 export const UsersRolesView: React.FC = () => {
-  const { db, language, manageUserStatus, activeUser } = useApp();
+  const { db, language, manageUserStatus, activeUser, showNotification } = useApp();
   const isBangla = language === 'bn';
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -36,6 +37,7 @@ export const UsersRolesView: React.FC = () => {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
 
+  const [permissionModalUser, setPermissionModalUser] = useState<UserAccount | null>(null);
   const [resetModalState, setResetModalState] = useState<{
     isOpen: boolean;
     user: UserAccount | null;
@@ -120,43 +122,32 @@ export const UsersRolesView: React.FC = () => {
     });
   };
 
-  const executeConfirmedAction = () => {
+  const executeConfirmedAction = async () => {
     if (!confirmActionState.user) return;
-    manageUserStatus(confirmActionState.user.userId, confirmActionState.action);
+    
+    try {
+      const res = await manageUserStatus(confirmActionState.user.userId, confirmActionState.action);
+      if (res && res.success) {
+        showNotification(
+          isBangla ? 'ইউজার স্ট্যাটাস সফলভাবে পরিবর্তন করা হয়েছে' : 'User status updated successfully',
+          'success'
+        );
+      } else {
+        showNotification(res?.message || 'Failed to update user status', 'error');
+      }
+    } catch (e: any) {
+      showNotification(e.message || 'Failed to update user status', 'error');
+    }
+    
     setConfirmActionState({ isOpen: false, user: null, action: 'DISABLE' });
   };
 
   const getRoleBadge = (role: UserRole) => {
     switch (role) {
-      case 'SUPER_ADMIN':
-        return {
-          bg: 'bg-purple-50 text-purple-700 border-purple-200',
-          label: isBangla ? 'সুপার অ্যাডমিন' : 'Super Admin',
-        };
       case 'ADMIN':
         return {
           bg: 'bg-blue-50 text-blue-700 border-blue-200',
-          label: isBangla ? 'প্রশাসক' : 'Admin',
-        };
-      case 'FINANCE_MANAGER':
-        return {
-          bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-          label: isBangla ? 'অর্থ ব্যবস্থাপক' : 'Finance Manager',
-        };
-      case 'PRESIDENT':
-        return {
-          bg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-          label: isBangla ? 'সভাপতি' : 'President',
-        };
-      case 'GENERAL_SECRETARY':
-        return {
-          bg: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-          label: isBangla ? 'সাধারণ সম্পাদক' : 'General Secretary',
-        };
-      case 'TREASURER':
-        return {
-          bg: 'bg-amber-50 text-amber-700 border-amber-200',
-          label: isBangla ? 'কোষাধ্যক্ষ' : 'Treasurer',
+          label: isBangla ? 'অ্যাডমিন' : 'Admin',
         };
       case 'ACCOUNTANT':
         return {
@@ -173,7 +164,7 @@ export const UsersRolesView: React.FC = () => {
           bg: 'bg-emerald-100/60 text-emerald-800 border-emerald-300',
           label: isBangla ? 'সাধারণ সদস্য' : 'Member',
         };
-      case 'VIEWER':
+      case 'AUDITOR':
         return {
           bg: 'bg-slate-100 text-slate-700 border-slate-200',
           label: isBangla ? 'দর্শক' : 'Viewer',
@@ -449,6 +440,14 @@ export const UsersRolesView: React.FC = () => {
                           >
                             <Edit className="w-4 h-4" />
                           </button>
+                          
+                          <button
+                            onClick={() => setPermissionModalUser(user)}
+                            className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title={isBangla ? 'পারমিশন ম্যাট্রিক্স' : 'Permission Matrix'}
+                          >
+                            <Shield className="w-4 h-4" />
+                          </button>
 
                           {/* Reset Password Button */}
                           <button
@@ -545,57 +544,54 @@ export const UsersRolesView: React.FC = () => {
           <span>{isBangla ? 'ভূমিকা ও পারমিশন গাইডলাইন' : 'Role Access Matrix & Security Hierarchy'}</span>
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          <div className="p-3 bg-purple-50/60 border border-purple-200 rounded-xl space-y-1">
-            <div className="font-bold text-purple-900 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-purple-600" />
-              SUPER_ADMIN
-            </div>
-            <p className="text-purple-800 leading-relaxed">
-              {isBangla
-                ? 'সম্পূর্ণ নিয়ন্ত্রণ। ইউজার তৈরি, রোল পরিবর্তন, অর্থবছর সমাপনী, সিস্টেম সেটিংস ও নিরাপত্তা অডিট লগ।'
-                : 'Full system control. User accounts, year closings, system configuration, audit logs.'}
-            </p>
-          </div>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
           <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl space-y-1">
             <div className="font-bold text-blue-900 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-blue-600" />
               ADMIN
             </div>
             <p className="text-blue-800 leading-relaxed">
-              {isBangla
-                ? 'সদস্য ব্যবস্থাপনা, নতুন ভর্তি অনুমোদন, চাঁদা ও কিস্তি রসিদ, ঋণ অনুমোদন এবং অপারেশনাল রিপোর্ট।'
-                : 'Member management, admissions, collections, loans, operational reports.'}
+              {isBangla ? 'সম্পূর্ণ নিয়ন্ত্রণ। ইউজার তৈরি, সিস্টেম সেটিংস ও নিরাপত্তা অডিট লগ।' : 'Full system control. User accounts, system configuration, audit logs.'}
             </p>
           </div>
-
           <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-1">
             <div className="font-bold text-emerald-900 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-600" />
-              FINANCE_MANAGER
+              ACCOUNTANT
             </div>
             <p className="text-emerald-800 leading-relaxed">
-              {isBangla
-                ? 'অ্যাকাউন্টিং, ক্যাশ বুক, ব্যাংক বুক, ভাউচার ও ট্রানজ্যাকশন এন্ট্রি, ব্যাংক রিকনসিলিয়েশন এবং আর্থিক বিবরণী।'
-                : 'Financial ledger, cash/bank books, voucher entries, bank reconciliation, financial reports.'}
+              {isBangla ? 'অ্যাকাউন্টিং, ক্যাশ বুক, ব্যাংক বুক, ভাউচার ও ট্রানজ্যাকশন এন্ট্রি, আর্থিক বিবরণী।' : 'Financial ledger, cash/bank books, voucher entries, financial reports.'}
             </p>
           </div>
-
+          <div className="p-3 bg-orange-50/60 border border-orange-200 rounded-xl space-y-1">
+            <div className="font-bold text-orange-900 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-orange-600" />
+              COLLECTION_OFFICER
+            </div>
+            <p className="text-orange-800 leading-relaxed">
+              {isBangla ? 'নতুন ভর্তি অনুমোদন, চাঁদা ও কিস্তি রসিদ, ঋণ আদায়।' : 'Admissions, collections, receipts, loan recovery.'}
+            </p>
+          </div>
+          <div className="p-3 bg-slate-50/60 border border-slate-200 rounded-xl space-y-1">
+            <div className="font-bold text-slate-900 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-slate-600" />
+              AUDITOR
+            </div>
+            <p className="text-slate-800 leading-relaxed">
+              {isBangla ? 'রিপোর্ট দেখা এবং নিরীক্ষণ।' : 'Read-only access for auditing and reports.'}
+            </p>
+          </div>
           <div className="p-3 bg-teal-50/60 border border-teal-200 rounded-xl space-y-1">
             <div className="font-bold text-teal-900 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-teal-600" />
-              MEMBER (সদস্য)
+              MEMBER
             </div>
             <p className="text-teal-800 leading-relaxed">
-              {isBangla
-                ? 'শুধুমাত্র নিজের সদস্য প্রোফাইল, মাসিক জমার ইতিহাস, ঋণের স্থিতি, ওয়েলফেয়ার অনুদান ও ব্যক্তিগত স্টেটমেন্ট।'
-                : 'Restricted view. Personal dashboard, own collections, loan statement, welfare grants.'}
+              {isBangla ? 'নিজস্ব প্রোফাইল, মাসিক জমার ইতিহাস, ঋণের স্থিতি।' : 'Personal dashboard, own collections, loan statement.'}
             </p>
           </div>
         </div>
       </div>
-
       {/* Add / Edit User Modal */}
       <UserFormModal
         isOpen={isFormModalOpen}

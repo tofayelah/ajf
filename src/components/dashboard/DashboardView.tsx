@@ -139,7 +139,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onQuickAction }) =
   recentActivities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   // Monthly collection summary chart mock data
-  const monthNames = ['মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট'];
+  const monthNames = ['মার্চ','এপ্রিল','মে','জুন','জুলাই','আগস্ট'];
   const monthValues = [3000, 4000, 5000, 4500, summary.thisMonthCollection || 5000, 6000];
   const maxMonthVal = Math.max(...monthValues, 1);
 

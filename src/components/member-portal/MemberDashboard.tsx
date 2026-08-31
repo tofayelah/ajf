@@ -1,10 +1,10 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { ShieldCheck, TrendingUp, HandCoins, Building, Calendar, ArrowRight } from 'lucide-react';
+import { ShieldCheck, TrendingUp, HandCoins, Building, Calendar, ArrowRight, LineChart } from 'lucide-react';
 import { AccountingService } from '../../services/accounting';
 
 export const MemberDashboard: React.FC = () => {
-  const { db, activeUser, language } = useApp();
+  const { db, activeUser, language, navigateTo } = useApp();
   const isBangla = language === 'bn';
 
   if (!activeUser || !activeUser.linkedMemberId) return null;
@@ -26,7 +26,7 @@ export const MemberDashboard: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-3">
           {member.photoPath ? (
              <div className="w-14 h-14 rounded-full border-2 border-emerald-500 overflow-hidden shrink-0 shadow-sm">
@@ -44,8 +44,18 @@ export const MemberDashboard: React.FC = () => {
             </p>
           </div>
         </div>
-        <div className="bg-emerald-100 px-3 py-1.5 rounded-lg text-emerald-800 font-bold text-sm">
-          {member.memberId}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigateTo('MEMBER_FINANCIAL_SUMMARY' as any)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-colors cursor-pointer"
+          >
+            <LineChart className="w-4 h-4" />
+            <span>{isBangla ? 'সমিতির সামগ্রিক আর্থিক অবস্থা' : 'Society Financial Indicators'}</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+          <div className="bg-emerald-100 px-3 py-1.5 rounded-lg text-emerald-800 font-bold text-sm">
+            {member.memberId}
+          </div>
         </div>
       </div>
 

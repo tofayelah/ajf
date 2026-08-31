@@ -13,12 +13,12 @@ export const MemberSettlementDashboardView = () => {
   const deathSettlementCount = exits.filter(e => e.exitType === 'DEATH_SETTLEMENT' || (e.exitType as any) === 'DEATH').length;
 
   const pendingApprovals = exits.filter(e => 
-    ['NORMAL_EXIT_REQUESTED', 'EARLY_EXIT_REQUESTED', 'DEATH_REPORTED', 'UNDER_REVIEW'].includes(e.status)
+    ['NORMAL_EXIT_REQUESTED','EARLY_EXIT_REQUESTED','DEATH_REPORTED','UNDER_REVIEW'].includes(e.status)
   ).length;
 
   const approvedCount = exits.filter(e => e.status === 'APPROVED').length;
   const completedCount = exits.filter(e => 
-    ['REFUNDED', 'SETTLED', 'EXITED', 'DECEASED'].includes(e.status)
+    ['REFUNDED','SETTLED','EXITED','DECEASED'].includes(e.status)
   ).length;
 
   const summaryCards = [
@@ -117,7 +117,7 @@ export const MemberSettlementDashboardView = () => {
   const stageData = [
     {
       stage: isBangla ? 'নতুন অনুরোধ' : 'Requested',
-      count: exits.filter(e => ['EXIT_REQUESTED', 'NORMAL_EXIT_REQUESTED', 'EARLY_EXIT_REQUESTED', 'DEATH_REPORTED'].includes(e.status)).length,
+      count: exits.filter(e => ['EXIT_REQUESTED','NORMAL_EXIT_REQUESTED','EARLY_EXIT_REQUESTED','DEATH_REPORTED'].includes(e.status)).length,
       color: '#3b82f6' // blue
     },
     {
@@ -132,7 +132,7 @@ export const MemberSettlementDashboardView = () => {
     },
     {
       stage: isBangla ? 'সম্পন্ন' : 'Completed',
-      count: exits.filter(e => ['REFUNDED', 'SETTLED', 'EXITED', 'DECEASED'].includes(e.status)).length,
+      count: exits.filter(e => ['REFUNDED','SETTLED','EXITED','DECEASED'].includes(e.status)).length,
       color: '#10b981' // emerald
     }
   ];
@@ -145,7 +145,7 @@ export const MemberSettlementDashboardView = () => {
 
 
   // --- Projection Logic ---
-  const completedExitsData = exits.filter(e => ['REFUNDED', 'SETTLED', 'EXITED', 'DECEASED'].includes(e.status));
+  const completedExitsData = exits.filter(e => ['REFUNDED','SETTLED','EXITED','DECEASED'].includes(e.status));
   const totalSettlementAmount = completedExitsData.reduce((sum, exit) => sum + (exit.netRefundAmount || (exit as any).netSettlementAmount || 0), 0);
   const averageCostPerExit = completedExitsData.length > 0 ? totalSettlementAmount / completedExitsData.length : 0;
   

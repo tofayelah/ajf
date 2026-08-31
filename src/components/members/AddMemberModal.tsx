@@ -215,7 +215,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+                  const allowedTypes = ['image/jpeg','image/png','image/webp'];
                   if (!allowedTypes.includes(file.type)) {
                     setPhotoError(isBangla ? 'শুধুমাত্র JPG, PNG এবং WEBP ছবি সাপোর্ট করে' : 'Only JPG, PNG, and WEBP formats are supported');
                     return;

@@ -61,6 +61,7 @@ import { IntegrityCheckView } from './components/audit/IntegrityCheckView';
 import { MemberProfileView } from './components/member-portal/MemberProfileView';
 import { MemberLedgerView } from './components/member-portal/MemberLedgerView';
 import { MemberNotificationsView } from './components/member-portal/MemberNotificationsView';
+import { MemberFinancialSummaryView } from './components/member-portal/MemberFinancialSummaryView';
 import { BackupRestoreView } from './components/settings/BackupRestoreView';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
@@ -125,9 +126,12 @@ const ScreenRenderer = ({ onQuickAction }: { onQuickAction: (action: string) => 
     case 'INCOME_STATEMENT' as any:
     case 'BALANCE_SHEET' as any:
     case 'FINANCIAL_STATEMENTS' as any:
+      return <ReportsCenterView />;
+    case 'MEMBER_FINANCIAL_SUMMARY':
+    case 'FINANCIAL_SUMMARY':
     case 'SOCIETY_FINANCIAL_STATUS' as any:
     case 'FINANCIAL_STATUS' as any:
-      return <ReportsCenterView />;
+      return <MemberFinancialSummaryView />;
     case 'SETTINGS': return <SettingsView />;
     case 'FINANCIAL_YEAR': return <FinancialYearView />;
     case 'USERS':
@@ -143,6 +147,7 @@ const ScreenRenderer = ({ onQuickAction }: { onQuickAction: (action: string) => 
       return <IntegrityCheckView />;
     case 'BACKUP_RESTORE': return <BackupRestoreView />;
     case 'PROFILE': return <MemberProfileView />;
+    case 'MEMBER_PROFILE': return <MemberProfileView />;
     case 'MEMBER_LEDGER':
     case 'LEDGER': 
       return <MemberLedgerView initialMemberId={selectedMemberId || undefined} />;
@@ -172,12 +177,10 @@ const RoleGuard = ({ children }: { children: React.ReactNode }) => {
 
   if (activeUser?.role === 'MEMBER') {
     const allowedScreens = [
-      'DASHBOARD', 'PROFILE', 'COLLECTIONS', 'DUE_MANAGEMENT',
-      'CAPITAL', 'LOANS', 'LEDGER', 'MEMBER_LEDGER', 'PROFIT', 'NOTIFICATIONS', 'SETTINGS',
-      'MEMBER_SETTLEMENT', 'SETTLEMENT_DASHBOARD', 'NORMAL_MEMBER_EXIT', 'EARLY_MEMBER_EXIT', 'DEATH_SETTLEMENT', 'COMPLETED_SETTLEMENTS',
-      'MEMBER_MASTER', 'MEMBERS', 'INVESTMENTS',
+      'DASHBOARD', 'PROFILE', 'MEMBER_PROFILE', 'COLLECTIONS', 'CAPITAL', 'LOANS', 'MEMBER_LEDGER', 'NOTIFICATIONS',
+      'MEMBER_SETTLEMENT',
       // Society Financial Status & Financial Statements (Read-Only)
-      'REPORTS', 'SOCIETY_FINANCIAL_STATUS', 'FINANCIAL_STATUS', 'FINANCIAL_STATEMENTS', 'BALANCE_SHEET', 'INCOME_STATEMENT', 'TRIAL_BALANCE'
+      'MEMBER_FINANCIAL_SUMMARY', 'FINANCIAL_SUMMARY', 'REPORTS', 'SOCIETY_FINANCIAL_STATUS', 'FINANCIAL_STATUS', 'FINANCIAL_STATEMENTS', 'BALANCE_SHEET', 'INCOME_STATEMENT', 'TRIAL_BALANCE'
     ];
 
     if (!allowedScreens.includes(activeScreen as string)) {
@@ -203,7 +206,7 @@ const RoleGuard = ({ children }: { children: React.ReactNode }) => {
 };
 
 const MainLayout = () => {
-  const { notificationMessage, navigateTo, isAuthenticated } = useApp();
+  const { notificationMessage, navigateTo, isAuthenticated, isDbLoading } = useApp() as any;
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const handleQuickAction = (action: string) => {
@@ -221,7 +224,16 @@ const MainLayout = () => {
     }
   };
 
-    if (!isAuthenticated) {
+  if (isDbLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50">
+        <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-500 font-medium animate-pulse">Checking session...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
     return <LoginView />;
   }
 

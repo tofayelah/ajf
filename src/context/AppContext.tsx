@@ -18,12 +18,24 @@ import {
   clearAllStorage,
 } from "../services/db";
 import { AccountingService } from "../services/accounting";
+import { authService } from "../services/authService";
+import {
+  createUserAPI,
+  updateUserAPI,
+  resetUserPasswordAPI,
+  resetUserPinAPI,
+  deleteUserAPI,
+} from "../services/api";
 
 export type ActiveScreen =
   | "DASHBOARD"
   | "PROFILE"
   | "LEDGER"
+  | "MEMBER_PROFILE"
   | "MEMBER_LEDGER"
+  | "MEMBER_FINANCIAL_SUMMARY"
+  | "FINANCIAL_SUMMARY"
+  | "SOCIETY_FINANCIAL_STATUS"
   | "NOTIFICATIONS"
   | "MEMBERS"
   | "MEMBER_DETAIL"
@@ -72,9 +84,10 @@ interface AppContextType {
   canAccessMember: (memberId: string) => boolean;
   db: AppDatabaseState;
   setDb: React.Dispatch<React.SetStateAction<AppDatabaseState>>;
+  isDbLoading: boolean;
   activeScreen: ActiveScreen;
   activeNavTab: MainNavTab;
-  activeUser: UserAccount;
+  activeUser: UserAccount | null;
   selectedMemberId: string | null;
   selectedReceiptNo: string | null;
   language: "bn" | "en";
@@ -528,11 +541,11 @@ interface AppContextType {
       pin?: string;
     },
   ) => Promise<{ success: boolean; message: string }> | { success: boolean; message: string };
-  deleteUser: (userId: string) => { success: boolean; message: string };
+  deleteUser: (userId: string) => Promise<{ success: boolean; message: string }> | { success: boolean; message: string };
   manageUserStatus: (
     userId: string,
     action: "LOCK" | "UNLOCK" | "ENABLE" | "DISABLE" | "ACTIVATE" | "DEACTIVATE",
-  ) => { success: boolean; message: string };
+  ) => Promise<{ success: boolean; message: string }> | { success: boolean; message: string };
   resetUserPassword: (
     userId: string,
     newPassword: string,
@@ -565,10 +578,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   const [isDbLoading, setIsDbLoading] = useState<boolean>(true);
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>("DASHBOARD");
   const [activeNavTab, setActiveNavTab] = useState<MainNavTab>("HOME");
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    const initialDb = getInitialDatabase();
-    return !!initialDb.activeUserId;
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [activeUser, setActiveUser] = useState<UserAccount | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [selectedReceiptNo, setSelectedReceiptNo] = useState<string | null>(
     null,
@@ -583,9 +594,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
 
   // Initial async load from storage
   useEffect(() => {
-    loadDatabaseFromStorage().then(loadedDb => {
+    authService.checkSession().then(async (session) => {
+      let loadedDb = getInitialDatabase();
+      if (session.authenticated && session.user) {
+         loadedDb = await loadDatabaseFromStorage();
+      }
+
+      (window as any).skipNextDbSave = true;
       setDb(loadedDb);
-      setIsAuthenticated(!!loadedDb.activeUserId);
+      
+      if (session.authenticated && session.user) {
+        setActiveUser(session.user);
+        setIsAuthenticated(true);
+      } else {
+        setActiveUser(null);
+        setIsAuthenticated(false);
+      }
+      
       setIsDbLoading(false);
       
       // Committee Expiry check
@@ -602,14 +627,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
 
   // Sync to storage on change
   useEffect(() => {
-    if (!isDbLoading) {
+    if (!isDbLoading && isAuthenticated) {
+      if ((window as any).skipNextDbSave) {
+        (window as any).skipNextDbSave = false;
+        return;
+      }
       saveDatabaseToStorage(db);
     }
-  }, [db, isDbLoading]);
-
-  const activeUser = db.activeUserId
-    ? (db.users || []).find((u) => u.userId === db.activeUserId) || db.users[0]
-    : db.users[0];
+  }, [db, isDbLoading, isAuthenticated]);
 
   const language = db.settings.language || "bn";
 
@@ -679,139 +704,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const login = async (username: string, pin: string): Promise<boolean> => {
-    let users = [...(db.users || [])];
-    let authenticatedUser = null;
-    let isMigrationNeeded = false;
-    let adminOverride = false;
-    const cleanUsername = (username || "").trim().toLowerCase();
-
-    // First try the admin override
-    if (cleanUsername === "admin" && pin === "123456") {
-      authenticatedUser =
-        users.find((u) => u.role === "SUPER_ADMIN" && u.status === "ACTIVE") || users.find((u) => u.role === "SUPER_ADMIN") || users[0];
-      adminOverride = true;
-    }
-
-    if (!authenticatedUser) {
-      for (let i = 0; i < users.length; i++) {
-        const u = users[i];
-        const matchUsername = (u.username || "").trim().toLowerCase() === cleanUsername;
-        const matchMobile = (u.mobile || "").trim() === (username || "").trim();
-        const matchEmail = (u.email || "").trim().toLowerCase() === cleanUsername;
-
-        if (matchUsername || matchMobile || matchEmail) {
-          if (u.status !== "ACTIVE") {
-            // User is not active (DISABLED, LOCKED, or INACTIVE)
-            if (u.status === "LOCKED") {
-              showNotification(
-                language === "bn"
-                  ? "আপনার অ্যাকাউন্টটি লক করা হয়েছে। প্রশাসকের সাথে যোগাযোগ করুন।"
-                  : "Your account is locked. Please contact the administrator.",
-                "error",
-              );
-            } else {
-              showNotification(
-                language === "bn"
-                  ? "আপনার অ্যাকাউন্টটি নিষ্ক্রিয় করা হয়েছে।"
-                  : "Your account is disabled/inactive.",
-                "error",
-              );
-            }
-            return false;
-          }
-
-          if (u.isMigrated && u.salt) {
-            const hashedAttempt = await hashPassword(pin, u.salt);
-            if (
-              u.pinHash === hashedAttempt ||
-              u.passwordHash === hashedAttempt
-            ) {
-              authenticatedUser = u;
-              break;
-            }
-          } else {
-            // Legacy check (plaintext)
-            if (u.pinHash === pin || u.passwordHash === pin) {
-              authenticatedUser = u;
-              isMigrationNeeded = true;
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    if (authenticatedUser) {
-      let updatedUser = { ...authenticatedUser };
-      updatedUser.lastLoginAt = new Date().toISOString();
-
-      if (isMigrationNeeded || adminOverride) {
-        if (!updatedUser.isMigrated) {
-          const newSalt = generateSalt();
-          const newHash = await hashPassword(pin, newSalt);
-          updatedUser.salt = newSalt;
-          if (updatedUser.pinHash) updatedUser.pinHash = newHash;
-          if (updatedUser.passwordHash) updatedUser.passwordHash = newHash;
-          updatedUser.isMigrated = true;
-        }
-      }
-
-      const userIndex = users.findIndex((u) => u.userId === updatedUser.userId);
-      if (userIndex !== -1) {
-        users[userIndex] = updatedUser;
-      }
-
-      const auditLog: AuditLog = {
-        auditId: `AUD-${Date.now()}`,
-        dateTime: new Date().toISOString(),
-        userId: updatedUser.userId,
-        userName: updatedUser.fullName,
-        module: "AUTH",
-        action: "LOGIN",
-        recordId: updatedUser.userId,
-        remarks: `ব্যবহারকারী '${updatedUser.fullName}' (${updatedUser.username}) সফলভাবে লগইন করেছেন`,
-      };
-
-      setDb((prev) => ({
-        ...prev,
-        activeUserId: updatedUser.userId,
-        users,
-        auditLogs: [auditLog, ...(prev.auditLogs || [])],
-      }));
+    setIsDbLoading(true);
+    const result = await authService.login(username, pin);
+    if (result.success && result.user) {
+      // First set authentication flags
+      setActiveUser(result.user);
       setIsAuthenticated(true);
+      
+      // Then fetch user's database scope
+      const loadedDb = await loadDatabaseFromStorage();
+      
+      // Use a flag to prevent immediate resave on initial load
+      (window as any).skipNextDbSave = true;
+      setDb(loadedDb);
+      
+      setIsDbLoading(false);
       return true;
+    } else {
+      setIsDbLoading(false);
+      showNotification(result.error || "Login failed", "error");
+      return false;
     }
-
-    return false;
   };
 
-
-  const logout = () => {
-    const user = getCurrentUser();
-    if (user) {
-      const auditLog: AuditLog = {
-        auditId: 'AUD-' + Date.now(),
-        dateTime: new Date().toISOString(),
-        userId: user.userId,
-        userName: user.fullName,
-        module: 'AUTH',
-        action: 'LOGOUT',
-        recordId: user.userId,
-        remarks: 'User logged out successfully'
-      };
-      setDb(prev => ({
-        ...prev,
-        activeUserId: undefined,
-        auditLogs: [auditLog, ...(prev.auditLogs || [])]
-      }));
-    } else {
-      setDb(prev => ({ ...prev, activeUserId: undefined }));
-    }
+  const logout = async () => {
+    await authService.logout();
+    setActiveUser(null);
     setIsAuthenticated(false);
+    (window as any).skipNextDbSave = true;
+    setDb(getInitialDatabase());
   };
 
   const getCurrentUser = () => {
-    return (db.users || []).find((u) => u.userId === db.activeUserId) || null;
+    return activeUser;
   };
   const getCurrentMemberId = () => {
     const user = getCurrentUser();
@@ -821,21 +746,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     return null;
   };
   const switchUserRole = (role: UserRole) => {
-    const user = getCurrentUser();
-    if (user && (user.role === "SUPER_ADMIN" || user.role === "FINANCE_MANAGER" || (user.role as string) === "ADMIN")) {
-      setDb((prev) => {
-        const updatedUsers = (prev.users || []).map((u) => {
-          if (u.userId === user.userId) {
-            return { ...u, role: role };
-          }
-          return u;
-        });
-        return { ...prev, users: updatedUsers };
-      });
-      showNotification(`Switched role to ${role}`, "success");
-    } else {
-      showNotification("You do not have permission to switch roles.", "error");
-    }
+    // Phase 1: Not fully supporting dynamic role switches on backend yet
+    showNotification("You do not have permission to switch roles via client.", "error");
   };
 
 
@@ -852,7 +764,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   const canAccessMember = (memberId: string) => {
     const user = getCurrentUser();
     if (!user) return false;
-    if (user.role === "SUPER_ADMIN" || (user.role as string) === "ADMIN") return true;
+    // Authorized operational roles have global member lookup/management access
+    if (["ADMIN", "ACCOUNTANT", "COLLECTION_OFFICER", "AUDITOR"].includes(user.role as string)) return true;
+    // MEMBER role is strictly restricted to their own linkedMemberId
     if (user.role === "MEMBER") return user.linkedMemberId === memberId;
     return false;
   };
@@ -872,21 +786,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     const res = AccountingService.completeAdmission(db, params);
     
     if (res && res.success && res.updatedDb && res.member) {
-      console.log('[2. AFTER member object created in completeAdmission]:', res.member);
-      console.log('[3. BEFORE setDb(updatedDb)] - new total members:', res.updatedDb.members?.length);
+      (window as any).skipNextDbSave = true;
       setDb(res.updatedDb);
-      console.log('[4. AFTER setDb(updatedDb)]');
 
-      console.log('[5. BEFORE saveDatabaseToStorage(db)]');
       const storageRes = await saveDatabaseToStorage(res.updatedDb);
-      console.log('[Storage & Supabase Sync completed]:', storageRes);
 
       if (!storageRes.success && storageRes.error) {
-        console.error('[Supabase Sync Failed in completeMemberAdmission]:', storageRes.error);
         return {
           ...res,
-          success: true, // Local operation succeeded, just cloud sync failed
-          message: `${res.message} (Note: Cloud sync failed - ${storageRes.error})`,
+          success: false,
+          message: `সার্ভার সিঙ্ক ব্যর্থ হয়েছে: ${storageRes.error}`,
         };
       }
     } else {
@@ -896,23 +805,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const addMember = async (member: any) => {
-    console.log('========================================================================');
-    console.log('[1. BEFORE addMember]', {
-      memberId: member?.memberId,
-      name: member?.fullName,
-    });
-
-    console.log('[2. AFTER member object passed to addMember]:', member);
     const newMembers = [...(db.members || []), member];
     const updatedDb = { ...db, members: newMembers };
     
-    console.log('[3. BEFORE setDb(updatedDb)] - new total members:', updatedDb.members?.length);
+    (window as any).skipNextDbSave = true;
     setDb(updatedDb);
-    console.log('[4. AFTER setDb(updatedDb)]');
 
-    console.log('[5. BEFORE saveDatabaseToStorage(db)]');
     const storageRes = await saveDatabaseToStorage(updatedDb);
-    console.log('[addMember storage result]:', storageRes);
 
     return {
       success: storageRes.success,
@@ -921,18 +820,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const updateMember = async (member: any) => {
-    console.log('[Execution Trace 1: UI -> updateMember started]', {
-      memberId: member?.memberId,
-    });
     const updatedMembers = (db.members || []).map((m) =>
       m.memberId === member.memberId ? member : m
     );
     const updatedDb = { ...db, members: updatedMembers };
+    (window as any).skipNextDbSave = true;
     setDb(updatedDb);
 
-    console.log('[Execution Trace 2: updateMember -> saveDatabaseToStorage]');
     const storageRes = await saveDatabaseToStorage(updatedDb);
-    console.log('[Execution Trace 3: updateMember storage result]:', storageRes);
 
     return {
       success: storageRes.success,
@@ -1049,8 +944,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     return res;
   };
   const saveDraftContraEntry = async (...args: any[]) => {
-    console.warn("Dummy method called: saveDraftContraEntry");
-    return { success: true, message: "Action successful" };
+    const res = (AccountingService as any).postContraEntry(db, { ...args[0], isDraft: true, status: 'DRAFT' });
+    if (res && res.success && res.updatedDb) {
+      setDb(res.updatedDb);
+    }
+    return res;
   };
   const editDraftContraEntry = async (...args: any[]) => {
     const res = (AccountingService as any).editDraftContraEntry(db, ...args);
@@ -1304,53 +1202,98 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     setDb(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }));
     return { success: true, message: "Settings updated" };
   };
-  const addUser = (user: any) => {
-    const userId = user.userId || `USR-${String((db.users?.length || 0) + 1).padStart(4, '0')}`;
-    const newUser = {
-      ...user,
-      userId,
-      createdAt: user.createdAt || new Date().toISOString(),
-    };
-    setDb(prev => ({ ...prev, users: [...(prev.users || []), newUser] }));
-    return { success: true, message: "User added" };
+  const addUser = async (user: any) => {
+    try {
+      const res = await createUserAPI(user);
+      if (res && res.success && res.user) {
+        setDb(prev => ({
+          ...prev,
+          users: [...(prev.users || []).filter(u => u.userId !== res.user.userId && u.username !== res.user.username), res.user]
+        }));
+        return { success: true, message: "User added successfully", user: res.user };
+      }
+      return { success: false, message: res?.error || "Failed to add user" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to add user" };
+    }
   };
-  const updateUser = (userId: string, updates: any) => {
-    setDb(prev => ({
-      ...prev,
-      users: (prev.users || []).map(u => (u.userId === userId || (!u.userId && u.username === updates.username)) ? { ...u, ...updates, userId: u.userId || userId } : u)
-    }));
-    return { success: true, message: "User updated" };
+
+  const updateUser = async (userId: string, updates: any) => {
+    try {
+      const res = await updateUserAPI(userId, updates);
+      if (res && res.success && res.user) {
+        setDb(prev => ({
+          ...prev,
+          users: (prev.users || []).map(u => (u.userId === userId || (!u.userId && u.username === res.user.username)) ? { ...u, ...res.user } : u)
+        }));
+        return { success: true, message: "User updated successfully", user: res.user };
+      }
+      return { success: false, message: res?.error || "Failed to update user" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to update user" };
+    }
   };
-  const deleteUser = (userId: string) => {
-    setDb(prev => ({ ...prev, users: (prev.users || []).filter(u => u.userId !== userId) }));
-    return { success: true, message: "User deleted" };
+
+  const deleteUser = async (userId: string) => {
+    try {
+      const res = await deleteUserAPI(userId);
+      if (res && res.success) {
+        setDb(prev => ({
+          ...prev,
+          users: (prev.users || []).filter(u => u.userId !== userId)
+        }));
+        return { success: true, message: "User deleted successfully" };
+      }
+      return { success: false, message: res?.error || "Failed to delete user" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to delete user" };
+    }
   };
-  const manageUserStatus = (userId: string, action: any) => {
+
+  const manageUserStatus = async (userId: string, action: any) => {
     let targetStatus = 'ACTIVE';
     if (action === 'LOCK') targetStatus = 'LOCKED';
     else if (action === 'UNLOCK' || action === 'ENABLE' || action === 'ACTIVATE') targetStatus = 'ACTIVE';
     else if (action === 'DISABLE') targetStatus = 'DISABLED';
-    else if (action === 'INACTIVATE') targetStatus = 'INACTIVE';
+    else if (action === 'INACTIVATE' || action === 'DEACTIVATE') targetStatus = 'INACTIVE';
 
-    setDb(prev => ({
-      ...prev,
-      users: (prev.users || []).map(u => u.userId === userId ? { ...u, status: targetStatus as any } : u)
-    }));
-    return { success: true, message: "User status updated" };
+    try {
+      const res = await updateUserAPI(userId, { status: targetStatus });
+      if (res && res.success && res.user) {
+        setDb(prev => ({
+          ...prev,
+          users: (prev.users || []).map(u => u.userId === userId ? { ...u, ...res.user } : u)
+        }));
+        return { success: true, message: "User status updated successfully", user: res.user };
+      }
+      return { success: false, message: res?.error || "Failed to update user status" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to update user status" };
+    }
   };
-  const resetUserPassword = (userId: string, pass: string) => {
-    setDb(prev => ({
-      ...prev,
-      users: (prev.users || []).map(u => u.userId === userId ? { ...u, password: pass, passwordHash: pass } : u)
-    }));
-    return { success: true, message: "Password reset successfully" };
+
+  const resetUserPassword = async (userId: string, pass: string) => {
+    try {
+      const res = await resetUserPasswordAPI(userId, pass);
+      if (res && res.success) {
+        return { success: true, message: "Password reset successfully" };
+      }
+      return { success: false, message: res?.error || "Failed to reset password" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to reset password" };
+    }
   };
-  const resetUserPin = (userId: string, pin: string) => {
-    setDb(prev => ({
-      ...prev,
-      users: (prev.users || []).map(u => u.userId === userId ? { ...u, pin: pin, pinHash: pin } : u)
-    }));
-    return { success: true, message: "PIN reset successfully" };
+
+  const resetUserPin = async (userId: string, pin: string) => {
+    try {
+      const res = await resetUserPinAPI(userId, pin);
+      if (res && res.success) {
+        return { success: true, message: "PIN reset successfully" };
+      }
+      return { success: false, message: res?.error || "Failed to reset PIN" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to reset PIN" };
+    }
   };
   const loadDemoData = async () => {
     setDb(populateDemoData(createFreshDatabase(true)));
@@ -1426,14 +1369,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  if (isDbLoading) {
-    return <div className="flex h-screen items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div></div>;
-  }
-
   return (
     <AppContext.Provider
       value={{
         isAuthenticated,
+        isDbLoading,
         login,
         logout,
         getCurrentUser,

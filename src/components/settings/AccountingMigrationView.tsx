@@ -825,7 +825,7 @@ export const AccountingMigrationView: React.FC<AccountingMigrationViewProps> = (
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {['4000', '4010', '4020', '4300', '3000', '1000', '1010'].map(code => {
+                {['4000','4010','4020','4300','3000','1000','1010'].map(code => {
                   const oldAcc = diagnosticResult.beforeAccountTotals[code] || {
                     code,
                     title: CANONICAL_COA[code]?.accountName || `Account ${code}`,

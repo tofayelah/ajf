@@ -133,31 +133,17 @@ export const AdminDiagnosticTool: React.FC<AdminDiagnosticToolProps> = ({ onClos
       ['Total Net Variance (৳)', auditReport.cashMovementAudit.totalVariance.toString()],
       ['Reconciled Status', auditReport.cashMovementAudit.isReconciled ? 'RECONCILED' : 'VARIANCE_DETECTED'],
       [''],
-      ['Module', 'Sub-ledger Amount (৳)', 'Cash Book Amount (৳)', 'Variance (৳)', 'Status'],
-      [
-        'Admission Fees',
-        auditReport.cashMovementAudit.modules.admission.subledgerAmount.toString(),
-        auditReport.cashMovementAudit.modules.admission.cashBookAmount.toString(),
-        auditReport.cashMovementAudit.modules.admission.variance.toString(),
-        auditReport.cashMovementAudit.modules.admission.isMatched ? 'MATCHED' : 'UNMATCHED'
-      ],
-      [
-        'Capital Deposits',
-        auditReport.cashMovementAudit.modules.capital.subledgerAmount.toString(),
-        auditReport.cashMovementAudit.modules.capital.cashBookAmount.toString(),
-        auditReport.cashMovementAudit.modules.capital.variance.toString(),
-        auditReport.cashMovementAudit.modules.capital.isMatched ? 'MATCHED' : 'UNMATCHED'
-      ],
-      [
-        'Monthly Collections',
-        auditReport.cashMovementAudit.modules.collection.subledgerAmount.toString(),
-        auditReport.cashMovementAudit.modules.collection.cashBookAmount.toString(),
-        auditReport.cashMovementAudit.modules.collection.variance.toString(),
-        auditReport.cashMovementAudit.modules.collection.isMatched ? 'MATCHED' : 'UNMATCHED'
-      ],
+      ['Module','Sub-ledger Amount (৳)','Cash Book Amount (৳)','Variance (৳)','Status'],
+      ...Object.values(auditReport.cashMovementAudit.modules).map((mod) => [
+        mod.label,
+        mod.subledgerAmount.toString(),
+        mod.cashBookAmount.toString(),
+        mod.variance.toString(),
+        mod.isMatched ? 'MATCHED' : 'UNMATCHED'
+      ]),
       [''],
       ['SECTION 3: SYSTEM VIOLATIONS LIST'],
-      ['Violation ID', 'Category', 'Severity', 'Voucher / Transaction ID', 'Module', 'Impact Amount (৳)', 'Description', 'Remediation Action'],
+      ['Violation ID','Category','Severity','Voucher / Transaction ID','Module','Impact Amount (৳)','Description','Remediation Action'],
       ...auditReport.violationsList.map((v) => [
         v.violationId,
         v.category,
@@ -611,102 +597,39 @@ export const AdminDiagnosticTool: React.FC<AdminDiagnosticToolProps> = ({ onClos
               {isBangla ? 'মডিউল ভিত্তিক সাব-লেজার ও ক্যাশ বুক তুলনা' : 'Module-Level Cash vs Sub-Ledger Comparison'}
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Admission Fees */}
-              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800">
-                    {isBangla ? 'ভর্তি ফি (Admissions)' : 'Admission Fees'}
-                  </span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    auditReport.cashMovementAudit.modules.admission.isMatched
-                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                      : 'bg-rose-100 text-rose-800 border-rose-300'
-                  }`}>
-                    {auditReport.cashMovementAudit.modules.admission.isMatched ? 'MATCHED' : 'UNMATCHED'}
-                  </span>
-                </div>
-                <div className="text-xs space-y-1 font-mono">
-                  <div className="flex justify-between text-slate-500">
-                    <span>Sub-ledger ({auditReport.cashMovementAudit.modules.admission.subledgerTransactionCount}):</span>
-                    <span>৳{auditReport.cashMovementAudit.modules.admission.subledgerAmount.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-500">
-                    <span>Cash Book ({auditReport.cashMovementAudit.modules.admission.cashBookTransactionCount}):</span>
-                    <span>৳{auditReport.cashMovementAudit.modules.admission.cashBookAmount.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-slate-900 border-t pt-1">
-                    <span>Variance:</span>
-                    <span className={auditReport.cashMovementAudit.modules.admission.variance !== 0 ? 'text-rose-600' : 'text-emerald-600'}>
-                      ৳{Math.abs(auditReport.cashMovementAudit.modules.admission.variance).toLocaleString()}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {Object.values(auditReport.cashMovementAudit.modules).map((mod) => (
+                <div key={mod.module} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 line-clamp-1">
+                      {mod.label}
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+                      mod.isMatched
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-rose-100 text-rose-800 border-rose-300'
+                    }`}>
+                      {mod.isMatched ? 'MATCHED' : 'UNMATCHED'}
                     </span>
                   </div>
-                </div>
-              </div>
-
-              {/* Capital Deposits */}
-              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800">
-                    {isBangla ? 'সদস্য মূলধন (Capital)' : 'Capital Deposits'}
-                  </span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    auditReport.cashMovementAudit.modules.capital.isMatched
-                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                      : 'bg-rose-100 text-rose-800 border-rose-300'
-                  }`}>
-                    {auditReport.cashMovementAudit.modules.capital.isMatched ? 'MATCHED' : 'UNMATCHED'}
-                  </span>
-                </div>
-                <div className="text-xs space-y-1 font-mono">
-                  <div className="flex justify-between text-slate-500">
-                    <span>Sub-ledger ({auditReport.cashMovementAudit.modules.capital.subledgerTransactionCount}):</span>
-                    <span>৳{auditReport.cashMovementAudit.modules.capital.subledgerAmount.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-500">
-                    <span>Cash Book ({auditReport.cashMovementAudit.modules.capital.cashBookTransactionCount}):</span>
-                    <span>৳{auditReport.cashMovementAudit.modules.capital.cashBookAmount.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-slate-900 border-t pt-1">
-                    <span>Variance:</span>
-                    <span className={auditReport.cashMovementAudit.modules.capital.variance !== 0 ? 'text-rose-600' : 'text-emerald-600'}>
-                      ৳{Math.abs(auditReport.cashMovementAudit.modules.capital.variance).toLocaleString()}
-                    </span>
+                  <div className="text-xs space-y-1 font-mono">
+                    <div className="flex justify-between text-slate-500">
+                      <span>Sub-ledger ({mod.subledgerTransactionCount}):</span>
+                      <span>৳{mod.subledgerAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-500">
+                      <span>Cash Book ({mod.cashBookTransactionCount}):</span>
+                      <span>৳{mod.cashBookAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-slate-900 border-t pt-1">
+                      <span>Variance:</span>
+                      <span className={mod.variance !== 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                        ৳{Math.abs(mod.variance).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Monthly Collections */}
-              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800">
-                    {isBangla ? 'মাসিক চাঁদা (Collections)' : 'Monthly Collections'}
-                  </span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    auditReport.cashMovementAudit.modules.collection.isMatched
-                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                      : 'bg-rose-100 text-rose-800 border-rose-300'
-                  }`}>
-                    {auditReport.cashMovementAudit.modules.collection.isMatched ? 'MATCHED' : 'UNMATCHED'}
-                  </span>
-                </div>
-                <div className="text-xs space-y-1 font-mono">
-                  <div className="flex justify-between text-slate-500">
-                    <span>Sub-ledger ({auditReport.cashMovementAudit.modules.collection.subledgerTransactionCount}):</span>
-                    <span>৳{auditReport.cashMovementAudit.modules.collection.subledgerAmount.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-500">
-                    <span>Cash Book ({auditReport.cashMovementAudit.modules.collection.cashBookTransactionCount}):</span>
-                    <span>৳{auditReport.cashMovementAudit.modules.collection.cashBookAmount.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-slate-900 border-t pt-1">
-                    <span>Variance:</span>
-                    <span className={auditReport.cashMovementAudit.modules.collection.variance !== 0 ? 'text-rose-600' : 'text-emerald-600'}>
-                      ৳{Math.abs(auditReport.cashMovementAudit.modules.collection.variance).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
@@ -771,12 +694,14 @@ export const AdminDiagnosticTool: React.FC<AdminDiagnosticToolProps> = ({ onClos
                 {allVouchers.length > 0 ? (
                   allVouchers.map((v, idx) => {
                     const isBalanced = (v as any).isBalanced === true;
+                    const lineCount = (v as any).lineCount ?? (v as any).linesCount ?? ((v as any).lines ? (v as any).lines.length : 0);
+                    const isNoLines = lineCount === 0 || (v as any).issueType === 'NO_LINES';
                     const vKey = `${v.journalEntryId || 'je'}-${v.voucherNo || (v as any).journalNo || ''}-${(v as any).sourceType || ''}-${idx}`;
                     const isExpanded = expandedVoucherId === vKey;
 
                     return (
                       <React.Fragment key={vKey}>
-                        <tr className={`hover:bg-slate-50/80 transition-colors ${!isBalanced ? 'bg-rose-50/40' : ''}`}>
+                        <tr className={`hover:bg-slate-50/80 transition-colors ${!isBalanced ? (isNoLines ? 'bg-amber-50/30' : 'bg-rose-50/40') : ''}`}>
                           <td className="p-3 font-mono font-bold text-slate-800">
                             {v.voucherNo || (v as any).journalNo}
                             {(v as any).reference && (v as any).reference !== v.voucherNo && (
@@ -788,24 +713,36 @@ export const AdminDiagnosticTool: React.FC<AdminDiagnosticToolProps> = ({ onClos
                           <td className="p-3 font-mono text-slate-600">{v.date}</td>
                           <td className="p-3 font-bold text-slate-700">{v.sourceType}</td>
                           <td className="p-3 text-right font-mono font-medium text-slate-900">
-                            ৳{v.totalDebit.toLocaleString()}
+                            {isNoLines ? <span className="text-slate-400 font-normal italic text-[11px]">0 lines</span> : `৳${v.totalDebit.toLocaleString()}`}
                           </td>
                           <td className="p-3 text-right font-mono font-medium text-slate-900">
-                            ৳{v.totalCredit.toLocaleString()}
+                            {isNoLines ? <span className="text-slate-400 font-normal italic text-[11px]">0 lines</span> : `৳${v.totalCredit.toLocaleString()}`}
                           </td>
                           <td className="p-3 text-right font-mono font-bold">
-                            <span className={v.imbalance !== 0 ? 'text-rose-600' : 'text-emerald-600'}>
-                              ৳{Math.abs(v.imbalance).toLocaleString()}
-                            </span>
+                            {isNoLines ? (
+                              <span className="text-[10px] font-sans font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                {isBangla ? 'লাইন নেই (০)' : 'Empty (0 Lines)'}
+                              </span>
+                            ) : (
+                              <span className={v.imbalance !== 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                                ৳{Math.abs(v.imbalance).toLocaleString()}
+                              </span>
+                            )}
                           </td>
                           <td className="p-3 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                              isBalanced
-                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                : 'bg-rose-100 text-rose-800 border-rose-300'
-                            }`}>
-                              {isBalanced ? 'BALANCED (৳0)' : 'IMBALANCED'}
-                            </span>
+                            {isBalanced ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-100 text-emerald-800 border-emerald-300">
+                                BALANCED (৳0)
+                              </span>
+                            ) : isNoLines ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-amber-100 text-amber-900 border-amber-300">
+                                {isBangla ? 'খালি হেডার (০ লাইন)' : 'EMPTY HEADER (0 LINES)'}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-rose-100 text-rose-800 border-rose-300">
+                                {isBangla ? 'ডেবিট ≠ ক্রেডিট অমিল' : 'DEBIT ≠ CREDIT MISMATCH'}
+                              </span>
+                            )}
                           </td>
                           <td className="p-3 text-center">
                             <button
@@ -827,14 +764,14 @@ export const AdminDiagnosticTool: React.FC<AdminDiagnosticToolProps> = ({ onClos
                                     Journal Entry ID: <code className="font-mono text-indigo-700">{v.journalEntryId}</code>
                                   </span>
                                   <span className="text-slate-500">
-                                    Lines Count: {v.lineCount}
+                                    Lines Count: {lineCount}
                                   </span>
                                 </div>
 
-                                {!isBalanced && (v as any).issueDescription && (
-                                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-900 space-y-1">
-                                    <p><strong>Issue:</strong> {(v as any).issueDescription}</p>
-                                    <p className="text-emerald-800"><strong>Remediation:</strong> {(v as any).suggestedAction}</p>
+                                {!isBalanced && (
+                                  <div className={`p-2.5 rounded text-xs space-y-1 border ${isNoLines ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-rose-50 border-rose-200 text-rose-900'}`}>
+                                    <p><strong>Issue:</strong> {(v as any).issueDescription || (isNoLines ? 'Empty journal header with 0 attached journal lines' : 'Debits do not equal credits')}</p>
+                                    <p className="text-emerald-800"><strong>Remediation:</strong> {(v as any).suggestedAction || (isNoLines ? 'Re-post transaction lines or delete empty header' : 'Adjust debit/credit lines')}</p>
                                   </div>
                                 )}
 

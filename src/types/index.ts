@@ -58,16 +58,10 @@ export type FinancialYearStatus = "OPEN" | "CLOSING" | "CLOSED";
 export type SyncStatus = "LOCAL" | "SYNCED" | "PENDING" | "FAILED";
 
 export type UserRole =
-  | "SUPER_ADMIN"
   | "ADMIN"
-  | "FINANCE_MANAGER"
-  | "PRESIDENT"
-  | "GENERAL_SECRETARY"
-  | "TREASURER"
   | "ACCOUNTANT"
   | "COLLECTION_OFFICER"
-  | "COMMITTEE_MEMBER"
-  | "VIEWER"
+  | "AUDITOR"
   | "MEMBER";
 
 export type AuditAction = 
@@ -513,6 +507,7 @@ export type ContraStatus = "DRAFT" | "POSTED" | "REVERSED" | "REVERSAL" | "ACTIV
 
 export interface ContraTransaction {
   id: string; // e.g. "CON-TX-001" or "CON-REV-001"
+  idempotencyKey?: string; // Used to prevent double submissions
   voucherNo: string; // e.g. "CON-2026-000001" or "REV-CON-2026-000001"
   date: string;
   type: ContraType;
@@ -612,6 +607,7 @@ export interface Income {
 
 export interface Expense {
   expenseId: string;
+  idempotencyKey?: string;
   voucherNo: string; // EXP-2026-000001
   date: string;
   expenseHead: string;
@@ -864,6 +860,7 @@ export interface UserAccount {
   pinHash: string;
   passwordHash?: string;
   linkedMemberId?: string;
+  permissions?: string[];
   status: "ACTIVE" | "INACTIVE" | "LOCKED" | "SUSPENDED" | "DISABLED";
   lastLoginAt?: string;
   salt?: string;
@@ -1126,7 +1123,7 @@ export interface MemberExitRequest {
 
 
 export type CommitteeStatus = "ACTIVE" | "EXPIRED";
-export type CommitteePosition = "PRESIDENT" | "GENERAL_SECRETARY" | "TREASURER" | "VICE_PRESIDENT" | "JOINT_SECRETARY" | "ORGANIZING_SECRETARY" | "EXECUTIVE_MEMBER" | "MEMBER";
+export type CommitteePosition = "PRESIDENT" | "VICE_PRESIDENT" | "GENERAL_SECRETARY" | "JOINT_SECRETARY" | "TREASURER" | "ORGANIZING_SECRETARY" | "EXECUTIVE_MEMBER" | "MEMBER";
 export type CommitteeAction = "APPOINTED" | "REPLACED" | "REMOVED" | "TERM_EXPIRED" | "TRANSFERRED";
 
 export interface Committee {

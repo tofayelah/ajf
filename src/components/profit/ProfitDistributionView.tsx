@@ -260,7 +260,7 @@ export const ProfitDistributionView: React.FC = () => {
   };
 
   const canFinalize =
-    ['SUPER_ADMIN', 'ADMIN', 'PRESIDENT', 'TREASURER'].includes(activeUser?.role || '') &&
+    ['ADMIN', 'ADMIN', 'ADMIN', 'ACCOUNTANT'].includes(activeUser?.role || '') &&
     !isFinalized;
 
   return (

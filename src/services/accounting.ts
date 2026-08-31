@@ -3235,6 +3235,40 @@ export class AccountingService {
       });
     }
 
+    let updatedJournalEntries = [...(db.journalEntries || [])];
+    let updatedJournalLines = [...(db.journalLines || [])];
+
+    const jnlLines = [
+      {
+        accountId: params.paymentMethod === 'Cash' ? '1000' : '1010',
+        accountName: params.paymentMethod === 'Cash' ? 'হাতে নগদ' : 'ব্যাংক হিসাব',
+        debit: params.amount,
+        credit: 0
+      },
+      {
+        accountId: '4050',
+        accountName: 'অন্যান্য আয়',
+        debit: 0,
+        credit: params.amount
+      }
+    ];
+
+    const journalRes = this.postJournalEntry(db, {
+      journalNo: this.generateVoucherNo(db, 'JNL'),
+      date: dateStr,
+      reference: voucherNo,
+      description: params.remarks || `${params.incomeHead} বাবদ আয়`,
+      sourceType: 'INCOME',
+      sourceId: newIncome.incomeId,
+      createdBy: params.createdBy,
+      status: 'ACTIVE'
+    }, jnlLines);
+
+    if (journalRes.success && journalRes.entry && journalRes.lines) {
+      updatedJournalEntries.push(journalRes.entry);
+      updatedJournalLines.push(...journalRes.lines);
+    }
+
     return {
       success: true,
       message: `আয় ভাউচার ${voucherNo} সফলভাবে রেকর্ড হয়েছে!`,
@@ -3244,6 +3278,8 @@ export class AccountingService {
         incomes: [newIncome, ...db.incomes],
         cashTransactions: updatedCash,
         bankTransactions: updatedBank,
+        journalEntries: updatedJournalEntries,
+        journalLines: updatedJournalLines,
         auditLogs: [
           {
             auditId: `AUD-${Date.now()}`,
@@ -3275,9 +3311,19 @@ export class AccountingService {
       approvalStatus?: 'DRAFT' | 'APPROVED' | 'PAID';
       remarks?: string;
       createdBy: string;
+      idempotencyKey?: string;
     }
   ): { success: boolean; message: string; voucherNo?: string; updatedDb?: AppDatabaseState } {
     if (params.amount <= 0) return { success: false, message: 'ব্যয়ের পরিমাণ সঠিক নয়!' };
+
+    const businessIdempotencyKey = params.idempotencyKey || `EXP-${params.expenseHead}-${params.payee}-${params.amount}-${params.paymentMethod}-${params.billNumber || ''}`;
+    const recentDuplicate = (db.expenses || []).find(e => 
+      e.idempotencyKey === businessIdempotencyKey ||
+      (e.expenseHead === params.expenseHead && e.payee === params.payee && e.amount === params.amount && e.paymentMethod === params.paymentMethod && e.billNumber === params.billNumber)
+    );
+    if (recentDuplicate) {
+      return { success: true, message: 'এন্ট্রিটি ইতোমধ্যে সংরক্ষিত হয়েছে।', voucherNo: recentDuplicate.voucherNo, updatedDb: db };
+    }
 
     const status = params.approvalStatus || 'PAID';
     const isPaid = status === 'PAID';
@@ -3301,6 +3347,7 @@ export class AccountingService {
 
     const newExpense: Expense = {
       expenseId: `EXP-${Date.now()}`,
+      idempotencyKey: businessIdempotencyKey,
       voucherNo,
       date: dateStr,
       expenseHead: params.expenseHead,
@@ -3316,6 +3363,8 @@ export class AccountingService {
 
     let updatedCash = [...db.cashTransactions];
     let updatedBank = [...db.bankTransactions];
+    let updatedJournalEntries = [...(db.journalEntries || [])];
+    let updatedJournalLines = [...(db.journalLines || [])];
 
     if (isPaid) {
       if (params.paymentMethod === 'Cash') {
@@ -3354,6 +3403,37 @@ export class AccountingService {
           createdAt: new Date().toISOString()
         });
       }
+
+      const jnlLines = [
+        {
+          accountId: '5000',
+          accountName: 'দাপ্তরিক ও অন্যান্য ব্যয়',
+          debit: params.amount,
+          credit: 0
+        },
+        {
+          accountId: params.paymentMethod === 'Cash' ? '1000' : '1010',
+          accountName: params.paymentMethod === 'Cash' ? 'হাতে নগদ' : 'ব্যাংক হিসাব',
+          debit: 0,
+          credit: params.amount
+        }
+      ];
+
+      const journalRes = this.postJournalEntry(db, {
+        journalNo: this.generateVoucherNo(db, 'JNL'),
+        date: dateStr,
+        reference: voucherNo,
+        description: `${params.payee} কে পরিশোধ (${params.remarks || params.expenseHead})`,
+        sourceType: 'EXPENSE',
+        sourceId: newExpense.expenseId,
+        createdBy: params.createdBy,
+        status: 'ACTIVE'
+      }, jnlLines);
+
+      if (journalRes.success && journalRes.entry && journalRes.lines) {
+        updatedJournalEntries.push(journalRes.entry);
+        updatedJournalLines.push(...journalRes.lines);
+      }
     }
 
     return {
@@ -3365,6 +3445,8 @@ export class AccountingService {
         expenses: [newExpense, ...db.expenses],
         cashTransactions: updatedCash,
         bankTransactions: updatedBank,
+        journalEntries: updatedJournalEntries,
+        journalLines: updatedJournalLines,
         auditLogs: [
           {
             auditId: `AUD-${Date.now()}`,
@@ -3477,6 +3559,8 @@ export class AccountingService {
 
     let updatedCash = [...(db.cashTransactions || [])];
     let updatedBank = [...(db.bankTransactions || [])];
+    let updatedJournalEntries = [...(db.journalEntries || [])];
+    let updatedJournalLines = [...(db.journalLines || [])];
 
     if (payMethod === 'Cash') {
       const currentCash = this.getCashBalance(updatedCash);
@@ -3486,8 +3570,8 @@ export class AccountingService {
         voucherNo,
         reference: `${params.fundType} তহবিল অনুদান`,
         description: `${resolvedBeneficiaryName} কে সহায়তা (${resolvedReason})`,
-        accountId: '5020',
-        accountName: 'কল্যাণ অনুদান ব্যয়',
+        accountId: '5100',
+        accountName: 'সদস্য কল্যাণ ব্যয়',
         cashIn: 0,
         cashOut: params.amount,
         balance: currentCash - params.amount,
@@ -3518,6 +3602,37 @@ export class AccountingService {
       updatedBank.push(bankEntry);
     }
 
+    const jnlLines = [
+      {
+        accountId: '5100',
+        accountName: 'সদস্য কল্যাণ ব্যয়',
+        debit: params.amount,
+        credit: 0
+      },
+      {
+        accountId: payMethod === 'Cash' ? '1000' : '1010',
+        accountName: payMethod === 'Cash' ? 'হাতে নগদ' : 'ব্যাংক হিসাব',
+        debit: 0,
+        credit: params.amount
+      }
+    ];
+
+    const journalRes = this.postJournalEntry(db, {
+      journalNo: this.generateVoucherNo(db, 'JNL'),
+      date: dateStr,
+      reference: voucherNo,
+      description: `${resolvedBeneficiaryName} কে সহায়তা (${resolvedReason})`,
+      sourceType: 'WELFARE',
+      sourceId: welfareTx.fundId,
+      createdBy: params.approvedBy || 'Admin',
+      status: 'ACTIVE'
+    }, jnlLines);
+
+    if (journalRes.success && journalRes.entry && journalRes.lines) {
+      updatedJournalEntries.push(journalRes.entry);
+      updatedJournalLines.push(...journalRes.lines);
+    }
+
     return {
       success: true,
       message: `${params.fundType === 'WELFARE' ? 'কল্যাণ' : 'জরুরী'} তহবিল অনুদান ভাউচার ${voucherNo} সফলভাবে প্রদান করা হয়েছে!`,
@@ -3526,6 +3641,8 @@ export class AccountingService {
         welfareTransactions: [welfareTx, ...(db.welfareTransactions || [])],
         cashTransactions: updatedCash,
         bankTransactions: updatedBank,
+        journalEntries: updatedJournalEntries,
+        journalLines: updatedJournalLines,
         auditLogs: [
           {
             auditId: `AUD-${Date.now()}`,
@@ -4280,7 +4397,7 @@ export class AccountingService {
         cashOut: amount,
         balance: currentCash - amount,
         reference: inv.investmentId,
-        sourceType: 'MANUAL',
+        sourceType: 'INVESTMENT' as any,
         sourceId: inv.investmentId,
         createdBy: executedBy, 
         createdAt: new Date().toISOString()
@@ -4298,7 +4415,7 @@ export class AccountingService {
         transactionNo: inv.investmentId,
         balance: currentBank - amount,
         reference: inv.investmentId,
-        sourceType: 'MANUAL',
+        sourceType: 'INVESTMENT' as any,
         sourceId: inv.investmentId,
         createdAt: new Date().toISOString()
       });
@@ -4309,30 +4426,36 @@ export class AccountingService {
     const voucherNo = `JNL-INV-${Date.now()}`;
 
     journalEntries.push({
+      id: voucherNo,
       entryId: voucherNo,
       date: txDate,
       voucherNo: voucherNo,
       description: `বিনিয়োগ কার্যকর ও তহবিল বিতরণ: ${inv.description || inv.partner}`,
       sourceType: 'INVESTMENT' as any,
       sourceId: inv.investmentId,
+      status: 'ACTIVE',
       isPosted: true,
       createdAt: new Date().toISOString()
     });
 
     journalLines.push({
+      id: `JNL-L-${Date.now()}-1`,
       lineId: `JNL-L-${Date.now()}-1`,
+      journalEntryId: voucherNo,
       entryId: voucherNo,
       accountId: '1500',
-      accountName: 'Investment Asset',
+      accountName: 'প্রকল্প বিনিয়োগ হিসাব',
       debit: amount,
       credit: 0
     });
 
     journalLines.push({
+      id: `JNL-L-${Date.now()}-2`,
       lineId: `JNL-L-${Date.now()}-2`,
+      journalEntryId: voucherNo,
       entryId: voucherNo,
-      accountId: params.paymentMethod === 'Cash' ? '1100' : '1110',
-      accountName: params.paymentMethod === 'Cash' ? 'Cash in Hand' : 'Cash at Bank',
+      accountId: params.paymentMethod === 'Cash' ? '1000' : '1010',
+      accountName: params.paymentMethod === 'Cash' ? 'হাতে নগদ' : 'ব্যাংক হিসাব',
       debit: 0,
       credit: amount
     });
@@ -4445,7 +4568,7 @@ export class AccountingService {
         cashOut: 0,
         balance: currentCash + totalReturn,
         reference: inv.investmentId,
-        sourceType: 'MANUAL',
+        sourceType: 'INVESTMENT_RETURN' as any,
         sourceId: inv.investmentId,
         createdBy: user, 
         createdAt: new Date().toISOString()
@@ -4463,7 +4586,7 @@ export class AccountingService {
         transactionNo: returnVoucherNo,
         balance: currentBank + totalReturn,
         reference: inv.investmentId,
-        sourceType: 'MANUAL',
+        sourceType: 'INVESTMENT_RETURN' as any,
         sourceId: inv.investmentId,
         createdAt: new Date().toISOString()
       });
@@ -4473,32 +4596,38 @@ export class AccountingService {
     const journalLines = [...(db.journalLines || [])];
     
     const je = {
+      id: returnVoucherNo,
       entryId: returnVoucherNo,
       date: txDate,
       voucherNo: returnVoucherNo,
       description: `বিনিয়োগ ফেরত (আসল: ৳${params.returnPrincipal}, মুনাফা: ৳${params.returnProfit})`,
       sourceType: 'INVESTMENT_RETURN' as any,
       sourceId: inv.investmentId,
+      status: 'ACTIVE',
       isPosted: true,
       createdAt: new Date().toISOString()
     };
     journalEntries.push(je);
 
     journalLines.push({
+      id: `JNL-${Date.now()}-1`,
       lineId: `JNL-${Date.now()}-1`,
+      journalEntryId: returnVoucherNo,
       entryId: returnVoucherNo,
-      accountId: params.returnPaymentMethod === 'Cash' ? '1100' : '1110',
-      accountName: params.returnPaymentMethod === 'Cash' ? 'Cash in Hand' : 'Cash at Bank',
+      accountId: params.returnPaymentMethod === 'Cash' ? '1000' : '1010',
+      accountName: params.returnPaymentMethod === 'Cash' ? 'হাতে নগদ' : 'ব্যাংক হিসাব',
       debit: totalReturn,
       credit: 0
     });
 
     if (params.returnPrincipal > 0) {
       journalLines.push({
+        id: `JNL-${Date.now()}-2`,
         lineId: `JNL-${Date.now()}-2`,
+        journalEntryId: returnVoucherNo,
         entryId: returnVoucherNo,
         accountId: '1500',
-        accountName: 'Investment Asset',
+        accountName: 'প্রকল্প বিনিয়োগ হিসাব',
         debit: 0,
         credit: params.returnPrincipal
       });
@@ -4506,10 +4635,12 @@ export class AccountingService {
 
     if (params.returnProfit > 0) {
       journalLines.push({
+        id: `JNL-${Date.now()}-3`,
         lineId: `JNL-${Date.now()}-3`,
+        journalEntryId: returnVoucherNo,
         entryId: returnVoucherNo,
-        accountId: '4000',
-        accountName: 'Investment Profit Income',
+        accountId: '4100',
+        accountName: 'বিনিয়োগ মুনাফা আয়',
         debit: 0,
         credit: params.returnProfit
       });
@@ -4774,6 +4905,7 @@ export class AccountingService {
       createdByName?: string;
       isDraft?: boolean;
       status?: 'DRAFT' | 'POSTED';
+      idempotencyKey?: string;
     }
   ): { success: boolean; message: string; voucherNo?: string; contraId?: string; updatedDb?: AppDatabaseState } {
     if (params.amount <= 0 || isNaN(params.amount)) {
@@ -4783,6 +4915,31 @@ export class AccountingService {
     const fromAccountId = params.fromAccountId || params.fromBankAccountId;
     const toAccountId = params.toAccountId || params.toBankAccountId;
     const isDraft = Boolean(params.isDraft || params.status === 'DRAFT');
+
+    const businessIdempotencyKey = params.idempotencyKey || `CON-${params.type}-${params.date}-${params.amount}-${fromAccountId || ''}-${toAccountId || ''}-${params.transactionNo || ''}`;
+
+    // Idempotency / Double-Submission Prevention
+    const recentDuplicate = (db.contraTransactions || []).find(c => 
+      c.idempotencyKey === businessIdempotencyKey ||
+      (
+        c.type === params.type && 
+        c.amount === params.amount && 
+        c.fromAccountId === fromAccountId &&
+        c.toAccountId === toAccountId &&
+        c.date === params.date &&
+        (c.transactionNo || '') === (params.transactionNo || '')
+      )
+    );
+
+    if (recentDuplicate && !isDraft) {
+      return { 
+        success: true, 
+        message: 'এন্ট্রিটি ইতোমধ্যে সংরক্ষিত হয়েছে।', 
+        voucherNo: recentDuplicate.voucherNo, 
+        contraId: recentDuplicate.id, 
+        updatedDb: db 
+      };
+    }
 
     const dateStr = params.date || new Date().toISOString().split('T')[0];
     if (!isDraft && isDateInClosedYear(dateStr, db)) {
@@ -5107,6 +5264,7 @@ export class AccountingService {
 
     const newContra: ContraTransaction = {
       id: contraId,
+      idempotencyKey: businessIdempotencyKey,
       voucherNo,
       date: dateStr,
       type: params.type,
@@ -5167,7 +5325,7 @@ export class AccountingService {
         journalEntries: isDraft ? db.journalEntries : updatedJournals,
         journalLines: isDraft ? db.journalLines : updatedJournalLines,
         contraTransactions: updatedContra,
-        contraEntries: updatedContra,
+        
         auditLogs: updatedAudit
       }
     };
@@ -5297,7 +5455,7 @@ export class AccountingService {
       updatedDb: {
         ...db,
         contraTransactions: updatedContra,
-        contraEntries: updatedContra,
+        
         auditLogs: updatedAudit
       }
     };
@@ -5346,7 +5504,7 @@ export class AccountingService {
       updatedDb: {
         ...db,
         contraTransactions: updatedContra,
-        contraEntries: updatedContra,
+        
         auditLogs: updatedAudit
       }
     };
@@ -5763,7 +5921,7 @@ export class AccountingService {
         journalEntries: updatedJournals,
         journalLines: updatedJournalLines,
         contraTransactions: updatedContra,
-        contraEntries: updatedContra,
+        
         auditLogs: updatedAudit
       }
     };
@@ -5779,8 +5937,8 @@ export class AccountingService {
       userRole?: string;
     }
   ): { success: boolean; message: string; reversalVoucherNo?: string; updatedDb?: AppDatabaseState } {
-    // 1. Role / Permissions check: MEMBER cannot reverse. Only ADMIN, SUPER_ADMIN and FINANCE_MANAGER.
-    const allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'];
+    // 1. Role / Permissions check: MEMBER cannot reverse. Only ADMIN, ADMIN and ACCOUNTANT.
+    const allowedRoles = ['ADMIN', 'ACCOUNTANT'];
     if (params.userRole && !allowedRoles.includes(params.userRole)) {
       return {
         success: false,
@@ -6221,7 +6379,7 @@ export class AccountingService {
       updatedDb: {
         ...db,
         contraTransactions: updatedContra,
-        contraEntries: updatedContra,
+        
         cashTransactions: updatedCash,
         bankTransactions: updatedBank,
         journalEntries: updatedJournals,
@@ -7295,6 +7453,12 @@ export class AccountingService {
       description: string;
       reference?: string;
       voucherNo?: string;
+      sourceType?: string;
+      sourceId?: string;
+      accountId?: string;
+      accountName?: string;
+      contraAccountId?: string;
+      contraAccountName?: string;
       postedByUserId?: string;
       postedByUserName?: string;
     }
@@ -7306,13 +7470,19 @@ export class AccountingService {
 
     const amount = Number(params.amount);
     const voucherNo = params.voucherNo || `CASH-${Date.now().toString().slice(-6)}`;
-    const txId = `CASH-${Date.now()}`;
+    const txId = params.sourceId && params.sourceType !== 'MANUAL' ? `CSH-${Date.now()}` : `CASH-${Date.now()}`;
+    const sType = params.sourceType || 'MANUAL';
+    const sId = params.sourceId || txId;
     
-    const cashAccountId = "CASH";
-    const suspenseAccountId = "MISC_INCOME_EXPENSE"; 
+    const cashAccountId = params.contraAccountId || "1000";
+    const cashAccountName = params.contraAccountName || "হাতে নগদ";
+    const defaultOffset = params.type === 'IN' ? '4050' : '5000';
+    const defaultOffsetName = params.type === 'IN' ? 'অন্যান্য আয়' : 'দাপ্তরিক ও অন্যান্য ব্যয়';
+    const offsetAccountId = params.accountId || defaultOffset;
+    const offsetAccountName = params.accountName || defaultOffsetName;
     
-    const debitAccount = params.type === 'IN' ? cashAccountId : suspenseAccountId;
-    const creditAccount = params.type === 'IN' ? suspenseAccountId : cashAccountId;
+    const debitAccount = params.type === 'IN' ? { id: cashAccountId, name: cashAccountName } : { id: offsetAccountId, name: offsetAccountName };
+    const creditAccount = params.type === 'IN' ? { id: offsetAccountId, name: offsetAccountName } : { id: cashAccountId, name: cashAccountName };
 
     const journalRes = this.postJournalEntry(db, {
       date: params.date,
@@ -7320,18 +7490,25 @@ export class AccountingService {
       reference: voucherNo,
       status: 'ACTIVE',
       journalNo: voucherNo, // using voucher as journal no
-      sourceType: 'MANUAL',
-      sourceId: txId,
+      sourceType: sType as any,
+      sourceId: sId,
       createdBy: params.postedByUserName || 'System'
     }, [
-      { accountId: debitAccount, accountName: debitAccount, debit: amount, credit: 0, description: params.description },
-      { accountId: creditAccount, accountName: creditAccount, debit: 0, credit: amount, description: params.description }
+      { accountId: debitAccount.id, accountName: debitAccount.name, debit: amount, credit: 0, description: params.description },
+      { accountId: creditAccount.id, accountName: creditAccount.name, debit: 0, credit: amount, description: params.description }
     ]);
 
     if (!journalRes.success) {
       return { success: false, message: `Journal entry failed: ${journalRes.message}` };
     }
-    // postJournalEntry mutates the arrays in db
+    
+    let updatedJournalEntries = [...(db.journalEntries || [])];
+    let updatedJournalLines = [...(db.journalLines || [])];
+    if (journalRes.entry && journalRes.lines) {
+      updatedJournalEntries.push(journalRes.entry);
+      updatedJournalLines.push(...journalRes.lines);
+    }
+
     const currentCash = this.getCashBalance(db.cashTransactions);
     const newCashBalance = params.type === 'IN' ? currentCash + amount : currentCash - amount;
 
@@ -7341,6 +7518,8 @@ export class AccountingService {
       voucherNo: voucherNo,
       reference: params.reference,
       description: params.description,
+      accountId: offsetAccountId,
+      accountName: offsetAccountName,
       cashIn: params.type === 'IN' ? amount : 0,
       cashOut: params.type === 'OUT' ? amount : 0,
       balance: newCashBalance,
@@ -7348,8 +7527,8 @@ export class AccountingService {
       postedByUserId: params.postedByUserId,
       postedByUserName: params.postedByUserName,
       postedAt: new Date().toISOString(),
-      sourceType: 'MANUAL',
-      sourceId: txId,
+      sourceType: sType as any,
+      sourceId: sId,
       createdBy: params.postedByUserName || 'System',
       createdAt: new Date().toISOString()
     };
@@ -7365,7 +7544,7 @@ export class AccountingService {
       action: 'CASH_TRANSACTION_POSTED' as any,
       recordId: txId,
       newValue: JSON.stringify(newTx),
-      remarks: `Manual cash transaction posted. Voucher: ${voucherNo}`
+      remarks: `Cash transaction posted. Voucher: ${voucherNo}`
     };
 
     return {
@@ -7374,6 +7553,8 @@ export class AccountingService {
       updatedDb: {
         ...db,
         cashTransactions: updatedCash,
+        journalEntries: updatedJournalEntries,
+        journalLines: updatedJournalLines,
         auditLogs: [auditRes, ...(db.auditLogs || [])]
       }
     };
@@ -7388,6 +7569,12 @@ export class AccountingService {
       description: string;
       reference?: string;
       voucherNo?: string;
+      sourceType?: string;
+      sourceId?: string;
+      accountId?: string;
+      accountName?: string;
+      contraAccountId?: string;
+      contraAccountName?: string;
       postedByUserId?: string;
       postedByUserName?: string;
       bankAccountId?: string;
@@ -7400,13 +7587,19 @@ export class AccountingService {
 
     const amount = Number(params.amount);
     const voucherNo = params.voucherNo || `BANK-${Date.now().toString().slice(-6)}`;
-    const txId = `BANK-${Date.now()}`;
+    const txId = params.sourceId && params.sourceType !== 'MANUAL' ? `BNK-${Date.now()}` : `BANK-${Date.now()}`;
+    const sType = params.sourceType || 'MANUAL';
+    const sId = params.sourceId || txId;
     
-    const bankAccountId = "BANK";
-    const suspenseAccountId = "MISC_INCOME_EXPENSE";
+    const bankAccountId = params.contraAccountId || "1010";
+    const bankAccountName = params.contraAccountName || "ব্যাংক হিসাব";
+    const defaultOffset = params.type === 'IN' ? '4050' : '5000';
+    const defaultOffsetName = params.type === 'IN' ? 'অন্যান্য আয়' : 'দাপ্তরিক ও অন্যান্য ব্যয়';
+    const offsetAccountId = params.accountId || defaultOffset;
+    const offsetAccountName = params.accountName || defaultOffsetName;
     
-    const debitAccount = params.type === 'IN' ? bankAccountId : suspenseAccountId;
-    const creditAccount = params.type === 'IN' ? suspenseAccountId : bankAccountId;
+    const debitAccount = params.type === 'IN' ? { id: bankAccountId, name: bankAccountName } : { id: offsetAccountId, name: offsetAccountName };
+    const creditAccount = params.type === 'IN' ? { id: offsetAccountId, name: offsetAccountName } : { id: bankAccountId, name: bankAccountName };
 
     const journalRes = this.postJournalEntry(db, {
       date: params.date,
@@ -7414,16 +7607,23 @@ export class AccountingService {
       reference: voucherNo,
       status: 'ACTIVE',
       journalNo: voucherNo, 
-      sourceType: 'MANUAL',
-      sourceId: txId,
+      sourceType: sType as any,
+      sourceId: sId,
       createdBy: params.postedByUserName || 'System'
     }, [
-      { accountId: debitAccount, accountName: debitAccount, debit: amount, credit: 0, description: params.description },
-      { accountId: creditAccount, accountName: creditAccount, debit: 0, credit: amount, description: params.description }
+      { accountId: debitAccount.id, accountName: debitAccount.name, debit: amount, credit: 0, description: params.description },
+      { accountId: creditAccount.id, accountName: creditAccount.name, debit: 0, credit: amount, description: params.description }
     ]);
 
     if (!journalRes.success) {
       return { success: false, message: `Journal entry failed: ${journalRes.message}` };
+    }
+
+    let updatedJournalEntries = [...(db.journalEntries || [])];
+    let updatedJournalLines = [...(db.journalLines || [])];
+    if (journalRes.entry && journalRes.lines) {
+      updatedJournalEntries.push(journalRes.entry);
+      updatedJournalLines.push(...journalRes.lines);
     }
 
     const currentBank = this.getBankBalance(db.bankTransactions);
@@ -7431,8 +7631,8 @@ export class AccountingService {
     
     const newTx: BankTransaction = {
       transactionNo: voucherNo,
-      sourceType: 'MANUAL',
-      sourceId: txId,
+      sourceType: sType as any,
+      sourceId: sId,
       createdAt: new Date().toISOString(),
       transactionId: txId,
       date: params.date,
@@ -7444,7 +7644,7 @@ export class AccountingService {
       deposit: params.type === 'IN' ? amount : 0,
       withdrawal: params.type === 'OUT' ? amount : 0,
       balance: newBankBalance,
-          };
+    };
 
     const updatedBank = [...(db.bankTransactions || []), newTx];
     
@@ -7462,14 +7662,17 @@ export class AccountingService {
 
     return {
       success: true,
-      message: 'Bank transaction posted successfully',
+      message: 'Transaction posted successfully.',
       updatedDb: {
         ...db,
         bankTransactions: updatedBank,
-        auditLogs: [...db.auditLogs, auditRes]
+        journalEntries: updatedJournalEntries,
+        journalLines: updatedJournalLines,
+        auditLogs: [auditRes, ...(db.auditLogs || [])]
       }
     };
   }
+
   static reverseCashTransaction(
     db: AppDatabaseState,
     params: {
@@ -8087,8 +8290,11 @@ export class AccountingService {
         date: expense.date,
         type: 'OUT',
         amount: expense.amount,
-        
-        
+        sourceType: 'EXPENSE',
+        sourceId: expense.expenseId,
+        voucherNo: expense.voucherNo,
+        accountId: '5000',
+        accountName: 'দাপ্তরিক ও অন্যান্য ব্যয়',
         description: `${expense.expenseHead} - ${expense.payee}`,
         postedByUserId: userId,
         postedByUserName: userName
@@ -8096,14 +8302,17 @@ export class AccountingService {
       if (!cResult.success) return cResult;
       updatedDb = cResult.updatedDb!;
     } else {
-      if (!expense.bankAccountId) return { success: false, message: 'ব্যাংক অ্যাকাউন্ট নির্বাচন করা আবশ্যক।' };
+      if (!expense.bankAccountId && !db.settings?.bankName) return { success: false, message: 'ব্যাংক অ্যাকাউন্ট নির্বাচন করা আবশ্যক।' };
       const bResult = this.postBankTransaction(updatedDb, {
         bankAccountId: expense.bankAccountId,
         date: expense.date,
         type: 'OUT',
         amount: expense.amount,
-        
-        
+        sourceType: 'EXPENSE',
+        sourceId: expense.expenseId,
+        voucherNo: expense.voucherNo,
+        accountId: '5000',
+        accountName: 'দাপ্তরিক ও অন্যান্য ব্যয়',
         description: `${expense.expenseHead} - ${expense.payee}`,
         postedByUserId: userId,
         postedByUserName: userName
@@ -8111,33 +8320,6 @@ export class AccountingService {
       if (!bResult.success) return bResult;
       updatedDb = bResult.updatedDb!;
     }
-    
-    const jResult = this.postJournalEntry(updatedDb, {
-      date: expense.date,
-            journalNo: `JV-${Date.now()}`,
-          description: `Expense Posted: ${expense.expenseHead}`,
-      sourceType: 'EXPENSE',
-      sourceId: expense.voucherNo,
-      createdBy: userId,
-      
-      status: 'ACTIVE'
-    }, [
-      {
-        accountId: `EXP-${expense.expenseHead}`,
-        accountName: expense.expenseHead,
-        debit: expense.amount,
-        credit: 0
-      },
-      {
-        accountId: expense.paymentMethod === 'Cash' ? '1001' : `BANK-${expense.bankAccountId}`,
-        accountName: expense.paymentMethod === 'Cash' ? 'Cash in Hand' : 'Bank Account',
-        debit: 0,
-        credit: expense.amount
-      }
-    ]);
-    
-    if (!jResult.success) return jResult;
-    
 
     const updatedExpenses = updatedDb.expenses.map(e => e.expenseId === expenseId ? { ...e, approvalStatus: 'POSTED' as ExpenseStatus as any , updatedAt: new Date().toISOString() } : e);
     updatedDb.expenses = updatedExpenses;
@@ -8186,39 +8368,17 @@ export class AccountingService {
     const revDate = new Date().toISOString().split('T')[0];
     let updatedDb = { ...db };
 
-    const jResult = this.postJournalEntry(updatedDb, {
-      date: revDate,
-      description: `Reversal of ${expense.voucherNo}: ${reason}`,
-      sourceType: 'EXPENSE_REVERSAL',
-      sourceId: expense.voucherNo,
-      createdBy: userId,
-      journalNo: `REV-${Date.now()}`,
-      status: 'ACTIVE'
-    }, [
-      {
-        accountId: expense.paymentMethod === 'Cash' ? '1001' : `BANK-${expense.bankAccountId}`,
-        accountName: expense.paymentMethod === 'Cash' ? 'Cash in Hand' : 'Bank Account',
-        debit: expense.amount,
-        credit: 0
-      },
-      {
-        accountId: `EXP-${expense.expenseHead}`,
-        accountName: expense.expenseHead,
-        debit: 0,
-        credit: expense.amount
-      }
-    ]);
-    if (!jResult.success) return jResult;
-    
-
     if (expense.paymentMethod === 'Cash') {
       const cResult = this.postCashTransaction(updatedDb, {
         date: revDate,
         type: 'IN',
         amount: expense.amount,
-        
-        
-        description: `Reversal of ${expense.voucherNo}`,
+        sourceType: 'EXPENSE_REVERSAL',
+        sourceId: expense.expenseId,
+        voucherNo: `REV-${expense.voucherNo}`,
+        accountId: '5000',
+        accountName: 'দাপ্তরিক ও অন্যান্য ব্যয়',
+        description: `Reversal of ${expense.voucherNo}: ${reason}`,
         postedByUserId: userId,
         postedByUserName: userName
       });
@@ -8226,13 +8386,16 @@ export class AccountingService {
       updatedDb = cResult.updatedDb!;
     } else {
       const bResult = this.postBankTransaction(updatedDb, {
-        bankAccountId: expense.bankAccountId!,
+        bankAccountId: expense.bankAccountId,
         date: revDate,
         type: 'IN',
         amount: expense.amount,
-        
-        
-        description: `Reversal of ${expense.voucherNo}`,
+        sourceType: 'EXPENSE_REVERSAL',
+        sourceId: expense.expenseId,
+        voucherNo: `REV-${expense.voucherNo}`,
+        accountId: '5000',
+        accountName: 'দাপ্তরিক ও অন্যান্য ব্যয়',
+        description: `Reversal of ${expense.voucherNo}: ${reason}`,
         postedByUserId: userId,
         postedByUserName: userName
       });
@@ -8447,7 +8610,7 @@ export class AccountingService {
   ) {
     // 1. Role validation
     const userRole = params.role || "ADMIN";
-    const authorizedRoles = ["SUPER_ADMIN", "ADMIN", "FINANCE_MANAGER", "TREASURER", "PRESIDENT", "GENERAL_SECRETARY", "ACCOUNTANT"];
+    const authorizedRoles = ["ADMIN", "ADMIN", "ACCOUNTANT", "ACCOUNTANT", "ADMIN", "ADMIN", "ACCOUNTANT"];
     if (userRole === "MEMBER" || !authorizedRoles.includes(userRole)) {
       return { success: false, message: "আপনার এই আবেদন পর্যালোচনার অনুমতি নেই।" };
     }
@@ -8507,7 +8670,7 @@ export class AccountingService {
   ) {
     // 1. Role validation
     const userRole = params.role || "ADMIN";
-    const authorizedRoles = ["SUPER_ADMIN", "ADMIN", "FINANCE_MANAGER", "TREASURER", "PRESIDENT", "GENERAL_SECRETARY", "ACCOUNTANT"];
+    const authorizedRoles = ["ADMIN", "ADMIN", "ACCOUNTANT", "ACCOUNTANT", "ADMIN", "ADMIN", "ACCOUNTANT"];
     if (userRole === "MEMBER" || !authorizedRoles.includes(userRole)) {
       return { success: false, message: "আপনার এই নিষ্পত্তি অনুমোদনের অনুমতি নেই।" };
     }
@@ -8516,8 +8679,8 @@ export class AccountingService {
     const request = db.memberExits?.find(e => (e.exitRequestId === params.exitRequestId || (e as any).id === params.exitRequestId));
     if (!request) return { success: false, message: "Request not found." };
 
-    // 3. Self-approval protection: SUPER_ADMIN and ADMIN bypass for single-admin / demo / administrative workflows
-    const isSuperOrAdmin = userRole === "SUPER_ADMIN" || userRole === "ADMIN";
+    // 3. Self-approval protection: ADMIN and ADMIN bypass for single-admin / demo / administrative workflows
+    const isSuperOrAdmin = userRole === "ADMIN";
     if (!isSuperOrAdmin) {
       if ((request.userId && request.userId === params.userId) || (request.requestedBy && request.requestedBy === params.userId)) {
         return { success: false, message: "নিজের তৈরি আবেদন নিজে অনুমোদন করা যাবে না।" };
@@ -8579,7 +8742,7 @@ export class AccountingService {
     }
   ) {
     // 1. Role validation
-    if (params.role === "MEMBER" || (params.role && !["SUPER_ADMIN", "ADMIN", "FINANCE_MANAGER", "TREASURER"].includes(params.role))) {
+    if (params.role === "MEMBER" || (params.role && !["ADMIN", "ADMIN", "ACCOUNTANT", "ACCOUNTANT"].includes(params.role))) {
       return { success: false, message: "আপনার এই নিষ্পত্তি প্রত্যাখ্যানের অনুমতি নেই।" };
     }
 
@@ -8718,20 +8881,26 @@ export class AccountingService {
     }
 
     if (params.paymentMethod === "Cash") {
+      const currentCash = this.getCashBalance(currentDb.cashTransactions);
       const ct = {
         transactionId: "CT" + Date.now(),
         date,
         voucherNo,
         description: `${isDeath ? 'Death Settlement' : 'Member Exit Refund'} - ${member.fullName}`,
+        accountId: "3000",
+        accountName: "সদস্য মূলধন তহবিল",
         cashIn: 0,
         cashOut: netAmount,
-        balance: 0,
+        balance: currentCash - netAmount,
+        sourceType: "MEMBER_EXIT" as any,
+        sourceId: request.exitRequestId,
         reference: request.exitRequestId,
         createdAt: new Date().toISOString()
       };
       currentDb.cashTransactions = [...currentDb.cashTransactions, ct as any];
     } else {
       const bank = currentDb.bankAccounts?.find(b => b.id === params.bankAccountId);
+      const currentBank = this.getBankBalance(currentDb.bankTransactions);
       const bt = {
         transactionId: "BT" + Date.now(),
         date,
@@ -8739,10 +8908,12 @@ export class AccountingService {
         description: `${isDeath ? 'Death Settlement' : 'Member Exit Refund'} - ${member.fullName}`,
         deposit: 0,
         withdrawal: netAmount,
-        balance: 0,
+        balance: currentBank - netAmount,
+        accountId: "3000",
+        accountName: "সদস্য মূলধন তহবিল",
         bankAccountId: params.bankAccountId!,
-        bankName: bank ? bank.bankName : "Bank",
-        accountNumberMasked: bank ? bank.accountNumber : "",
+        bankName: bank ? bank.bankName : (currentDb.settings?.bankName || "Bank"),
+        accountNumberMasked: bank ? bank.accountNumber : (currentDb.settings?.bankAccountMask || ""),
         transactionNo: params.paymentReference || voucherNo,
         sourceType: "MEMBER_EXIT" as any,
         sourceId: request.exitRequestId,

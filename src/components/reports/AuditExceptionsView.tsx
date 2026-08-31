@@ -44,44 +44,74 @@ export interface AuditException {
 export function scanAuditExceptions(db: AppDatabaseState): AuditException[] {
   const exceptions: AuditException[] = [];
 
-  // 1. Unbalanced Journal Entries
+  // 1. Unbalanced Journal Entries & Empty Headers
   const journals = db.journalEntries || [];
   const lines = db.journalLines || [];
 
-  journals.forEach(je => {
-    const entryId = je.id || (je as any).journalId;
-    const entryLines = lines.filter(l => l.journalEntryId === entryId || (l as any).journalId === entryId);
-    const totalDebit = entryLines.reduce((s, l) => s + (l.debit || 0), 0);
-    const totalCredit = entryLines.reduce((s, l) => s + (l.credit || 0), 0);
+  // Robust multi-key indexing for journal lines
+  const linesByEntryId = new Map<string, typeof lines>();
+  for (const line of lines) {
+    if (!line) continue;
+    const candidateKeys = [
+      line.journalEntryId,
+      (line as any).entryId,
+      (line as any).journalId,
+      (line as any).voucherNo
+    ].filter(Boolean) as string[];
 
-    if (Math.abs(totalDebit - totalCredit) > 0.01) {
-      exceptions.push({
-        id: `EXC-JNL-UNBAL-${entryId}`,
-        severity: 'CRITICAL',
-        category: 'JOURNAL',
-        title: 'Unbalanced Journal Voucher (ডেবিট-ক্রেডিট অমিল)',
-        description: `Journal ${je.journalNo || (je as any).voucherNo || entryId} has Debit: ৳${totalDebit} and Credit: ৳${totalCredit} (Diff: ৳${Math.abs(totalDebit - totalCredit)})`,
-        referenceId: entryId,
-        voucherNo: je.journalNo || (je as any).voucherNo,
-        date: je.date,
-        amount: Math.abs(totalDebit - totalCredit),
-        enteredBy: je.createdBy || (je as any).postedBy || (je as any).enteredBy || 'System',
-        suggestedAction: 'Edit journal entry or create balancing adjustment line.'
-      });
+    for (const key of candidateKeys) {
+      const existing = linesByEntryId.get(key) || [];
+      if (!existing.includes(line)) {
+        existing.push(line);
+      }
+      linesByEntryId.set(key, existing);
     }
+  }
+
+  journals.forEach(je => {
+    const entryId = je.id || (je as any).entryId || '';
+    const jNo = je.journalNo || (je as any).voucherNo || entryId;
+    const ref = je.reference;
+    const vNo = (je as any).voucherNo;
+
+    const entryLines = linesByEntryId.get(entryId) ||
+      (linesByEntryId.has(jNo) ? linesByEntryId.get(jNo) : undefined) ||
+      (vNo && linesByEntryId.has(vNo) ? linesByEntryId.get(vNo) : undefined) ||
+      ((je as any).entryId && linesByEntryId.has((je as any).entryId) ? linesByEntryId.get((je as any).entryId) : undefined) ||
+      (ref && linesByEntryId.has(ref) ? linesByEntryId.get(ref) : undefined) ||
+      [];
+
+    const totalDebit = entryLines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
+    const totalCredit = entryLines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
+    const diff = Math.abs(totalDebit - totalCredit);
 
     if (entryLines.length === 0) {
       exceptions.push({
-        id: `EXC-JNL-NOLINE-${entryId}`,
+        id: `EXC-JNL-NOLINE-${entryId || jNo}`,
         severity: 'WARNING',
         category: 'JOURNAL',
-        title: 'Journal Entry without Account Lines (লাইনবিহীন জাবেদা)',
-        description: `Journal ${je.journalNo || (je as any).voucherNo || entryId} has no associated debit/credit line items.`,
-        referenceId: entryId,
-        voucherNo: je.journalNo || (je as any).voucherNo,
+        title: 'Empty Journal Header / Missing Lines (লাইনবিহীন জাবেদা হেডার)',
+        description: `Journal voucher ${jNo} exists in database but has 0 associated debit/credit line items.`,
+        referenceId: entryId || jNo,
+        voucherNo: jNo,
         date: je.date,
+        amount: 0,
         enteredBy: je.createdBy || (je as any).postedBy || (je as any).enteredBy || 'System',
-        suggestedAction: 'Delete orphaned journal header or re-post underlying transaction lines.'
+        suggestedAction: 'Re-post transaction lines from source record or safely remove orphaned empty journal header.'
+      });
+    } else if (diff > 0.01) {
+      exceptions.push({
+        id: `EXC-JNL-UNBAL-${entryId || jNo}`,
+        severity: 'CRITICAL',
+        category: 'JOURNAL',
+        title: 'Unbalanced Journal Voucher (ডেবিট-ক্রেডিট অমিল)',
+        description: `Journal ${jNo} has Debit: ৳${totalDebit.toLocaleString()} and Credit: ৳${totalCredit.toLocaleString()} (Imbalance Diff: ৳${diff.toLocaleString()})`,
+        referenceId: entryId || jNo,
+        voucherNo: jNo,
+        date: je.date,
+        amount: diff,
+        enteredBy: je.createdBy || (je as any).postedBy || (je as any).enteredBy || 'System',
+        suggestedAction: 'Edit journal entry lines to balance total debits with total credits.'
       });
     }
   });
@@ -111,7 +141,6 @@ export function scanAuditExceptions(db: AppDatabaseState): AuditException[] {
   (db.expenses || []).forEach(e => checkVoucher(e.voucherNo, 'Expense'));
   (db.capitalDeposits || []).forEach(c => checkVoucher(c.voucherNo, 'Capital Deposit'));
   (db.contraTransactions || []).forEach(c => checkVoucher(c.voucherNo, 'Contra'));
-  (db.contraEntries || []).forEach(c => checkVoucher(c.voucherNo, 'Contra'));
   (db.loanRepayments || []).forEach(r => checkVoucher(r.voucherNo, 'Loan Repayment'));
   (db.loans || []).forEach(l => checkVoucher(l.loanId, 'Loan'));
   (db.welfareTransactions || []).forEach(w => checkVoucher(w.voucherNo, 'Welfare Transaction'));

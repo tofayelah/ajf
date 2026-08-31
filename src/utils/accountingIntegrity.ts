@@ -12,6 +12,8 @@ export interface UnbalancedJournalDetail {
   totalCredit: number;
   difference: number;
   linesCount: number;
+  issueType: 'DEBIT_CREDIT_MISMATCH' | 'EMPTY_HEADER' | 'SINGLE_SIDED' | 'INVALID_DATA';
+  issueDescription: string;
 }
 
 export interface ModuleIntegritySummary {
@@ -50,13 +52,24 @@ export function validateJournalIntegrity(db: AppDatabaseState): JournalIntegrity
   const journalEntries: JournalEntry[] = db.journalEntries || [];
   const journalLines: JournalEntryLine[] = db.journalLines || [];
 
-  // Group lines by journalEntryId for fast lookups
+  // Group lines by all possible identifiers (journalEntryId, entryId, journalId, voucherNo)
   const linesByEntryId = new Map<string, JournalEntryLine[]>();
   for (const line of journalLines) {
-    if (!line || !line.journalEntryId) continue;
-    const existing = linesByEntryId.get(line.journalEntryId) || [];
-    existing.push(line);
-    linesByEntryId.set(line.journalEntryId, existing);
+    if (!line) continue;
+    const candidateKeys = [
+      line.journalEntryId,
+      (line as any).entryId,
+      (line as any).journalId,
+      (line as any).voucherNo
+    ].filter(Boolean) as string[];
+
+    for (const key of candidateKeys) {
+      const existing = linesByEntryId.get(key) || [];
+      if (!existing.includes(line)) {
+        existing.push(line);
+      }
+      linesByEntryId.set(key, existing);
+    }
   }
 
   const unbalancedIdsSet = new Set<string>();
@@ -83,36 +96,61 @@ export function validateJournalIntegrity(db: AppDatabaseState): JournalIntegrity
   };
 
   const checkEntry = (entry: JournalEntry, targetModule: keyof typeof modules): boolean => {
-    checkedJournalIds.add(entry.id);
+    const entryKey = entry.id || (entry as any).entryId || entry.journalNo || (entry as any).voucherNo || '';
+    if (!entryKey) return true;
+    checkedJournalIds.add(entryKey);
+    if (entry.id) checkedJournalIds.add(entry.id);
+    if ((entry as any).entryId) checkedJournalIds.add((entry as any).entryId);
+    if (entry.journalNo) checkedJournalIds.add(entry.journalNo);
+    if ((entry as any).voucherNo) checkedJournalIds.add((entry as any).voucherNo);
+
     modules[targetModule].totalChecked++;
 
-    const lines = linesByEntryId.get(entry.id) || [];
+    const lines = linesByEntryId.get(entryKey) || 
+      (entry.id ? linesByEntryId.get(entry.id) : undefined) ||
+      ((entry as any).entryId ? linesByEntryId.get((entry as any).entryId) : undefined) ||
+      (entry.journalNo ? linesByEntryId.get(entry.journalNo) : undefined) ||
+      ((entry as any).voucherNo ? linesByEntryId.get((entry as any).voucherNo) : undefined) ||
+      (entry.reference ? linesByEntryId.get(entry.reference) : undefined) ||
+      [];
+
     const totalDebit = lines.reduce((sum, l) => sum + (Number(l.debit) || 0), 0);
     const totalCredit = lines.reduce((sum, l) => sum + (Number(l.credit) || 0), 0);
     const difference = Math.abs(totalDebit - totalCredit);
 
     // Tolerance for float calculations
-    const isUnbalanced = difference > 0.005;
+    const isNoLines = lines.length === 0;
+    const isUnbalanced = difference > 0.005 || isNoLines;
 
     if (isUnbalanced) {
+      const issueType: UnbalancedJournalDetail['issueType'] = isNoLines 
+        ? 'EMPTY_HEADER' 
+        : 'DEBIT_CREDIT_MISMATCH';
+      const issueDescription = isNoLines
+        ? 'Empty Journal Header: Voucher exists in database with 0 attached journal lines (Missing Journal Lines).'
+        : `Debit != Credit Mismatch: Total Debits (৳${totalDebit.toLocaleString()}) ≠ Credits (৳${totalCredit.toLocaleString()}). Diff: ৳${difference.toLocaleString()}.`;
+
       const detail: UnbalancedJournalDetail = {
-        journalEntryId: entry.id,
-        journalNo: entry.journalNo || entry.id,
+        journalEntryId: entry.id || (entry as any).entryId || entryKey,
+        journalNo: entry.journalNo || (entry as any).voucherNo || entry.id || entryKey,
         sourceType: entry.sourceType || "UNKNOWN",
-        sourceId: entry.sourceId || entry.id,
+        sourceId: entry.sourceId || entryKey,
         module: targetModule,
         totalDebit: Math.round(totalDebit * 100) / 100,
         totalCredit: Math.round(totalCredit * 100) / 100,
         difference: Math.round(difference * 100) / 100,
         linesCount: lines.length,
+        issueType,
+        issueDescription,
       };
 
-      unbalancedIdsSet.add(entry.id);
+      unbalancedIdsSet.add(entryKey);
+      if (entry.id) unbalancedIdsSet.add(entry.id);
       if (entry.sourceId) {
         unbalancedIdsSet.add(entry.sourceId);
       }
       allUnbalancedDetails.push(detail);
-      modules[targetModule].unbalancedIds.push(entry.id);
+      modules[targetModule].unbalancedIds.push(entryKey);
       modules[targetModule].details.push(detail);
       return false;
     }
@@ -581,13 +619,18 @@ export function verifyVoucherRangeBalance(
   let totalLinesTraversed = 0;
 
   for (const entry of matchedEntries) {
-    const entryId = entry.id || '';
-    const jNo = entry.journalNo || entryId;
+    const entryId = entry.id || (entry as any).entryId || '';
+    const jNo = entry.journalNo || (entry as any).voucherNo || entryId;
     const ref = entry.reference;
     const vNo = (entry as any).voucherNo || ref || jNo;
 
     // Retrieve associated lines using all possible keys
-    const lines = linesMap.get(entryId) || linesMap.get(jNo) || (ref ? linesMap.get(ref) : []) || [];
+    const lines = linesMap.get(entryId) || 
+      (jNo ? linesMap.get(jNo) : undefined) || 
+      (vNo ? linesMap.get(vNo) : undefined) || 
+      ((entry as any).entryId ? linesMap.get((entry as any).entryId) : undefined) ||
+      (ref ? linesMap.get(ref) : undefined) || 
+      [];
     totalLinesTraversed += lines.length;
 
     const lineDetails: VoucherLineDetail[] = lines.map((l) => ({
@@ -706,7 +749,7 @@ export function verifyVoucherRangeBalance(
 }
 
 export interface CashReconciliationItem {
-  module: 'ADMISSION' | 'CAPITAL' | 'COLLECTION' | 'LOAN' | 'EXPENSE' | 'INCOME' | 'CONTRA' | 'OTHER';
+  module: 'ADMISSION' | 'CAPITAL' | 'COLLECTION' | 'LOAN' | 'EXPENSE' | 'INCOME' | 'MEMBER_SETTLEMENT' | 'WELFARE' | 'CONTRA' | 'OTHER';
   label: string;
   subledgerAmount: number;       // Sum of individual sub-ledger transactions
   cashBookAmount: number;        // Sum of Cash Book entries
@@ -747,6 +790,9 @@ export interface CashMovementReconciliationResult {
     loans: CashReconciliationItem;
     expenses: CashReconciliationItem;
     income: CashReconciliationItem;
+    settlement: CashReconciliationItem;
+    welfare: CashReconciliationItem;
+    contra?: CashReconciliationItem;
     other: CashReconciliationItem;
   };
   allUnreconciledItems: {
@@ -778,7 +824,7 @@ export interface ComprehensiveIntegrityReport {
   totalViolationsCount: number;
   violationsList: {
     violationId: string;
-    category: 'DOUBLE_ENTRY_IMBALANCE' | 'CASH_SUBLEDGER_MISMATCH' | 'ORPHANED_TRANSACTION' | 'INVALID_DATA';
+    category: 'DOUBLE_ENTRY_IMBALANCE' | 'EMPTY_JOURNAL_HEADER' | 'CASH_SUBLEDGER_MISMATCH' | 'ORPHANED_TRANSACTION' | 'INVALID_DATA';
     severity: 'HIGH' | 'MEDIUM' | 'LOW';
     voucherId?: string;
     transactionId?: string;
@@ -901,6 +947,9 @@ export function validateCashMovementsReconciliation(
     LOAN: { in: 0, out: 0, count: 0, txns: [] as typeof cashTxns },
     EXPENSE: { in: 0, out: 0, count: 0, txns: [] as typeof cashTxns },
     INCOME: { in: 0, out: 0, count: 0, txns: [] as typeof cashTxns },
+    MEMBER_SETTLEMENT: { in: 0, out: 0, count: 0, txns: [] as typeof cashTxns },
+    WELFARE: { in: 0, out: 0, count: 0, txns: [] as typeof cashTxns },
+    CONTRA: { in: 0, out: 0, count: 0, txns: [] as typeof cashTxns },
     OTHER: { in: 0, out: 0, count: 0, txns: [] as typeof cashTxns },
   };
 
@@ -917,8 +966,58 @@ export function validateCashMovementsReconciliation(
     const desc = (c.description || c.reference || '').toLowerCase();
     const acctId = c.accountId || c.accountCode || '';
 
-    // Structured matching
+    // Structured matching: STRICT sourceType priority BEFORE account prefix fallback
     if (
+      sType === 'CONTRA' ||
+      (c.voucherNo && c.voucherNo.startsWith('CON-')) ||
+      (c.sourceId && c.sourceId.startsWith('CON-')) ||
+      (c.transactionId && c.transactionId.includes('CON')) ||
+      desc.includes('নগদ জমা') ||
+      desc.includes('নগদ উত্তোলন') ||
+      desc.includes('contra')
+    ) {
+      cashBookByModule.CONTRA.in += cIn;
+      cashBookByModule.CONTRA.out += cOut;
+      cashBookByModule.CONTRA.count++;
+      cashBookByModule.CONTRA.txns.push(c);
+    } else if (
+      sType === 'WELFARE' ||
+      sType.includes('WELF') ||
+      sType.includes('EMERG') ||
+      (c.voucherNo && (c.voucherNo.startsWith('WLF') || c.voucherNo.startsWith('WELFARE'))) ||
+      (c.sourceId && (c.sourceId.startsWith('WLF') || c.sourceId.startsWith('WELFARE'))) ||
+      (c.reference && (c.reference.toUpperCase().includes('WELFARE') || c.reference.includes('কল্যাণ'))) ||
+      desc.includes('welfare') ||
+      desc.includes('কল্যাণ') ||
+      acctId === '3001' ||
+      acctId === '5100' ||
+      acctId === '5110' ||
+      (acctId === '5020' && (sType.includes('WELF') || desc.includes('অনুদান') || desc.includes('সহায়তা') || desc.includes('চিকিৎসা') || desc.includes('কল্যাণ')))
+    ) {
+      cashBookByModule.WELFARE.in += cIn;
+      cashBookByModule.WELFARE.out += cOut;
+      cashBookByModule.WELFARE.count++;
+      cashBookByModule.WELFARE.txns.push(c);
+    } else if (
+      sType === 'MEMBER_EXIT' ||
+      sType === 'SETTLEMENT' ||
+      sType === 'MEMBER_SETTLEMENT' ||
+      sType === 'CAPITAL_REFUND' ||
+      (c.voucherNo && c.voucherNo.startsWith('MREF')) ||
+      (c.sourceId && c.sourceId.startsWith('ER')) ||
+      (c.reference && (c.reference.startsWith('ER') || c.reference.startsWith('MREF'))) ||
+      desc.includes('member exit') ||
+      desc.includes('exit refund') ||
+      desc.includes('সদস্য প্রস্থান') ||
+      desc.includes('প্রস্থান') ||
+      desc.includes('settlement') ||
+      desc.includes('নিষ্পত্তি')
+    ) {
+      cashBookByModule.MEMBER_SETTLEMENT.in += cIn;
+      cashBookByModule.MEMBER_SETTLEMENT.out += cOut;
+      cashBookByModule.MEMBER_SETTLEMENT.count++;
+      cashBookByModule.MEMBER_SETTLEMENT.txns.push(c);
+    } else if (
       sType === 'ADMISSION' ||
       acctId === '4000' ||
       acctId === '4010' ||
@@ -933,7 +1032,7 @@ export function validateCashMovementsReconciliation(
       cashBookByModule.CAPITAL.out += cOut;
       cashBookByModule.CAPITAL.count++;
       cashBookByModule.CAPITAL.txns.push(c);
-    } else if (sType === 'COLLECTION' || acctId === '4020' || acctId === '4000' || acctId === '4300' || desc.includes('চাঁদা') || desc.includes('বিলম্ব ফি')) {
+    } else if (sType === 'COLLECTION' || acctId === '4020' || acctId === '4300' || desc.includes('চাঁদা') || desc.includes('বিলম্ব ফি')) {
       cashBookByModule.COLLECTION.in += cIn;
       cashBookByModule.COLLECTION.out += cOut;
       cashBookByModule.COLLECTION.count++;
@@ -947,12 +1046,17 @@ export function validateCashMovementsReconciliation(
       cashBookByModule.LOAN.out += cOut;
       cashBookByModule.LOAN.count++;
       cashBookByModule.LOAN.txns.push(c);
-    } else if (sType === 'EXPENSE' || cOut > 0 || acctId.startsWith('5')) {
+    } else if (
+      sType === 'EXPENSE' ||
+      (sType !== 'WELFARE' && !desc.includes('কল্যাণ') && !desc.includes('অনুদান') && (
+        acctId === '5000' || acctId === '5010' || acctId === '5030' || acctId === '5040' || acctId === '5050' || acctId === '5200' || acctId === '5300'
+      ))
+    ) {
       cashBookByModule.EXPENSE.in += cIn;
       cashBookByModule.EXPENSE.out += cOut;
       cashBookByModule.EXPENSE.count++;
       cashBookByModule.EXPENSE.txns.push(c);
-    } else if (sType === 'INCOME' || acctId.startsWith('4')) {
+    } else if (sType === 'INCOME' || (acctId.startsWith('4') && acctId !== '4000' && acctId !== '4010' && acctId !== '4020')) {
       cashBookByModule.INCOME.in += cIn;
       cashBookByModule.INCOME.out += cOut;
       cashBookByModule.INCOME.count++;
@@ -1080,6 +1184,161 @@ export function validateCashMovementsReconciliation(
     subledgerIncomeSum += Number(i.amount) || 0;
   }
 
+  // G. Member Exits & Settlements
+  const memberExits = (db.memberExits || []).filter((e: any) => {
+    const isCompleted = ['REFUNDED', 'SETTLED', 'COMPLETED', 'EXITED', 'DECEASED'].includes(e.status) ||
+      (e.status === 'APPROVED' && (e.refundVoucherNo || e.netRefundAmount !== undefined));
+    const isCash = isCashPayment(e.refundPaymentMethod || e.paymentMethod || 'Cash');
+    const inRange = isDateInRange(e.refundProcessDate || e.settlementDate || e.requestDate || e.updatedAt || e.createdAt);
+    return isCompleted && isCash && inRange;
+  });
+  let subledgerSettlementSum = 0;
+  for (const e of memberExits) {
+    subledgerSettlementSum += Number(e.netRefundAmount ?? e.netSettlementAmount ?? 0) || 0;
+  }
+
+  // H. Welfare Fund (welfareTransactions)
+  const welfareTransactions = (db.welfareTransactions || []).filter((w: any) => {
+    const isApproved = w.status === 'APPROVED' || w.approvalStatus === 'APPROVED' || !w.status || w.status === 'COMPLETED' || w.status === 'ACTIVE';
+    const notReversed = w.status !== 'REVERSED' && w.status !== 'CANCELLED' && w.approvalStatus !== 'REJECTED';
+    const isCash = isCashPayment(w.paymentMethod || 'Cash');
+    const inRange = isDateInRange(w.date || w.createdAt);
+    return isApproved && notReversed && isCash && inRange;
+  });
+
+  let subledgerWelfareIn = 0;
+  let subledgerWelfareOut = 0;
+  for (const w of welfareTransactions) {
+    const exp = Number(w.expense) || (w.income ? 0 : Number(w.amount)) || 0;
+    const inc = Number(w.income) || 0;
+    subledgerWelfareOut += exp;
+    subledgerWelfareIn += inc;
+  }
+
+  // 3-Way Settlement Checks: Source Settlement -> Journal -> Cash Book
+  const settlementUnreconciled: CashReconciliationItem['unreconciledTransactions'] = [];
+  for (const exit of memberExits) {
+    const expectedCashOut = Number(exit.netRefundAmount ?? exit.netSettlementAmount ?? 0) || 0;
+    const vNo = exit.refundVoucherNo;
+    const sId = exit.exitRequestId;
+
+    const matchedCash = cashBookByModule.MEMBER_SETTLEMENT.txns.find(
+      (c) => (vNo && c.voucherNo === vNo) || (sId && (c.sourceId === sId || c.reference === sId))
+    );
+
+    if (!matchedCash) {
+      settlementUnreconciled.push({
+        id: exit.exitRequestId || exit.refundVoucherNo || 'EXIT',
+        date: exit.refundProcessDate || exit.requestDate || 'N/A',
+        voucherNo: exit.refundVoucherNo,
+        reference: exit.exitRequestId,
+        amount: expectedCashOut,
+        type: 'MISSING_IN_CASHBOOK',
+        details: `Member Exit ${exit.exitRequestId} (${exit.memberId}) expected cash refund of ৳${expectedCashOut.toLocaleString()} not found in Cash Book.`
+      });
+    } else if (Math.abs((Number(matchedCash.cashOut) || 0) - expectedCashOut) > tolerance) {
+      settlementUnreconciled.push({
+        id: exit.exitRequestId,
+        date: matchedCash.date || exit.requestDate,
+        voucherNo: exit.refundVoucherNo,
+        amount: Math.abs((Number(matchedCash.cashOut) || 0) - expectedCashOut),
+        type: 'AMOUNT_MISMATCH',
+        details: `Member Exit ${exit.exitRequestId} cash refund (৳${expectedCashOut.toLocaleString()}) does not match Cash Book cashOut (৳${(Number(matchedCash.cashOut) || 0).toLocaleString()}).`
+      });
+    }
+  }
+
+  // Check for orphan settlement cashbook transactions
+  for (const c of cashBookByModule.MEMBER_SETTLEMENT.txns) {
+    const sId = c.sourceId || c.reference;
+    const vNo = c.voucherNo;
+    const matchedExit = (db.memberExits || []).find(
+      (e: any) => (sId && e.exitRequestId === sId) || (vNo && e.refundVoucherNo === vNo)
+    );
+    if (!matchedExit && (c.sourceType === 'MEMBER_EXIT' || (c.sourceType as string) === 'SETTLEMENT')) {
+      settlementUnreconciled.push({
+        id: c.transactionId,
+        date: c.date,
+        voucherNo: c.voucherNo,
+        reference: c.reference,
+        amount: Number(c.cashOut) || 0,
+        type: 'MISSING_IN_SUBLEDGER',
+        details: `Orphan settlement cash transaction ${c.transactionId} (Voucher ${c.voucherNo || '-'}) not linked to any valid Member Exit record.`
+      });
+    }
+  }
+
+  // 3-Way Welfare Checks: Source Welfare -> Cash Book
+  const welfareUnreconciled: CashReconciliationItem['unreconciledTransactions'] = [];
+  for (const w of welfareTransactions) {
+    const expectedCashOut = Number(w.expense) || (w.income ? 0 : Number(w.amount)) || 0;
+    const expectedCashIn = Number(w.income) || 0;
+    const vNo = w.voucherNo;
+    const sId = w.fundId || w.id;
+
+    const matchedCash = cashBookByModule.WELFARE.txns.find(
+      (c) => (vNo && c.voucherNo === vNo) || (sId && (c.sourceId === sId || c.reference?.includes(sId) || c.transactionId === sId))
+    );
+
+    if (!matchedCash) {
+      welfareUnreconciled.push({
+        id: sId || vNo || 'WELFARE',
+        date: w.date || 'N/A',
+        voucherNo: w.voucherNo,
+        reference: sId,
+        amount: expectedCashOut || expectedCashIn,
+        type: 'MISSING_IN_CASHBOOK',
+        details: `Welfare transaction ${sId || vNo} (${w.beneficiary || w.reason || 'Grant'}) expected cash amount of ৳${(expectedCashOut || expectedCashIn).toLocaleString()} not found in Cash Book.`
+      });
+    } else if (expectedCashOut > 0 && Math.abs((Number(matchedCash.cashOut) || 0) - expectedCashOut) > tolerance) {
+      welfareUnreconciled.push({
+        id: sId || matchedCash.transactionId,
+        date: matchedCash.date || w.date,
+        voucherNo: w.voucherNo,
+        amount: Math.abs((Number(matchedCash.cashOut) || 0) - expectedCashOut),
+        type: 'AMOUNT_MISMATCH',
+        details: `Welfare transaction ${sId} cash outflow (৳${expectedCashOut.toLocaleString()}) does not match Cash Book cashOut (৳${(Number(matchedCash.cashOut) || 0).toLocaleString()}).`
+      });
+    }
+  }
+
+  // Check for orphan welfare cashbook transactions
+  for (const c of cashBookByModule.WELFARE.txns) {
+    const sId = c.sourceId || c.reference;
+    const vNo = c.voucherNo;
+    const matchedWelfare = (db.welfareTransactions || []).find(
+      (w: any) => (sId && (w.fundId === sId || w.id === sId)) || (vNo && w.voucherNo === vNo)
+    );
+    if (!matchedWelfare && (c.sourceType === 'WELFARE' || (c.sourceType as string)?.includes('WELF'))) {
+      welfareUnreconciled.push({
+        id: c.transactionId,
+        date: c.date,
+        voucherNo: c.voucherNo,
+        reference: c.reference,
+        amount: Number(c.cashOut) || Number(c.cashIn) || 0,
+        type: 'MISSING_IN_SUBLEDGER',
+        details: `Orphan welfare cash transaction ${c.transactionId} (Voucher ${c.voucherNo || '-'}) not linked to any valid Welfare record.`
+      });
+    }
+  }
+
+  // I. Contra Entries (Cash to Bank / Bank to Cash)
+  const contraEntries = (db.contraTransactions || []).filter((con: any) => {
+    const isPosted = con.status === 'POSTED' || con.status === 'ACTIVE' || !con.status;
+    const notReversed = con.status !== 'CANCELLED' && con.status !== 'REVERSED';
+    const inRange = isDateInRange(con.date || con.createdAt);
+    return isPosted && notReversed && inRange;
+  });
+  let subledgerContraIn = 0;
+  let subledgerContraOut = 0;
+  for (const con of contraEntries) {
+    if (con.type === 'BANK_TO_CASH' || (con.fromAccountType === 'BANK' && con.toAccountType === 'CASH')) {
+      subledgerContraIn += Number(con.amount) || 0;
+    } else if (con.type === 'CASH_TO_BANK' || (con.fromAccountType === 'CASH' && con.toAccountType === 'BANK')) {
+      subledgerContraOut += Number(con.amount) || 0;
+    }
+  }
+
   // Build reconciliation modules
   const allUnreconciledItems: CashMovementReconciliationResult['allUnreconciledItems'] = [];
 
@@ -1179,9 +1438,39 @@ export function validateCashMovementsReconciliation(
     []
   );
 
+  const settlementRec = createModuleRec(
+    'MEMBER_SETTLEMENT',
+    'Member Exit & Settlements / সদস্য বহির্গমন ও নিষ্পত্তি',
+    subledgerSettlementSum,
+    cashBookByModule.MEMBER_SETTLEMENT.out,
+    memberExits.length,
+    cashBookByModule.MEMBER_SETTLEMENT.count,
+    settlementUnreconciled
+  );
+
+  const welfareRec = createModuleRec(
+    'WELFARE',
+    'Welfare Fund / কল্যাণ তহবিল',
+    subledgerWelfareOut,
+    cashBookByModule.WELFARE.out,
+    welfareTransactions.length,
+    cashBookByModule.WELFARE.count,
+    welfareUnreconciled
+  );
+
+  const contraRec = createModuleRec(
+    'CONTRA',
+    'Contra Transactions / বিপরীত দাখিলা',
+    subledgerContraIn - subledgerContraOut,
+    cashBookByModule.CONTRA.in - cashBookByModule.CONTRA.out,
+    contraEntries.filter((c: any) => c.type === 'BANK_TO_CASH' || c.type === 'CASH_TO_BANK' || (c.fromAccountType === 'CASH' && c.toAccountType === 'BANK') || (c.fromAccountType === 'BANK' && c.toAccountType === 'CASH')).length,
+    cashBookByModule.CONTRA.count,
+    []
+  );
+
   const otherRec = createModuleRec(
     'OTHER',
-    'Contra / Other Cash / বিপরীত ও অন্যান্য',
+    'Other Uncategorized Cash / অন্যান্য নগদ',
     0,
     cashBookByModule.OTHER.in - cashBookByModule.OTHER.out,
     0,
@@ -1189,8 +1478,8 @@ export function validateCashMovementsReconciliation(
     []
   );
 
-  const totalSubledgerIn = subledgerAdmissionSum + subledgerCapitalSum + subledgerCollectionSum + subledgerLoanIn + subledgerIncomeSum;
-  const totalSubledgerOut = subledgerLoanOut + subledgerExpenseSum;
+  const totalSubledgerIn = subledgerAdmissionSum + subledgerCapitalSum + subledgerCollectionSum + subledgerLoanIn + subledgerIncomeSum + subledgerWelfareIn + subledgerContraIn;
+  const totalSubledgerOut = subledgerLoanOut + subledgerExpenseSum + subledgerSettlementSum + subledgerWelfareOut + subledgerContraOut;
   const netSubledgerMovement = Math.round((totalSubledgerIn - totalSubledgerOut) * 100) / 100;
   const netCashBookMovement = Math.round((totalCashBookIn - totalCashBookOut) * 100) / 100;
   const totalVariance = Math.round((netSubledgerMovement - netCashBookMovement) * 100) / 100;
@@ -1219,6 +1508,9 @@ export function validateCashMovementsReconciliation(
       loans: loanRec,
       expenses: expRec,
       income: incRec,
+      settlement: settlementRec,
+      welfare: welfareRec,
+      contra: contraRec,
       other: otherRec,
     },
     allUnreconciledItems,
@@ -1264,15 +1556,21 @@ export function runComprehensiveDiagnosticAudit(
 
   // Add Double-entry journal discrepancies
   doubleEntryAudit.discrepancies.forEach((disc, idx) => {
+    const isNoLines = disc.lineCount === 0 || disc.issueType === 'NO_LINES';
+    const category: ComprehensiveIntegrityReport['violationsList'][0]['category'] = isNoLines ? 'EMPTY_JOURNAL_HEADER' : 'DOUBLE_ENTRY_IMBALANCE';
+    const description = isNoLines
+      ? `Voucher ${disc.voucherNo || disc.journalNo}: Voucher has no journal lines.`
+      : `Voucher ${disc.voucherNo || disc.journalNo}: Total Debits (৳${disc.totalDebit.toLocaleString()}) ≠ Credits (৳${disc.totalCredit.toLocaleString()}). Imbalance: ৳${disc.imbalance.toLocaleString()}. ${disc.issueDescription}`;
+
     violationsList.push({
       violationId: `VIO-JNL-${disc.journalEntryId || 'je'}-${disc.voucherNo || disc.journalNo || idx}-${idx}`,
-      category: 'DOUBLE_ENTRY_IMBALANCE',
+      category,
       severity: disc.absoluteDifference > 1000 ? 'HIGH' : 'MEDIUM',
       voucherId: disc.voucherNo || disc.journalNo,
       transactionId: disc.sourceId,
       module: disc.sourceType,
       date: disc.date,
-      description: `Voucher ${disc.voucherNo || disc.journalNo}: Total Debits (৳${disc.totalDebit.toLocaleString()}) ≠ Credits (৳${disc.totalCredit.toLocaleString()}). Imbalance: ৳${disc.imbalance.toLocaleString()}. ${disc.issueDescription}`,
+      description,
       impactAmount: disc.absoluteDifference,
       remediation: disc.suggestedAction,
     });
@@ -1350,6 +1648,7 @@ export interface AccountingIntegrityAuditReport {
   admissionVariance: number;
   capitalVariance: number;
   collectionVariance: number;
+  settlementVariance?: number;
   totalLateFeeWaivers?: number;
   totalWaivedAmount?: number;
   unbalancedList: Array<{
@@ -1403,14 +1702,24 @@ export function auditAccountingIntegrity(db: AppDatabaseState): AccountingIntegr
   const journalEntries = db.journalEntries || [];
   const journalLines = db.journalLines || [];
 
-  // Group lines by journalEntryId, journalNo, and reference
+  // Group lines by journalEntryId, entryId, journalId, and voucherNo
   const linesByEntryId = new Map<string, JournalEntryLine[]>();
   for (const line of journalLines) {
-    const key = line.journalEntryId;
-    if (!linesByEntryId.has(key)) {
-      linesByEntryId.set(key, []);
+    if (!line) continue;
+    const candidateKeys = [
+      line.journalEntryId,
+      (line as any).entryId,
+      (line as any).journalId,
+      (line as any).voucherNo
+    ].filter(Boolean) as string[];
+
+    for (const key of candidateKeys) {
+      const existing = linesByEntryId.get(key) || [];
+      if (!existing.includes(line)) {
+        existing.push(line);
+      }
+      linesByEntryId.set(key, existing);
     }
-    linesByEntryId.get(key)!.push(line);
   }
 
   let balancedCount = 0;
@@ -1424,12 +1733,15 @@ export function auditAccountingIntegrity(db: AppDatabaseState): AccountingIntegr
       continue;
     }
 
-    const entryId = entry.id || '';
-    const jNo = entry.journalNo || entryId;
+    const entryId = entry.id || (entry as any).entryId || '';
+    const jNo = entry.journalNo || (entry as any).voucherNo || entryId;
     const ref = entry.reference;
+    const vNo = (entry as any).voucherNo;
 
     const lines = linesByEntryId.get(entryId) || 
       (linesByEntryId.has(jNo) ? linesByEntryId.get(jNo) : undefined) || 
+      (vNo && linesByEntryId.has(vNo) ? linesByEntryId.get(vNo) : undefined) || 
+      ((entry as any).entryId && linesByEntryId.has((entry as any).entryId) ? linesByEntryId.get((entry as any).entryId) : undefined) || 
       (ref && linesByEntryId.has(ref) ? linesByEntryId.get(ref) : undefined) || 
       [];
 
@@ -1451,7 +1763,7 @@ export function auditAccountingIntegrity(db: AppDatabaseState): AccountingIntegr
         journalNo: jNo,
         sourceType: entry.sourceType || 'UNKNOWN',
         sourceId: entry.sourceId,
-        issue: 'CRITICAL_UNBALANCED_JOURNAL: No journal lines found (Orphan Header)',
+        issue: 'Voucher has no journal lines.',
         totalDebit: 0,
         totalCredit: 0,
         difference: 0,
@@ -1485,7 +1797,7 @@ export function auditAccountingIntegrity(db: AppDatabaseState): AccountingIntegr
       if (!sourceMap.has(key)) {
         sourceMap.set(key, []);
       }
-      sourceMap.get(key)!.push(entry.id || entry.journalNo || 'unknown');
+      sourceMap.get(key)!.push(entry.journalNo || entry.id || (entry as any).entryId || 'unknown');
     }
   }
 
@@ -1508,14 +1820,16 @@ export function auditAccountingIntegrity(db: AppDatabaseState): AccountingIntegr
   const activeJournalIds = new Set(
     journalEntries
       .filter((e) => (e.status as string) !== 'CANCELLED' && e.status !== 'REVERSED')
-      .map((e) => e.id)
+      .map((e) => [e.id, (e as any).entryId, e.journalNo, (e as any).voucherNo].filter(Boolean))
+      .flat() as string[]
   );
   const lineSignatureMap = new Map<string, { count: number; line: JournalEntryLine }>();
   for (const line of journalLines) {
-    if (!activeJournalIds.has(line.journalEntryId)) {
+    const parentKey = line.journalEntryId || (line as any).entryId || (line as any).journalId;
+    if (parentKey && !activeJournalIds.has(parentKey)) {
       continue;
     }
-    const sig = `${line.journalEntryId}_${line.accountId}_${Number(line.debit) || 0}_${Number(line.credit) || 0}_${line.description || ''}`;
+    const sig = `${parentKey || 'none'}_${line.accountId}_${Number(line.debit) || 0}_${Number(line.credit) || 0}_${line.description || ''}`;
     const existing = lineSignatureMap.get(sig);
     if (existing) {
       existing.count++;
@@ -1545,6 +1859,9 @@ export function auditAccountingIntegrity(db: AppDatabaseState): AccountingIntegr
   const admissionVariance = Math.abs(cashRec.modules.admission.variance);
   const capitalVariance = Math.abs(cashRec.modules.capital.variance);
   const collectionVariance = Math.abs(cashRec.modules.collection.variance);
+  const settlementVariance = Math.abs(cashRec.modules.settlement.variance);
+  const welfareVariance = Math.abs(cashRec.modules.welfare?.variance || 0);
+  const expenseVariance = Math.abs(cashRec.modules.expenses?.variance || 0);
   const cashBookVariance = Math.abs(cashRec.totalVariance);
 
   const cashReconciliationDiscrepancies = cashRec.allUnreconciledItems.map((item) => ({
@@ -1568,7 +1885,10 @@ export function auditAccountingIntegrity(db: AppDatabaseState): AccountingIntegr
     cashBookVariance <= 0.01 && 
     admissionVariance <= 0.01 && 
     capitalVariance <= 0.01 && 
-    collectionVariance <= 0.01;
+    collectionVariance <= 0.01 &&
+    settlementVariance <= 0.01 &&
+    welfareVariance <= 0.01 &&
+    expenseVariance <= 0.01;
 
   const summary = isHealthy
     ? `Accounting integrity verified: ${balancedCount} balanced journals, 0 unbalanced, 0 duplicates, Cash Book fully reconciled.${totalLateFeeWaivers > 0 ? ` (${totalLateFeeWaivers} Late Fee Waivers recorded: ৳${totalWaivedAmount.toLocaleString()})` : ''}`
@@ -1587,6 +1907,7 @@ export function auditAccountingIntegrity(db: AppDatabaseState): AccountingIntegr
     admissionVariance,
     capitalVariance,
     collectionVariance,
+    settlementVariance,
     totalLateFeeWaivers,
     totalWaivedAmount,
     unbalancedList,
@@ -2072,15 +2393,11 @@ export function getAccountingDiagnosticReport(db: AppDatabaseState): AccountingD
     if (!entry) return;
     const status = (entry.status as string) || 'ACTIVE';
     if (status === 'CANCELLED' || status === 'REVERSED') return;
-    const id = entry.id || entry.journalNo || '';
-    if (id) {
-      activeEntriesMap.set(id, entry);
-      journalIdLookup.add(id);
-    }
-    if (entry.journalNo) {
-      activeEntriesMap.set(entry.journalNo, entry);
-      journalIdLookup.add(entry.journalNo);
-    }
+    const keys = [entry.id, (entry as any).entryId, entry.journalNo, (entry as any).voucherNo].filter(Boolean) as string[];
+    keys.forEach(k => {
+      activeEntriesMap.set(k, entry);
+      journalIdLookup.add(k);
+    });
   });
 
   // 1. Unbalanced Journals
@@ -2088,23 +2405,38 @@ export function getAccountingDiagnosticReport(db: AppDatabaseState): AccountingD
   const linesByJournalId = new Map<string, JournalEntryLine[]>();
 
   journalLines.forEach(l => {
-    if (!l || !l.journalEntryId) return;
-    const existing = linesByJournalId.get(l.journalEntryId) || [];
-    existing.push(l);
-    linesByJournalId.set(l.journalEntryId, existing);
+    if (!l) return;
+    const candidateKeys = [
+      l.journalEntryId,
+      (l as any).entryId,
+      (l as any).journalId,
+      (l as any).voucherNo
+    ].filter(Boolean) as string[];
+
+    candidateKeys.forEach(k => {
+      const existing = linesByJournalId.get(k) || [];
+      if (!existing.includes(l)) {
+        existing.push(l);
+      }
+      linesByJournalId.set(k, existing);
+    });
   });
 
   journalEntries.forEach(j => {
     const status = (j.status as string) || 'ACTIVE';
     if (status === 'CANCELLED' || status === 'REVERSED') return;
-    const lines = linesByJournalId.get(j.id) || linesByJournalId.get(j.journalNo) || [];
+    const lines = (j.id ? linesByJournalId.get(j.id) : undefined) ||
+      ((j as any).entryId ? linesByJournalId.get((j as any).entryId) : undefined) ||
+      (j.journalNo ? linesByJournalId.get(j.journalNo) : undefined) ||
+      ((j as any).voucherNo ? linesByJournalId.get((j as any).voucherNo) : undefined) ||
+      [];
     const debit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
     const credit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
     const diff = Math.round(Math.abs(debit - credit) * 100) / 100;
     if (diff > 0.01 || lines.length === 0) {
       unbalancedJournals.push({
-        journalId: j.id,
-        journalNo: j.journalNo || j.id,
+        journalId: j.id || (j as any).entryId || j.journalNo || (j as any).voucherNo || '',
+        journalNo: j.journalNo || (j as any).voucherNo || j.id || (j as any).entryId || '',
         debit,
         credit,
         diff,
@@ -2118,15 +2450,18 @@ export function getAccountingDiagnosticReport(db: AppDatabaseState): AccountingD
   journalEntries.forEach(entry => {
     if (!entry) return;
     if (entry.id) allJournalIdLookup.add(entry.id);
+    if ((entry as any).entryId) allJournalIdLookup.add((entry as any).entryId);
     if (entry.journalNo) allJournalIdLookup.add(entry.journalNo);
+    if ((entry as any).voucherNo) allJournalIdLookup.add((entry as any).voucherNo);
   });
 
   const orphanJournalLines: Array<{ lineId: string; journalEntryId: string; accountId: string; amount: number }> = [];
   journalLines.forEach(l => {
-    if (!l.journalEntryId || !allJournalIdLookup.has(l.journalEntryId)) {
+    const parentKey = l.journalEntryId || (l as any).entryId || (l as any).journalId;
+    if (!parentKey || !allJournalIdLookup.has(parentKey)) {
       orphanJournalLines.push({
         lineId: l.id || (l as any).lineId || '',
-        journalEntryId: l.journalEntryId,
+        journalEntryId: parentKey || 'UNKNOWN',
         accountId: l.accountId,
         amount: Math.max(Number(l.debit) || 0, Number(l.credit) || 0)
       });
@@ -2142,7 +2477,7 @@ export function getAccountingDiagnosticReport(db: AppDatabaseState): AccountingD
       const key = `${j.sourceType}::${j.sourceId}`;
       const existing = sourceTracker.get(key) || { count: 0, journalNos: [] };
       existing.count += 1;
-      existing.journalNos.push(j.journalNo || j.id);
+      existing.journalNos.push(j.journalNo || (j as any).voucherNo || j.id || (j as any).entryId || '');
       sourceTracker.set(key, existing);
     }
   });
@@ -2163,7 +2498,8 @@ export function getAccountingDiagnosticReport(db: AppDatabaseState): AccountingD
   // 4. Duplicate Journal Lines
   const lineSignatureMap = new Map<string, number>();
   journalLines.forEach(l => {
-    const sig = `${l.journalEntryId}|${l.accountId}|${l.debit}|${l.credit}`;
+    const parentKey = l.journalEntryId || (l as any).entryId || (l as any).journalId || '';
+    const sig = `${parentKey}|${l.accountId}|${l.debit}|${l.credit}`;
     lineSignatureMap.set(sig, (lineSignatureMap.get(sig) || 0) + 1);
   });
   const duplicateLines: Array<{ journalEntryId: string; accountId: string; debit: number; credit: number; count: number }> = [];
@@ -2209,7 +2545,8 @@ export function getAccountingDiagnosticReport(db: AppDatabaseState): AccountingD
   // Process journal lines into accounts
   journalLines.forEach(l => {
     if (!l) return;
-    const parentEntry = activeEntriesMap.get(l.journalEntryId);
+    const parentKey = l.journalEntryId || (l as any).entryId || (l as any).journalId;
+    const parentEntry = parentKey ? activeEntriesMap.get(parentKey) : undefined;
     if (!parentEntry) return;
 
     const debit = Number(l.debit) || 0;

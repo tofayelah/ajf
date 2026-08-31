@@ -32,7 +32,7 @@ export const IncomeExpenseView = () => {
   const [correctionReason, setCorrectionReason] = useState('');
 
   // Check if admin
-  const isFinanceAdmin = ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'].includes(activeUser?.role || '');
+  const isFinanceAdmin = ['ADMIN', 'ACCOUNTANT'].includes(activeUser?.role || '');
 
   // Active Financial Year check
   const activeYear = (db.financialYears || []).find(fy => fy.status === 'ACTIVE');

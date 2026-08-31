@@ -10,17 +10,11 @@ interface UserFormModalProps {
 }
 
 export const ROLE_OPTIONS: { role: UserRole; bn: string; en: string; category: string }[] = [
-  { role: 'SUPER_ADMIN', bn: 'সুপার অ্যাডমিন (Super Admin)', en: 'Super Admin', category: 'Executive' },
   { role: 'ADMIN', bn: 'প্রশাসক (Admin)', en: 'Admin', category: 'Executive' },
-  { role: 'FINANCE_MANAGER', bn: 'অর্থ ব্যবস্থাপক (Finance Manager)', en: 'Finance Manager', category: 'Finance' },
-  { role: 'PRESIDENT', bn: 'সভাপতি (President)', en: 'President', category: 'Executive' },
-  { role: 'GENERAL_SECRETARY', bn: 'সাধারণ সম্পাদক (General Secretary)', en: 'General Secretary', category: 'Executive' },
-  { role: 'TREASURER', bn: 'কোষাধ্যক্ষ (Treasurer)', en: 'Treasurer', category: 'Finance' },
   { role: 'ACCOUNTANT', bn: 'হিসাবরক্ষক (Accountant)', en: 'Accountant', category: 'Finance' },
   { role: 'COLLECTION_OFFICER', bn: 'আদায়কারী (Collection Officer)', en: 'Collection Officer', category: 'Field' },
-  { role: 'COMMITTEE_MEMBER', bn: 'কমিটি সদস্য (Committee Member)', en: 'Committee Member', category: 'Committee' },
-  { role: 'VIEWER', bn: 'দর্শক (Viewer)', en: 'Viewer (Read-Only)', category: 'General' },
-  { role: 'MEMBER', bn: 'সাধারণ সদস্য (Member Portal)', en: 'General Member', category: 'Member' },
+  { role: 'AUDITOR', bn: 'নিরীক্ষক (Auditor / Viewer)', en: 'Auditor (Read-Only)', category: 'General' },
+  { role: 'MEMBER', bn: 'সাধারণ সদস্য (Member)', en: 'Member', category: 'General' },
 ];
 
 export const UserFormModal: React.FC<UserFormModalProps> = ({
@@ -28,14 +22,14 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
   onClose,
   userToEdit,
 }) => {
-  const { db, language, addUser, updateUser, activeUser } = useApp();
+  const { db, language, addUser, updateUser, activeUser, showNotification } = useApp();
   const isBangla = language === 'bn';
 
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
-  const [role, setRole] = useState<UserRole>('COMMITTEE_MEMBER');
+  const [role, setRole] = useState<UserRole>('AUDITOR');
   const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE' | 'LOCKED' | 'DISABLED'>('ACTIVE');
   const [linkedMemberId, setLinkedMemberId] = useState('');
   const [password, setPassword] = useState('');
@@ -67,7 +61,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
       setUsername('');
       setEmail('');
       setMobile('');
-      setRole('COMMITTEE_MEMBER');
+      setRole('AUDITOR');
       setStatus('ACTIVE');
       setLinkedMemberId('');
       setPassword('');
@@ -82,11 +76,11 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
 
   const members = db.members || [];
   const activeSuperAdmins = (db.users || []).filter(
-    (u) => u.role === 'SUPER_ADMIN' && u.status === 'ACTIVE'
+    (u) => u.role === 'ADMIN' && u.status === 'ACTIVE'
   );
-  const isLastActiveSuperAdmin =
+  const isLastActiveAdmin =
     isEditMode &&
-    userToEdit?.role === 'SUPER_ADMIN' &&
+    userToEdit?.role === 'ADMIN' &&
     userToEdit?.status === 'ACTIVE' &&
     activeSuperAdmins.length <= 1;
 
@@ -167,12 +161,12 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
         return;
       }
 
-      // Last SUPER_ADMIN safety check
-      if (isLastActiveSuperAdmin && (role !== 'SUPER_ADMIN' || status !== 'ACTIVE')) {
+      // Last ADMIN safety check
+      if (isLastActiveAdmin && (role !== 'ADMIN' || status !== 'ACTIVE')) {
         setError(
           isBangla
-            ? 'সিস্টেমে কমপক্ষে একজন সক্রিয় সুপার অ্যাডমিন (SUPER_ADMIN) থাকা আবশ্যক। এই অ্যাকাউন্টের রোল বা স্ট্যাটাস পরিবর্তন করা যাবে না।'
-            : 'At least one active SUPER_ADMIN must exist. Cannot modify role or status of the last active SUPER_ADMIN.'
+            ? 'সিস্টেমে কমপক্ষে একজন সক্রিয় সুপার অ্যাডমিন (ADMIN) থাকা আবশ্যক। এই অ্যাকাউন্টের রোল বা স্ট্যাটাস পরিবর্তন করা যাবে না।'
+            : 'At least one active ADMIN must exist. Cannot modify role or status of the last active ADMIN.'
         );
         return;
       }
@@ -195,6 +189,10 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
         });
 
         if (res.success) {
+          showNotification(
+            isBangla ? 'ইউজার তথ্য সফলভাবে আপডেট করা হয়েছে' : 'User updated successfully',
+            'success'
+          );
           onClose();
         } else {
           setError(res.message);
@@ -213,6 +211,10 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
         });
 
         if (res.success) {
+          showNotification(
+            isBangla ? 'নতুন ইউজার সফলভাবে তৈরি করা হয়েছে' : 'User created successfully',
+            'success'
+          );
           onClose();
         } else {
           setError(res.message);
@@ -269,7 +271,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
             </div>
           )}
 
-          {isLastActiveSuperAdmin && (
+          {isLastActiveAdmin && (
             <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
@@ -360,7 +362,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
               </label>
               <select
                 value={role}
-                disabled={isLastActiveSuperAdmin}
+                disabled={isLastActiveAdmin}
                 onChange={(e) => setRole(e.target.value as UserRole)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition-all disabled:opacity-60"
                 id="user-role-select"
@@ -380,7 +382,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
               </label>
               <select
                 value={status}
-                disabled={isLastActiveSuperAdmin}
+                disabled={isLastActiveAdmin}
                 onChange={(e) => setStatus(e.target.value as any)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition-all disabled:opacity-60"
                 id="user-status-select"

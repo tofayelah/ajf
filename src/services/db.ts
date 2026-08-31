@@ -723,50 +723,32 @@ export async function upsertMemberToSupabase(member: Member) {
 }
 
 export async function saveDatabaseToStorage(db: AppDatabaseState): Promise<{ success: boolean; error?: string; details?: any }> {
-  console.group('[saveDatabaseToStorage Workflow]');
-  console.log('========================================================================');
-  
   try {
-    // 1. Sync to backend API
-    console.log('[saveDatabaseToStorage] Syncing to backend API...');
+    // 1. Sync to backend API (Authoritative Server Source of Truth)
     const syncResult = await saveDatabaseToAPI(db);
-    console.log('[saveDatabaseToStorage] API Sync Result:', syncResult);
 
-    // 2. Persist state to LocalForage (Offline fallback / Cache)
-    console.log('[saveDatabaseToStorage] Persisting state to LocalForage...');
-    let localSaved = false;
+    // 2. Persist state to LocalForage (Offline cache)
     try {
       await localforage.setItem(STORAGE_KEY, JSON.stringify(db));
-      console.log('[saveDatabaseToStorage] LocalForage item saved successfully.');
-      localSaved = true;
     } catch (localErr) {
-      console.error('[saveDatabaseToStorage] LocalForage save failed:', localErr);
+      console.warn('[saveDatabaseToStorage] LocalForage save failed:', localErr);
     }
 
-    console.log('========================================================================');
-    console.groupEnd();
-
     return {
-      success: localSaved,
-      error: !syncResult.success ? `Cloud sync failed: ${syncResult.error || 'Unknown error'}. Data saved locally.` : undefined,
+      success: syncResult.success,
+      error: !syncResult.success ? (syncResult.error || 'Server save failed') : undefined,
     };
   } catch (e: any) {
-    console.error('[saveDatabaseToStorage ERROR] Fatal error occurred during sync/save:', e);
-    console.groupEnd();
-    
     // Preserve local copy
-    let localSaved = false;
     try {
       await localforage.setItem(STORAGE_KEY, JSON.stringify(db));
-      console.log('[saveDatabaseToStorage] LocalForage fallback save completed.');
-      localSaved = true;
     } catch (localErr) {
-      console.warn('[saveDatabaseToStorage] Local storage error:', localErr);
+      console.warn('[saveDatabaseToStorage] Local storage fallback error:', localErr);
     }
     
     return {
-      success: localSaved,
-      error: `Cloud sync failed: ${e?.message || 'Sync failed'}. Data saved locally.`,
+      success: false,
+      error: e?.message || 'Sync failed',
       details: e,
     };
   }

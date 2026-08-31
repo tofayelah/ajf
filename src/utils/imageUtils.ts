@@ -1,6 +1,6 @@
 export const processImageFile = (file: File, maxSizeMB: number = 5): Promise<string> => {
   return new Promise((resolve, reject) => {
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const validTypes = ['image/jpeg','image/jpg','image/png','image/webp'];
     if (!validTypes.includes(file.type)) {
       return reject(new Error('এই ছবির ফরম্যাট সমর্থিত নয়। (This image format is not supported.)'));
     }

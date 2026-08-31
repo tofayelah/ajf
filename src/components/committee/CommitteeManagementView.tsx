@@ -85,9 +85,9 @@ export const CommitteeManagementView: React.FC = () => {
   });
 
   const POSITIONS = [
-    { value: 'PRESIDENT', labelBn: 'সভাপতি', labelEn: 'President' },
-    { value: 'GENERAL_SECRETARY', labelBn: 'সাধারণ সম্পাদক', labelEn: 'General Secretary' },
-    { value: 'TREASURER', labelBn: 'কোষাধ্যক্ষ', labelEn: 'Treasurer' },
+    { value: 'ADMIN', labelBn: 'সভাপতি', labelEn: 'President' },
+    { value: 'ADMIN', labelBn: 'সাধারণ সম্পাদক', labelEn: 'General Secretary' },
+    { value: 'ACCOUNTANT', labelBn: 'কোষাধ্যক্ষ', labelEn: 'Treasurer' },
     { value: 'VICE_PRESIDENT', labelBn: 'সহ-সভাপতি', labelEn: 'Vice President' },
     { value: 'JOINT_SECRETARY', labelBn: 'যুগ্ম সম্পাদক', labelEn: 'Joint Secretary' },
     { value: 'ORGANIZING_SECRETARY', labelBn: 'সাংগঠনিক সম্পাদক', labelEn: 'Organizing Secretary' },
@@ -109,7 +109,7 @@ export const CommitteeManagementView: React.FC = () => {
         return;
     }
 
-    const singletons = ['PRESIDENT', 'GENERAL_SECRETARY', 'TREASURER', 'ORGANIZING_SECRETARY'];
+    const singletons = ['ADMIN', 'ADMIN', 'ACCOUNTANT', 'ORGANIZING_SECRETARY'];
     if (singletons.includes(mForm.position)) {
         const taken = (activeCommittee.members || []).find(m => m.position === mForm.position);
         if (taken) {

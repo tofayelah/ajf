@@ -41,7 +41,7 @@ export const MemberMasterView: React.FC<MemberMasterViewProps> = ({
   const { db, setDb, language, showNotification, navigateTo, getCurrentUser } = useApp();
   const isBangla = language === 'bn';
   const currentUser = getCurrentUser();
-  const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN';
+  const isAdmin = currentUser?.role === 'ADMIN';
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');

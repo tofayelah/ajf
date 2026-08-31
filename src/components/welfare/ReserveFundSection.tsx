@@ -129,7 +129,7 @@ export const ReserveFundSection: React.FC = () => {
   }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const canCreate = activeUser?.role !== 'MEMBER';
-  const canReview = activeUser?.role === 'SUPER_ADMIN' || activeUser?.role === 'ADMIN';
+  const canReview = activeUser?.role === 'ADMIN';
 
   return (
     <div className="space-y-4">

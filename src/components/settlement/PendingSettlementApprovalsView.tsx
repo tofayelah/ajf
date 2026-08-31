@@ -70,8 +70,8 @@ export const PendingSettlementApprovalsView = () => {
 
   // Current user permissions
   const userRole = activeUser?.role || 'ADMIN';
-  const isAuthorizedApprover = ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'TREASURER', 'PRESIDENT', 'GENERAL_SECRETARY', 'ACCOUNTANT'].includes(userRole);
-  const isSuperOrAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
+  const isAuthorizedApprover = ['ADMIN', 'ACCOUNTANT'].includes(userRole);
+  const isSuperOrAdmin = userRole === 'ADMIN';
 
   // Helper to find exit record by ID
   const getExitById = (id: string | null): MemberExitRequest | null => {

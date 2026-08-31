@@ -37,14 +37,14 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenDrawer }) => {
   const isBangla = language === 'bn';
 
   const roles: { role: UserRole; labelBn: string; labelEn: string }[] = [
-    { role: 'SUPER_ADMIN', labelBn: 'সুপার এডমিন', labelEn: 'Super Admin' },
-    { role: 'PRESIDENT', labelBn: 'সভাপতি', labelEn: 'President' },
-    { role: 'GENERAL_SECRETARY', labelBn: 'সাধারণ সম্পাদক', labelEn: 'General Secretary' },
-    { role: 'TREASURER', labelBn: 'কোষাধ্যক্ষ', labelEn: 'Treasurer' },
+    { role: 'ADMIN', labelBn: 'সুপার এডমিন', labelEn: 'Super Admin' },
+    { role: 'ADMIN', labelBn: 'সভাপতি', labelEn: 'President' },
+    { role: 'ADMIN', labelBn: 'সাধারণ সম্পাদক', labelEn: 'General Secretary' },
+    { role: 'ACCOUNTANT', labelBn: 'কোষাধ্যক্ষ', labelEn: 'Treasurer' },
     { role: 'ACCOUNTANT', labelBn: 'হিসাবরক্ষক', labelEn: 'Accountant' },
     { role: 'COLLECTION_OFFICER', labelBn: 'চাঁদা আদায়কারী', labelEn: 'Collector' },
-    { role: 'COMMITTEE_MEMBER', labelBn: 'কমিটি সদস্য', labelEn: 'Committee Member' },
-    { role: 'VIEWER', labelBn: 'পরিদর্শক', labelEn: 'Viewer' }
+    { role: 'AUDITOR', labelBn: 'কমিটি সদস্য', labelEn: 'Committee Member' },
+    { role: 'AUDITOR', labelBn: 'পরিদর্শক', labelEn: 'Viewer' }
   ];
 
   return (
@@ -163,10 +163,10 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenDrawer }) => {
             >
               <UserCheck className="w-3.5 h-3.5 text-emerald-300" />
               <span className="hidden md:inline max-w-[110px] truncate">
-                {isBangla ? activeUser.fullName.split(' ')[0] : activeUser.role}
+                {isBangla ? (activeUser?.fullName?.split(' ')[0] || activeUser?.username) : activeUser?.role}
               </span>
               <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-bold uppercase">
-                {activeUser.role === 'SUPER_ADMIN' ? 'Admin' : activeUser.role.slice(0, 5)}
+                {activeUser.role === 'ADMIN' ? 'Admin' : activeUser.role.slice(0, 5)}
               </span>
             </button>
 
@@ -176,12 +176,12 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenDrawer }) => {
                   <p className="text-xs text-slate-500 font-medium">
                     {isBangla ? 'বর্তমান ব্যবহারকারী ও পদবী:' : 'Active Role:'}
                   </p>
-                  <p className="text-sm font-bold text-emerald-800">{activeUser.fullName}</p>
+                  <p className="text-sm font-bold text-emerald-800">{activeUser?.fullName || activeUser?.username}</p>
                 </div>
                 <div className="max-h-60 overflow-y-auto py-1">
-                  {(roles || []).map(r => (
+                  {(roles || []).map((r, idx) => (
                     <button
-                      key={r.role}
+                      key={`${r.role}-${r.labelEn}-${idx}`}
                       onClick={() => {
                         switchUserRole(r.role);
                         setIsRoleDropdownOpen(false);

@@ -13,7 +13,7 @@ export const MemberProfileModal: React.FC<Props> = ({ memberId, onClose }) => {
   const { db, setDb, language, getCurrentUser, navigateTo } = useApp();
   const isBangla = language === 'bn';
   const currentUser = getCurrentUser();
-  const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN';
+  const isAdmin = currentUser?.role === 'ADMIN';
 
   const member = (db.members || []).find(m => m.memberId === memberId);
   const userAccount = (db.users || []).find(u => u.linkedMemberId === memberId && u.role === 'MEMBER');

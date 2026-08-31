@@ -34,7 +34,7 @@ export const BankReconciliationView: React.FC = () => {
   const [rejectionReason, setRejectionReason] = useState('');
 
   // Permissions
-  const canReconcile = activeUser.role === 'ADMIN' || activeUser.role === 'SUPER_ADMIN' || activeUser.role === 'FINANCE_MANAGER';
+  const canReconcile = activeUser.role === 'ADMIN' || activeUser.role === 'ACCOUNTANT';
 
   const activeBankAccounts = (db.bankAccounts || []).filter(b => b.status === 'ACTIVE');
 

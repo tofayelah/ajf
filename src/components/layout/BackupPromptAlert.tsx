@@ -12,8 +12,8 @@ export const BackupPromptAlert: React.FC = () => {
   useEffect(() => {
     if (isDismissed) return;
     
-    // Only show to ADMIN or SUPER_ADMIN
-    if (activeUser?.role !== 'ADMIN' && activeUser?.role !== 'SUPER_ADMIN') {
+    // Only show to ADMIN
+    if (activeUser?.role !== 'ADMIN') {
       return;
     }
 

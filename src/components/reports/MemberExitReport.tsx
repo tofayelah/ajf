@@ -31,7 +31,7 @@ export const MemberExitReport: React.FC<{ db: AppDatabaseState }> = ({ db }) => 
 
   const handleExport = () => {
     // Generate CSV
-    const headers = ['Request ID', 'Request Date', 'Member ID', 'Exit Type', 'Status', 'Tenure (Y/M)', 'Original Capital', 'S.Charge %', 'Service Charge', 'Eligible Benefit', 'Net Settlement', 'Approved By', 'Voucher'];
+    const headers = ['Request ID','Request Date','Member ID','Exit Type','Status','Tenure (Y/M)','Original Capital','S.Charge %','Service Charge','Eligible Benefit','Net Settlement','Approved By','Voucher'];
     const rows = filteredExits.map(e => [
       e.exitRequestId,
       e.requestDate,

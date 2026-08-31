@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AccountingService } from '../../services/accounting';
-import { PaymentMethod } from '../../types';
+import { fetchMembersAPI } from '../../services/api';
+import { Member, PaymentMethod } from '../../types';
 import {
   Receipt,
   Search,
@@ -17,7 +18,9 @@ import {
   Layers,
   CheckSquare,
   Square,
-  Clock
+  Clock,
+  RefreshCw,
+  X
 } from 'lucide-react';
 import { ReceiptModal } from './ReceiptModal';
 import { ErrorBoundary } from '../common/ErrorBoundary';
@@ -32,15 +35,83 @@ export const MonthlyCollectionView: React.FC<MonthlyCollectionViewProps> = ({
   const { db, postCollection, postBulkCollection, language, activeUser, canAccessMember } = useApp();
   const isBangla = language === 'bn';
 
+  // Member Search and API State
+  const [memberSearchTerm, setMemberSearchTerm] = useState<string>('');
+  const [apiMembers, setApiMembers] = useState<Member[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState<boolean>(false);
+  const [memberFetchError, setMemberFetchError] = useState<string | null>(null);
+
+  // Fetch active members from API for staff roles
+  const loadActiveMembers = useCallback(async () => {
+    if (!activeUser || activeUser.role === 'MEMBER') return;
+    setIsLoadingMembers(true);
+    setMemberFetchError(null);
+    try {
+      const list = await fetchMembersAPI({ status: 'ACTIVE' });
+      setApiMembers(list);
+    } catch (err: any) {
+      console.warn('[MonthlyCollectionView] Could not fetch members from API:', err);
+      setMemberFetchError(err.message || 'Failed to load member list');
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  }, [activeUser]);
+
+  useEffect(() => {
+    loadActiveMembers();
+  }, [loadActiveMembers]);
+
+  // Combined and deduplicated active members list accessible to current role
+  const activeMembersList = useMemo(() => {
+    const map = new Map<string, Member>();
+    // Add local members
+    (db.members || []).forEach(m => {
+      if ((m.status === 'ACTIVE' || !m.status) && canAccessMember(m.memberId)) {
+        map.set(m.memberId, m);
+      }
+    });
+    // Overlay/merge API members
+    apiMembers.forEach(m => {
+      if ((m.status === 'ACTIVE' || !m.status) && canAccessMember(m.memberId)) {
+        map.set(m.memberId, { ...map.get(m.memberId), ...m });
+      }
+    });
+    return Array.from(map.values());
+  }, [db.members, apiMembers, canAccessMember]);
+
   // Collection Entry States
   const now = new Date();
   const defaultMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-  const [selectedMemberId, setSelectedMemberId] = useState<string>(
-    preSelectedMemberId && canAccessMember(preSelectedMemberId)
-      ? preSelectedMemberId
-      : ((db.members || []).find(m => canAccessMember(m.memberId))?.memberId || '')
-  );
+  const [selectedMemberId, setSelectedMemberId] = useState<string>(() => {
+    if (preSelectedMemberId && canAccessMember(preSelectedMemberId)) {
+      return preSelectedMemberId;
+    }
+    const initial = (db.members || []).find(m => (m.status === 'ACTIVE' || !m.status) && canAccessMember(m.memberId));
+    return initial?.memberId || '';
+  });
+
+  // Ensure selectedMemberId is valid when activeMembersList updates
+  useEffect(() => {
+    if (activeMembersList.length > 0) {
+      const exists = activeMembersList.some(m => m.memberId === selectedMemberId);
+      if (!exists && (!selectedMemberId || !preSelectedMemberId)) {
+        setSelectedMemberId(activeMembersList[0].memberId);
+      }
+    }
+  }, [activeMembersList, selectedMemberId, preSelectedMemberId]);
+
+  // Filtered members based on search term
+  const filteredMembers = useMemo(() => {
+    if (!memberSearchTerm.trim()) return activeMembersList;
+    const q = memberSearchTerm.toLowerCase().trim();
+    return activeMembersList.filter(m =>
+      (m.memberId && m.memberId.toLowerCase().includes(q)) ||
+      (m.membershipNo && m.membershipNo.toLowerCase().includes(q)) ||
+      (m.fullName && m.fullName.toLowerCase().includes(q)) ||
+      (m.mobile && m.mobile.toLowerCase().includes(q))
+    );
+  }, [activeMembersList, memberSearchTerm]);
   const [collectionMonth, setCollectionMonth] = useState<string>(defaultMonthStr);
   const [collectionDate, setCollectionDate] = useState<string>(now.toISOString().split('T')[0]);
   const [paidAmount, setPaidAmount] = useState<number>(db.settings.monthlyContribution);
@@ -64,7 +135,7 @@ export const MonthlyCollectionView: React.FC<MonthlyCollectionViewProps> = ({
   const [viewingReceiptNo, setViewingReceiptNo] = useState<string | null>(null);
 
   // Selected Member calculation
-  const selectedMember = (db.members || []).find(m => m.memberId === selectedMemberId);
+  const selectedMember = activeMembersList.find(m => m.memberId === selectedMemberId) || (db.members || []).find(m => m.memberId === selectedMemberId);
   const monthlyFee = db.settings.monthlyContribution;
 
   const dueInfo = selectedMember
@@ -438,25 +509,101 @@ export const MonthlyCollectionView: React.FC<MonthlyCollectionViewProps> = ({
           </div>
 
           <form onSubmit={handleCollectionSubmit} className="space-y-3.5">
-            {/* Member Selector */}
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                {isBangla ? 'সদস্য নির্বাচন করুন *' : 'Select Member *'}
-              </label>
-              <select
-                required
-                value={selectedMemberId}
-                onChange={e => setSelectedMemberId(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-bold text-slate-900 bg-emerald-50/40 focus:ring-2 focus:ring-emerald-500"
-              >
-                {(db.members || [])
-                  .filter(m => canAccessMember(m.memberId))
-                  .map(m => (
+            {/* Searchable Member Selector */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block font-semibold text-slate-700">
+                  {isBangla ? 'সদস্য নির্বাচন করুন *' : 'Select Member *'}
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold border border-emerald-200">
+                    {activeMembersList.length} {isBangla ? 'জন সক্রিয়' : 'active'}
+                  </span>
+                  {activeUser?.role !== 'MEMBER' && (
+                    <button
+                      type="button"
+                      onClick={loadActiveMembers}
+                      disabled={isLoadingMembers}
+                      title={isBangla ? 'তালিকা রিফ্রেশ করুন' : 'Refresh list'}
+                      className="p-1 text-slate-400 hover:text-emerald-700 transition-colors disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isLoadingMembers ? 'animate-spin text-emerald-600' : ''}`} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Search Box for Member list */}
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                  <Search className="w-3.5 h-3.5" />
+                </div>
+                <input
+                  type="text"
+                  value={memberSearchTerm}
+                  onChange={e => setMemberSearchTerm(e.target.value)}
+                  placeholder={isBangla ? 'সদস্য খুঁজুন (আইডি / নাম / মোবাইল)...' : 'Search member by ID / Name / Mobile...'}
+                  className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
+                />
+                {memberSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setMemberSearchTerm('')}
+                    className="absolute inset-y-0 right-0 pr-2 flex items-center text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Loading State */}
+              {isLoadingMembers && (
+                <div className="flex items-center gap-2 p-2 bg-emerald-50/60 border border-emerald-100 rounded-lg text-emerald-800 text-[11px]">
+                  <RefreshCw className="w-3 h-3 animate-spin text-emerald-600 shrink-0" />
+                  <span>{isBangla ? 'সদস্য তালিকা লোড হচ্ছে...' : 'Loading members...'}</span>
+                </div>
+              )}
+
+              {/* Error State */}
+              {!isLoadingMembers && memberFetchError && activeMembersList.length === 0 && (
+                <div className="p-2 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-[11px] flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                    <span>{isBangla ? 'সদস্য তালিকা লোড করা যায়নি।' : 'Failed to load members list.'}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={loadActiveMembers}
+                    className="underline text-rose-800 font-bold hover:text-rose-950 shrink-0 text-[10px]"
+                  >
+                    {isBangla ? 'পুনরায় চেষ্টা' : 'Retry'}
+                  </button>
+                </div>
+              )}
+
+              {/* Empty Search Result State */}
+              {!isLoadingMembers && filteredMembers.length === 0 && (
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>{isBangla ? 'কোনো সক্রিয় সদস্য পাওয়া যায়নি।' : 'No active members found.'}</span>
+                </div>
+              )}
+
+              {/* Selection Dropdown */}
+              {filteredMembers.length > 0 && (
+                <select
+                  required
+                  value={selectedMemberId}
+                  onChange={e => setSelectedMemberId(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-bold text-slate-900 bg-emerald-50/40 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm"
+                >
+                  {filteredMembers.map(m => (
                     <option key={m.memberId} value={m.memberId}>
                       {m.memberId} - {m.fullName} ({m.mobile})
                     </option>
                   ))}
-              </select>
+                </select>
+              )}
             </div>
 
             {/* Member Due Summary Badge */}

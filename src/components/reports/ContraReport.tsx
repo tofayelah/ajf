@@ -92,9 +92,7 @@ export const ContraReport: React.FC = () => {
 
   // Persistent Contra Transactions from DB
   const contraTransactions = useMemo(() => {
-    const list = (db.contraTransactions && db.contraTransactions.length > 0)
-      ? db.contraTransactions
-      : (db.contraEntries || []);
+    const list = (db.contraTransactions || []);
     return [...list].sort((a, b) => {
       const timeA = new Date(a.date).getTime() || 0;
       const timeB = new Date(b.date).getTime() || 0;
@@ -176,7 +174,7 @@ export const ContraReport: React.FC = () => {
   // Check if active user has permission to reverse
   const canUserReverse = useMemo(() => {
     const role = activeUser?.role;
-    return role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'FINANCE_MANAGER';
+    return role === 'ADMIN' || role === 'ACCOUNTANT';
   }, [activeUser]);
 
   // Open Reversal Modal with prefilled data

@@ -22,7 +22,7 @@ export const CompletedSettlementsView = () => {
   const allExits = db.memberExits || [];
 
   const approvedExits = allExits.filter(e => e.status === 'APPROVED' || (e as any).settlementStatus === 'APPROVED');
-  const completedExits = allExits.filter(e => ['REFUNDED', 'SETTLED', 'EXITED', 'DECEASED'].includes(e.status) || (e as any).settlementStatus === 'SETTLED');
+  const completedExits = allExits.filter(e => ['REFUNDED','SETTLED','EXITED','DECEASED'].includes(e.status) || (e as any).settlementStatus === 'SETTLED');
 
   const currentList = activeTab === 'APPROVED' ? approvedExits : completedExits;
 

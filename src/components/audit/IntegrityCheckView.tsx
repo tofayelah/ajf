@@ -32,6 +32,7 @@ import {
   Info,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { FinancialFlowGraph } from './FinancialFlowGraph';
 
 export interface IntegrityCheckViewProps {
   onClose?: () => void;
@@ -43,7 +44,7 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
   const printRef = useRef<HTMLDivElement>(null);
 
   // Filter States
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'DOUBLE_ENTRY' | 'CASH_RECON' | 'VIOLATIONS'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'DOUBLE_ENTRY' | 'CASH_RECON' | 'VIOLATIONS' | 'GRAPH'>('OVERVIEW');
   const [dateRangePreset, setDateRangePreset] = useState<'ALL' | 'THIS_YEAR' | 'THIS_MONTH' | 'CUSTOM'>('ALL');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -52,7 +53,66 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [expandedVoucherKey, setExpandedVoucherKey] = useState<string | null>(null);
+  const [selectedReconModule, setSelectedReconModule] = useState<string | null>(null);
   const [lastAuditTimestamp, setLastAuditTimestamp] = useState<string>(new Date().toISOString());
+
+  // Dedicated 3-Way Member Exit & Settlement Reconciliation Registry
+  const settlementAuditDetails = useMemo(() => {
+    const exits = (db.memberExits || []).filter((e: any) => {
+      const isCompleted = ['REFUNDED', 'SETTLED', 'COMPLETED', 'EXITED', 'DECEASED'].includes(e.status) ||
+        (e.status === 'APPROVED' && (e.refundVoucherNo || e.netRefundAmount !== undefined));
+      return isCompleted;
+    });
+
+    return exits.map((exit: any) => {
+      const member = (db.members || []).find((m: any) => m.memberId === exit.memberId);
+      const vNo = exit.refundVoucherNo;
+      const sId = exit.exitRequestId;
+
+      const cashTxn = (db.cashTransactions || []).find(
+        (c: any) => (vNo && c.voucherNo === vNo) || (sId && (c.sourceId === sId || c.reference === sId))
+      );
+
+      const journal = (db.journalEntries || []).find(
+        (j: any) =>
+          (vNo && (j.voucherNo === vNo || j.reference === vNo)) ||
+          (sId && (j.sourceId === sId || j.reference === sId || j.journalNo === sId)) ||
+          (j.sourceType === 'MEMBER_EXIT' && j.sourceId === exit.exitRequestId)
+      );
+
+      const capital = Number(exit.memberCapital ?? exit.totalCapital ?? 0);
+      const serviceCharge = Number(exit.serviceChargeAmount ?? exit.serviceCharge ?? 0);
+      const netRefund = Number(exit.netRefundAmount ?? exit.netSettlementAmount ?? 0);
+      const cashOut = Number(cashTxn?.cashOut ?? 0);
+      const isCashMatched = Math.abs(netRefund - cashOut) <= 0.01 && Boolean(cashTxn);
+      const isJournalMatched = Boolean(journal);
+
+      return {
+        exitRequestId: exit.exitRequestId,
+        memberId: exit.memberId,
+        memberName: member?.fullName || exit.memberName || exit.name || 'Member',
+        requestDate: exit.requestDate || exit.createdAt || '-',
+        refundProcessDate: exit.refundProcessDate || exit.settlementDate || exit.updatedAt || exit.requestDate || '-',
+        exitType: exit.exitType || 'REGULAR',
+        capital,
+        serviceCharge,
+        netRefund,
+        refundVoucherNo: exit.refundVoucherNo || '-',
+        cashTxnId: cashTxn?.transactionId || '-',
+        cashOut,
+        journalNo: journal?.journalNo || '-',
+        status: exit.status,
+        is3WayVerified: isCashMatched && isJournalMatched,
+        discrepancyReason: !cashTxn
+          ? 'Missing in Cash Book'
+          : !isCashMatched
+          ? `Cash refund amount mismatch (Exit: ৳${netRefund}, Cash: ৳${cashOut})`
+          : !journal
+          ? 'Missing in General Journal'
+          : null,
+      };
+    });
+  }, [db.memberExits, db.members, db.cashTransactions, db.journalEntries]);
 
   // Date range presets handler
   const handlePresetChange = (preset: 'ALL' | 'THIS_YEAR' | 'THIS_MONTH' | 'CUSTOM') => {
@@ -121,7 +181,7 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
       ['Total Violations Detected', auditReport.totalViolationsCount.toString()],
       [],
       ['--- VIOLATIONS & DISCREPANCIES REGISTRY ---'],
-      ['Violation ID', 'Category', 'Severity', 'Voucher / Ref', 'Module', 'Date', 'Description', 'Impact Amount (BDT)', 'Remediation'],
+      ['Violation ID','Category','Severity','Voucher / Ref','Module','Date','Description','Impact Amount (BDT)','Remediation'],
       ...auditReport.violationsList.map((v) => [
         v.violationId,
         v.category,
@@ -375,7 +435,7 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-bold text-slate-500 mr-1">{isBangla ? 'সময়কাল ফিল্টার:' : 'Date Preset:'}</span>
-            {(['ALL', 'THIS_YEAR', 'THIS_MONTH', 'CUSTOM'] as const).map((preset) => (
+            {(['ALL','THIS_YEAR','THIS_MONTH','CUSTOM'] as const).map((preset) => (
               <button
                 key={preset}
                 type="button"
@@ -490,6 +550,19 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
               {auditReport.totalViolationsCount}
             </span>
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('GRAPH')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs md:text-sm font-bold transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'GRAPH'
+              ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50'
+              : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+          {isBangla ? 'ট্রানজ্যাকশন ফ্লো' : 'Transaction Flow'}
         </button>
       </div>
 
@@ -629,21 +702,33 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
                   {allVouchers.length > 0 ? (
                     allVouchers.map((v, idx) => {
                       const isBalanced = (v as any).isBalanced === true;
+                      const lineCount = (v as any).lineCount ?? (v as any).linesCount ?? ((v as any).lines ? (v as any).lines.length : 0);
+                      const isNoLines = lineCount === 0 || (v as any).issueType === 'NO_LINES';
                       const vKey = `${v.journalEntryId || 'je'}-${v.voucherNo || (v as any).journalNo || ''}-${(v as any).sourceType || ''}-${idx}`;
                       const isExpanded = expandedVoucherKey === vKey;
 
                       return (
                         <React.Fragment key={vKey}>
-                          <tr className={`hover:bg-slate-50/80 transition-colors ${!isBalanced ? 'bg-rose-50/50' : ''}`}>
+                          <tr className={`hover:bg-slate-50/80 transition-colors ${!isBalanced ? (isNoLines ? 'bg-amber-50/40' : 'bg-rose-50/50') : ''}`}>
                             <td className="p-3 font-mono font-bold text-slate-900">
                               {v.voucherNo || (v as any).journalNo}
                             </td>
                             <td className="p-3 font-mono text-slate-600">{v.date}</td>
                             <td className="p-3 font-bold text-slate-700">{(v as any).sourceType || 'GENERAL'}</td>
-                            <td className="p-3 text-right font-mono text-slate-900">৳{v.totalDebit.toLocaleString()}</td>
-                            <td className="p-3 text-right font-mono text-slate-900">৳{v.totalCredit.toLocaleString()}</td>
-                            <td className={`p-3 text-right font-mono font-bold ${!isBalanced ? 'text-rose-600' : 'text-slate-400'}`}>
-                              ৳{(v as any).absoluteDifference !== undefined ? (v as any).absoluteDifference.toLocaleString() : (v as any).imbalance !== undefined ? Math.abs((v as any).imbalance).toLocaleString() : '0'}
+                            <td className="p-3 text-right font-mono text-slate-900">
+                              {isNoLines ? <span className="text-slate-400 font-normal italic text-[11px]">0 lines</span> : `৳${v.totalDebit.toLocaleString()}`}
+                            </td>
+                            <td className="p-3 text-right font-mono text-slate-900">
+                              {isNoLines ? <span className="text-slate-400 font-normal italic text-[11px]">0 lines</span> : `৳${v.totalCredit.toLocaleString()}`}
+                            </td>
+                            <td className={`p-3 text-right font-mono font-bold ${!isBalanced ? (isNoLines ? 'text-amber-600' : 'text-rose-600') : 'text-slate-400'}`}>
+                              {isNoLines ? (
+                                <span className="text-[10px] font-sans font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                  {isBangla ? 'লাইন নেই (০)' : 'Empty (0 Lines)'}
+                                </span>
+                              ) : (
+                                `৳${(v as any).absoluteDifference !== undefined ? (v as any).absoluteDifference.toLocaleString() : (v as any).imbalance !== undefined ? Math.abs((v as any).imbalance).toLocaleString() : '0'}`
+                              )}
                             </td>
                             <td className="p-3 text-center">
                               {isBalanced ? (
@@ -651,10 +736,15 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
                                   <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                   BALANCED
                                 </span>
+                              ) : isNoLines ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                  {isBangla ? 'খালি হেডার (০ লাইন)' : 'EMPTY HEADER (0 LINES)'}
+                                </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 animate-pulse">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
                                   <XCircle className="w-3 h-3 text-rose-600" />
-                                  IMBALANCED
+                                  {isBangla ? 'ডেবিট ≠ ক্রেডিট অমিল' : 'DEBIT ≠ CREDIT MISMATCH'}
                                 </span>
                               )}
                             </td>
@@ -678,36 +768,56 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
                                     <span className="font-bold text-slate-700">
                                       {isBangla ? 'ভাউচার হিসাব লাইনসমূহ (Journal Lines):' : 'Journal Lines Breakdown:'}
                                     </span>
-                                    <span className="font-mono text-slate-500">ID: {v.journalEntryId}</span>
+                                    <span className="font-mono text-slate-500">ID: {v.journalEntryId} (Lines: {lineCount})</span>
                                   </div>
-                                  <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-                                    <table className="w-full text-xs">
-                                      <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-                                        <tr>
-                                          <th className="p-2 font-mono">Account ID</th>
-                                          <th className="p-2">Account Name</th>
-                                          <th className="p-2 text-right">Debit (৳)</th>
-                                          <th className="p-2 text-right">Credit (৳)</th>
-                                          <th className="p-2">Line Description</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="divide-y divide-slate-100">
-                                        {(v as any).lines && (v as any).lines.map((ln: any, lnIdx: number) => (
-                                          <tr key={ln.id ? `${ln.id}-${lnIdx}` : `ln-${lnIdx}`}>
-                                            <td className="p-2 font-mono text-slate-600">{ln.accountId}</td>
-                                            <td className="p-2 font-bold text-slate-800">{ln.accountName || '-'}</td>
-                                            <td className="p-2 text-right font-mono text-indigo-700">
-                                              {ln.debit ? `৳${ln.debit.toLocaleString()}` : '-'}
-                                            </td>
-                                            <td className="p-2 text-right font-mono text-indigo-700">
-                                              {ln.credit ? `৳${ln.credit.toLocaleString()}` : '-'}
-                                            </td>
-                                            <td className="p-2 text-slate-500">{ln.description || '-'}</td>
+
+                                  {isNoLines ? (
+                                    <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 space-y-1.5 text-xs">
+                                      <div className="flex items-center gap-2 font-bold text-amber-900">
+                                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                                        <span>{isBangla ? 'খালি জাবেদা ভাউচার হেডার (কোনো হিসাব লাইন নেই)' : 'Empty Journal Voucher Header (0 Lines Attached)'}</span>
+                                      </div>
+                                      <p className="text-amber-800 leading-relaxed">
+                                        {isBangla
+                                          ? 'এই ভাউচারের হেডার ডেটাবেজে রয়েছে কিন্তু কোনো ডেবিট বা ক্রেডিট লাইন নেই (Missing Journal Lines)। এটি কোনো গাণিতিক অমিল নয়।'
+                                          : 'This voucher header exists in the database but has 0 associated journal lines (Missing Journal Lines). Double-entry balance is not applicable until lines are posted.'}
+                                      </p>
+                                      {(v as any).suggestedAction && (
+                                        <div className="text-slate-700 mt-1">
+                                          <strong>{isBangla ? 'সুপারিশকৃত সমাধান:' : 'Suggested Action:'}</strong> {(v as any).suggestedAction}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                                      <table className="w-full text-xs">
+                                        <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                          <tr>
+                                            <th className="p-2 font-mono">Account ID</th>
+                                            <th className="p-2">Account Name</th>
+                                            <th className="p-2 text-right">Debit (৳)</th>
+                                            <th className="p-2 text-right">Credit (৳)</th>
+                                            <th className="p-2">Line Description</th>
                                           </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                          {(v as any).lines && (v as any).lines.map((ln: any, lnIdx: number) => (
+                                            <tr key={ln.id ? `${ln.id}-${lnIdx}` : `ln-${lnIdx}`}>
+                                              <td className="p-2 font-mono text-slate-600">{ln.accountId}</td>
+                                              <td className="p-2 font-bold text-slate-800">{ln.accountName || '-'}</td>
+                                              <td className="p-2 text-right font-mono text-indigo-700">
+                                                {ln.debit ? `৳${ln.debit.toLocaleString()}` : '-'}
+                                              </td>
+                                              <td className="p-2 text-right font-mono text-indigo-700">
+                                                {ln.credit ? `৳${ln.credit.toLocaleString()}` : '-'}
+                                              </td>
+                                              <td className="p-2 text-slate-500">{ln.description || '-'}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -731,16 +841,77 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
 
       {/* 8. TAB CONTENT 3: CASH BOOK VS. SUB-LEDGER RECONCILIATION */}
       {activeTab === 'CASH_RECON' && (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* Module Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Object.values(auditReport.cashMovementAudit.modules).map((mod) => {
+              const isSelected = selectedReconModule === mod.module;
+              return (
+                <div
+                  key={`card-${mod.module}`}
+                  onClick={() => setSelectedReconModule(isSelected ? null : mod.module)}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-xs ${
+                    isSelected
+                      ? 'border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/20'
+                      : 'border-slate-200/80 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 leading-tight">
+                        {mod.module === 'MEMBER_SETTLEMENT' ? (isBangla ? 'সদস্য বহির্গমন ও নিষ্পত্তি' : 'Member Exit & Settlements') : mod.label}
+                      </h4>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        {mod.module === 'MEMBER_SETTLEMENT' ? (isBangla ? 'Member Exit & Settlements' : 'সদস্য বহির্গমন ও নিষ্পত্তি') : mod.module}
+                      </span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase shrink-0 ${
+                      mod.isMatched
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-rose-100 text-rose-800 border border-rose-300'
+                    }`}>
+                      {mod.isMatched ? '✓ RECONCILED' : '⚠ VARIANCE'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 text-xs font-mono pt-2 border-t border-slate-100">
+                    <div className="flex justify-between text-slate-600">
+                      <span className="font-sans text-[11px] text-slate-500">{isBangla ? 'সাব-লেজার' : 'Sub-ledger'}</span>
+                      <span className="font-bold text-slate-900">৳{mod.subledgerAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span className="font-sans text-[11px] text-slate-500">{isBangla ? 'ক্যাশ বুক' : 'Cash Book'}</span>
+                      <span className="font-bold text-slate-900">৳{mod.cashBookAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-slate-900 pt-1.5 border-t border-dashed border-slate-200">
+                      <span className="font-sans text-[11px] text-slate-700">{isBangla ? 'পার্থক্য' : 'Variance'}</span>
+                      <span className={mod.variance !== 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                        ৳{Math.abs(mod.variance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Module Comparison Table */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
-            <h3 className="text-base font-bold text-slate-900">
-              {isBangla ? 'ক্যাশ বুক বনাম সাব-লেজার মডিউলভিত্তিক তুলনা' : 'Cash Book vs. Sub-Ledger Module Comparison'}
-            </h3>
-            <p className="text-xs text-slate-500">
-              {isBangla
-                ? 'ক্যাশ বুকে রেকর্ডকৃত মোট নগদ জমা ও খরচের সাথে প্রতিটি সাব-লেজারের (ভর্তি, মূলধন, মাসিক চাঁদা ইত্যাদি) লেনদেন লাইনের পুঙ্খানুপুঙ্খ মিল যাচাই।'
-                : 'Detailed reconciliation between Cash Book cash movements and respective sub-ledger transaction registers.'}
-            </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  {isBangla ? 'ক্যাশ বুক বনাম সাব-লেজার মডিউলভিত্তিক তুলনা' : 'Cash Book vs. Sub-Ledger Module Comparison'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {isBangla
+                    ? 'ক্যাশ বুকে রেকর্ডকৃত মোট নগদ জমা ও খরচের সাথে প্রতিটি সাব-লেজারের লেনদেন লাইনের পুঙ্খানুপুঙ্খ মিল যাচাই।'
+                    : 'Detailed reconciliation between Cash Book cash movements and respective sub-ledger transaction registers.'}
+                </p>
+              </div>
+              <div className="text-xs font-mono text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                {isBangla ? 'মোট ক্যাশ পার্থক্য:' : 'Total Net Variance:'} <strong className="text-emerald-700 font-black">৳{Math.abs(auditReport.cashMovementAudit.totalVariance).toLocaleString()}</strong>
+              </div>
+            </div>
 
             <div className="overflow-x-auto rounded-xl border border-slate-200">
               <table className="w-full text-xs text-left">
@@ -754,11 +925,11 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
                     <th className="p-3 text-center">{isBangla ? 'রেকর্ড মিল' : 'Status'}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 font-medium">
                   {Object.values(auditReport.cashMovementAudit.modules).map((mod, modIdx) => (
                     <tr key={`mod-row-${mod.module}-${modIdx}`} className={`hover:bg-slate-50/60 ${!mod.isMatched ? 'bg-amber-50/40' : ''}`}>
                       <td className="p-3 font-bold text-slate-900 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                        <span className={`w-2 h-2 rounded-full ${mod.module === 'MEMBER_SETTLEMENT' ? 'bg-purple-600' : 'bg-indigo-500'}`} />
                         {mod.label || mod.module}
                       </td>
                       <td className="p-3 text-right font-mono text-slate-800">৳{mod.cashBookAmount.toLocaleString()}</td>
@@ -782,6 +953,105 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Dedicated 3-Way Member Exit & Settlement Reconciliation Table */}
+          <div className="bg-white p-5 rounded-2xl border border-purple-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-purple-50 text-purple-700 border border-purple-200">
+                  <Scale className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">
+                    {isBangla ? 'সদস্য বহির্গমন ও নিষ্পত্তি (৩-মুখী অডিট রেজিস্ট্রি)' : 'Member Exit & Settlements (3-Way Verification Registry)'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {isBangla
+                      ? 'উৎস নিষ্পত্তি অনুরোধ (Source) → সাধারণ জাবেদা (Journal Voucher) → ক্যাশ বুক প্রদান (Cash Outflow) এর ৩-মুখী নিরীক্ষা।'
+                      : '3-Way Audit: Source Settlement Request → General Journal Voucher → Cash Book Payment Outflow.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-black">
+                  {settlementAuditDetails.length} {isBangla ? 'টি নিষ্পত্তি রেকর্ড' : 'Settlement Records'}
+                </span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 whitespace-nowrap">
+                  <tr>
+                    <th className="p-3 font-mono">{isBangla ? 'ভাউচার নং' : 'Voucher No'}</th>
+                    <th className="p-3 font-mono">{isBangla ? 'সদস্য আইডি' : 'Member ID'}</th>
+                    <th className="p-3">{isBangla ? 'সদস্যের নাম' : 'Member Name'}</th>
+                    <th className="p-3">{isBangla ? 'নিষ্পত্তি তারিখ' : 'Settlement Date'}</th>
+                    <th className="p-3">{isBangla ? 'ধরন' : 'Type'}</th>
+                    <th className="p-3 text-right">{isBangla ? 'মূলধন ডেবিট (৳)' : 'Capital (৳)'}</th>
+                    <th className="p-3 text-right">{isBangla ? 'সার্ভিস চার্জ (৳)' : 'Service Charge (৳)'}</th>
+                    <th className="p-3 text-right">{isBangla ? 'ক্যাশ রিফান্ড (৳)' : 'Cash Refund (৳)'}</th>
+                    <th className="p-3 font-mono">{isBangla ? 'জাবেদা নং' : 'Journal No'}</th>
+                    <th className="p-3 font-mono">{isBangla ? 'ক্যাশ ট্রানজাকশন' : 'Cash Txn ID'}</th>
+                    <th className="p-3 text-center">{isBangla ? '৩-মুখী স্থিতি' : '3-Way Status'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 whitespace-nowrap">
+                  {settlementAuditDetails.length > 0 ? (
+                    settlementAuditDetails.map((item) => (
+                      <tr key={item.exitRequestId} className="hover:bg-purple-50/30 transition-colors">
+                        <td className="p-3 font-mono font-bold text-slate-900">{item.refundVoucherNo}</td>
+                        <td className="p-3 font-mono font-semibold text-indigo-700">{item.memberId}</td>
+                        <td className="p-3 font-bold text-slate-800">{item.memberName}</td>
+                        <td className="p-3 font-mono text-slate-600">{item.refundProcessDate}</td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 uppercase">
+                            {item.exitType}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right font-mono text-slate-900">৳{item.capital.toLocaleString()}</td>
+                        <td className="p-3 text-right font-mono text-emerald-700">৳{item.serviceCharge.toLocaleString()}</td>
+                        <td className="p-3 text-right font-mono font-bold text-purple-700">৳{item.netRefund.toLocaleString()}</td>
+                        <td className="p-3 font-mono text-slate-700">
+                          {item.journalNo !== '-' ? (
+                            <span className="text-indigo-700 font-semibold">{item.journalNo}</span>
+                          ) : (
+                            <span className="text-rose-500 italic">Unposted</span>
+                          )}
+                        </td>
+                        <td className="p-3 font-mono text-slate-700">
+                          {item.cashTxnId !== '-' ? (
+                            <span className="text-emerald-700 font-semibold">{item.cashTxnId}</span>
+                          ) : (
+                            <span className="text-rose-500 italic">Missing</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center">
+                          {item.is3WayVerified ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              VERIFIED
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300">
+                              <XCircle className="w-3 h-3 text-rose-600" />
+                              {item.discrepancyReason || 'UNRECONCILED'}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={11} className="p-8 text-center text-slate-400">
+                        {isBangla ? 'কোনো সদস্য নিষ্পত্তি রেকর্ড নেই।' : 'No member settlement records found.'}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -845,6 +1115,25 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
                 </p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 10. TAB CONTENT 5: TRANSACTION FLOW GRAPH */}
+      {activeTab === 'GRAPH' && (
+        <div className="space-y-4">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+            <h3 className="text-base font-bold text-slate-900">
+              {isBangla ? 'সিস্টেম ট্রানজ্যাকশন ফ্লো এবং অরফান/ডুপ্লিকেট শনাক্তকরণ' : 'System Transaction Flow & Integrity Diagnostics'}
+            </h3>
+            <p className="text-xs text-slate-500">
+              {isBangla
+                ? 'এই গ্রাফে সকল ডেটা ফ্লো দেখানো হয়েছে। লাল বা কমলা রঙের নোডগুলি অরফান লাইন বা ডুপ্লিকেট এন্ট্রি নির্দেশ করে।'
+                : 'Interactive flow visualization mapping sources to ledgers. Anomalies (Orphans/Duplicates) are highlighted.'}
+            </p>
+            <div className="mt-4">
+              <FinancialFlowGraph db={db} auditReport={auditReport} />
+            </div>
           </div>
         </div>
       )}
