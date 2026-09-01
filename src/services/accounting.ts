@@ -6833,9 +6833,7 @@ export class AccountingService {
       const mIdLower = String(member?.memberId || '').toLowerCase();
       const mNameLower = String(member?.fullName || '').toLowerCase();
       
-      const isMemMatch = inc.memberId === memberId || 
-        (mIdLower && desc.includes(mIdLower)) || 
-        (mNameLower && desc.includes(mNameLower));
+      const isMemMatch = inc.memberId === memberId; // Strict matching only
         
       const isAdmCategory = inc.category === 'ADMISSION' || inc.category === 'MEMBERSHIP_FEE' || inc.sourceType === 'ADMISSION' || desc.includes('admission') || desc.includes('ভর্তি');
       return isMemMatch && isAdmCategory;
@@ -6867,7 +6865,7 @@ export class AccountingService {
     // 3. Harmonize Capital Deposits if not in member ledger
     (db.capitalDeposits || []).filter(c => c.memberId === memberId && c.status !== 'REVERSED' && c.status !== 'CANCELLED').forEach(c => {
       const cap = c as any;
-      if (cap.voucherNo && processedVouchers.has(cap.voucherNo)) return;
+      // Strict by depositId
       if (cap.depositId && processedVouchers.has(cap.depositId)) return;
 
       const isInitialAdmissionDeposit = (cap.remarks?.includes('ভর্তিকালীন') || cap.remarks?.includes('প্রাথমিক') || cap.transactionNo?.startsWith('ADM-'));
@@ -6900,7 +6898,7 @@ export class AccountingService {
     (db.collections || []).filter(c => c.memberId === memberId && c.status !== 'REVERSED' && c.status !== 'CANCELLED').forEach(c => {
       const col = c as any;
       const vNo = col.voucherNo || col.receiptNo;
-      if ((col.voucherNo && processedVouchers.has(col.voucherNo)) || (col.receiptNo && processedVouchers.has(col.receiptNo))) return;
+      if (col.collectionId && processedVouchers.has(col.collectionId)) return;
       
       const monthlyFee = Number(col.monthlyAmount) || 0;
       const discount = Number(col.discount) || 0;
@@ -7124,7 +7122,17 @@ export class AccountingService {
     const totalDebit = filteredItems.reduce((sum, i) => sum + i.debit, 0);
     const totalCredit = filteredItems.reduce((sum, i) => sum + i.credit, 0);
 
+    const dueInfo = this.calculateMemberDue(
+      member,
+      db.collections || [],
+      db.settings?.monthlyContribution || 1000,
+      db.settings?.lateFine || 0,
+      db.settings?.latePaymentDay || 10
+    );
+
     return {
+      dueInfo,
+      totalDueAmount: dueInfo.totalContributionDue,
       member,
       totalCapital,
       totalMonthlySubscription,

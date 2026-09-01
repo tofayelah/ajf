@@ -329,7 +329,7 @@ app.post('/api/sync', async (req: any, res: any) => {
           
           // Protect financial and system arrays from being blindly overwritten by frontend
           const protectedKeys = [
-            'admissions', 'collections', 'capitalDeposits', 'loans', 'loanRepayments',
+            'members', 'admissions', 'collections', 'capitalDeposits', 'loans', 'loanRepayments',
             'investments', 'cashTransactions', 'bankTransactions', 'contraTransactions',
             'incomes', 'expenses', 'memberLedgers', 'welfareTransactions', 'profitAllocations',
             'journalEntries', 'journalLines', 'memberExits', 'auditLogs', 'cashReconciliations',

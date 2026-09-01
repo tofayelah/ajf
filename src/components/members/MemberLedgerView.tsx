@@ -118,8 +118,66 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
     }
     
     return list.map(m => {
-      const ledger = AccountingService.getComprehensiveMemberLedger(db, m.memberId);
-      return { member: m, ledger };
+      const memberId = m.memberId;
+      
+      // 1. Capital (from canonical capitalDeposits)
+      const rawCaps = (db.capitalDeposits || []).filter((c: any) => c.memberId === memberId && c.status !== 'REVERSED');
+      const totalCapital = rawCaps.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
+      
+      // 2. Admission (from canonical admissions table)
+      const rawAdms = (db.admissions || []).filter((a: any) => a.memberId === memberId);
+      const totalAdmissionFee = rawAdms.reduce((sum: number, a: any) => sum + Number(a.admissionFee || 0), 0);
+      
+      // 3. Monthly Chanda & Jorimana (from canonical collections)
+      let totalMonthlySubscription = 0;
+      let totalJorimana = 0;
+      const rawCols = (db.collections || []).filter((c: any) => c.memberId === memberId && c.status !== 'REVERSED' && c.status !== 'CANCELLED');
+      rawCols.forEach((c: any) => {
+        const monthlyFee = Number(c.monthlyAmount) || 0;
+        const discount = Number(c.discount) || 0;
+        const paidAmount = Number(c.paidAmount) || 0;
+        const netExpected = Math.max(0, monthlyFee - discount);
+        
+        totalMonthlySubscription += Math.min(paidAmount, netExpected);
+        totalJorimana += Math.max(0, paidAmount - netExpected);
+      });
+      
+      // 4. Benefit/Profit and Settlement (from memberLedgers)
+      let totalBenefitProfit = 0;
+      let totalSettlement = 0;
+      (db.memberLedgers || []).filter((l: any) => l.memberId === memberId).forEach((l: any) => {
+        const tType = l.transactionType;
+        if (tType === 'PROFIT_SHARE' || tType === 'PROFIT_DISTRIBUTION' || tType === 'WELFARE_GRANT' || tType === 'BENEFIT') {
+          totalBenefitProfit += Number(l.credit || 0);
+        }
+        if (tType === 'MEMBER_EXIT' || tType === 'NORMAL_EXIT' || tType === 'EARLY_EXIT' || tType === 'DEATH_SETTLEMENT' || tType === 'SETTLEMENT_PAYMENT') {
+          totalSettlement += Number(l.debit || 0);
+        }
+      });
+      
+      const currentMemberBalance = totalCapital + totalMonthlySubscription + totalBenefitProfit - totalSettlement;
+      
+      const dueInfo = AccountingService.calculateMemberDue(
+        m,
+        db.collections || [],
+        db.settings?.monthlyContribution || 1000,
+        db.settings?.lateFine || 0,
+        db.settings?.latePaymentDay || 10
+      );
+
+      return { 
+        member: m, 
+        ledger: {
+          totalCapital,
+          totalAdmissionFee,
+          totalMonthlySubscription,
+          totalJorimana,
+          totalBenefitProfit,
+          totalSettlement,
+          currentMemberBalance,
+          totalDueAmount: dueInfo.totalContributionDue
+        } 
+      };
     });
   }, [db, currentMemberId, memberSearchQuery]);
 
@@ -330,7 +388,9 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
       ['Mobile', `"${selectedMember.mobile || '-'}"`],
       ['Joining Date', `"${selectedMember.joiningDate || '-'}"`],
       ['Total Capital', ledgerData.totalCapital],
-      ['Total Monthly Subscription', ledgerData.totalMonthlySubscription],
+      ['Chanda (Paid)', ledgerData.totalMonthlySubscription],
+      ['Chanda (Due)', ledgerData.totalDueAmount || 0],
+      ['Outstanding Chanda', Math.max(0, (ledgerData.totalDueAmount || 0) - ledgerData.totalMonthlySubscription)],
       ['Total Admission Fee', ledgerData.totalAdmissionFee],
       ['Total Benefit / Profit', ledgerData.totalBenefitProfit],
       ['Total Settlement', ledgerData.totalSettlement],
@@ -657,7 +717,9 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
                   <th className="p-3 font-semibold">Member</th>
                   <th className="p-3 font-semibold text-right">Total Capital</th>
                   <th className="p-3 font-semibold text-right">Admission Fee</th>
-                  <th className="p-3 font-semibold text-right">Monthly Chanda</th>
+                  <th className="p-3 font-semibold text-right">Chanda (Paid)</th>
+                  <th className="p-3 font-semibold text-right">Chanda (Due)</th>
+                  <th className="p-3 font-semibold text-right">Outstanding</th>
                   <th className="p-3 font-semibold text-right">Jorimana</th>
                   <th className="p-3 font-semibold text-right">Benefit / Profit</th>
                   <th className="p-3 font-semibold text-right">Total Settlement</th>
@@ -682,6 +744,8 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
                     <td className="p-3 text-right font-medium text-slate-700">{formatMoney(row.ledger?.totalCapital || 0)}</td>
                     <td className="p-3 text-right font-medium text-slate-500">{formatMoney(row.ledger?.totalAdmissionFee || 0)}</td>
                     <td className="p-3 text-right font-medium text-slate-700">{formatMoney(row.ledger?.totalMonthlySubscription || 0)}</td>
+                    <td className="p-3 text-right font-medium text-slate-500">{formatMoney(row.ledger?.totalDueAmount || 0)}</td>
+                    <td className="p-3 text-right font-medium text-red-600">{formatMoney(Math.max(0, (row.ledger?.totalDueAmount || 0) - (row.ledger?.totalMonthlySubscription || 0)))}</td>
                     <td className="p-3 text-right font-medium text-orange-600">{formatMoney(row.ledger?.totalJorimana || 0)}</td>
                     <td className="p-3 text-right font-medium text-purple-600">{formatMoney(row.ledger?.totalBenefitProfit || 0)}</td>
                     <td className="p-3 text-right font-medium text-rose-600">{formatMoney(row.ledger?.totalSettlement || 0)}</td>
