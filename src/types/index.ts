@@ -65,6 +65,7 @@ export type UserRole =
   | "MEMBER";
 
 export type AuditAction = 
+  | "FACTORY_RESET_EXECUTED"
   | "NORMAL_EXIT_REQUESTED"
   | "NORMAL_EXIT_REVIEWED"
   | "NORMAL_EXIT_APPROVED"

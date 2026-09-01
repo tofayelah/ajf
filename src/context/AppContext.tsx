@@ -25,7 +25,10 @@ import {
   resetUserPasswordAPI,
   resetUserPinAPI,
   deleteUserAPI,
-  authenticatedFetch
+  authenticatedFetch,
+  getFactoryResetPreviewAPI,
+  executeFactoryResetAPI,
+  fetchDatabaseFromAPI
 } from "../services/api";
 
 export type ActiveScreen =
@@ -557,6 +560,8 @@ interface AppContextType {
   ) => Promise<{ success: boolean; message: string }> | { success: boolean; message: string };
   loadDemoData: () => void;
   clearDatabase: () => Promise<boolean>;
+  getFactoryResetPreview: () => Promise<any>;
+  executeFactoryReset: (confirmationPhrase: string, reason?: string) => Promise<{ success: boolean; data?: any; message?: string }>;
   restoreBackup: (backupDb: any) => Promise<boolean> | boolean;
   resetTestData: () => Promise<boolean>;
   requestMemberExit: (params: any) => Promise<{success: boolean; message: string}>;
@@ -1112,19 +1117,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const clearDatabase = async (): Promise<boolean> => {
-    const fresh = createFreshDatabase(false);
-    setDb(fresh);
+  const getFactoryResetPreview = async () => {
+    return await getFactoryResetPreviewAPI();
+  };
 
-    // Explicitly clear local persistence engines as requested before overwriting
-    await clearAllStorage();
+  const executeFactoryReset = async (
+    confirmationPhrase: string,
+    reason?: string
+  ): Promise<{ success: boolean; data?: any; message?: string }> => {
+    try {
+      const res = await executeFactoryResetAPI(confirmationPhrase, reason);
+      if (res && res.success) {
+        // 1. Wipe client-side cached databases
+        await clearAllStorage();
 
-    const saveResult = await saveDatabaseToStorage(fresh);
-    if (saveResult.success) {
-      return true;
-    } else {
-      return false;
+        // 2. Fetch authoritative fresh database from server
+        const freshDb = await fetchDatabaseFromAPI();
+        if (freshDb) {
+          setDb(freshDb);
+        }
+        return { success: true, data: res };
+      }
+      return { success: false, message: res?.error || "Failed to execute factory reset" };
+    } catch (error: any) {
+      console.error("Factory reset execution error:", error);
+      return { success: false, message: error.message || "Factory reset execution error" };
     }
+  };
+
+  const clearDatabase = async (): Promise<boolean> => {
+    const res = await executeFactoryReset("DELETE ALL MEMBER DATA", "Factory reset initiated");
+    return res.success;
   };
   const restoreBackup = async (data: string) => {
     try {
@@ -1232,6 +1255,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         resetUserPin,
         loadDemoData,
         clearDatabase,
+        getFactoryResetPreview,
+        executeFactoryReset,
         resetTestData,
         restoreBackup,
         requestMemberExit, 

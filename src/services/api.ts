@@ -243,6 +243,28 @@ export async function syncMissingCashTransactionsAPI(options?: { dryRun?: boolea
   return response.json();
 }
 
+export async function getFactoryResetPreviewAPI() {
+  const response = await authenticatedFetch('/admin/factory-reset/preview');
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to fetch factory reset preview', response.status, err);
+  }
+  return response.json();
+}
+
+export async function executeFactoryResetAPI(confirmationPhrase: string, reason?: string) {
+  const response = await authenticatedFetch('/admin/factory-reset', {
+    method: 'POST',
+    body: JSON.stringify({ confirmationPhrase, reason })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to execute factory reset', response.status, err);
+  }
+  return response.json();
+}
+
+
 
 
 

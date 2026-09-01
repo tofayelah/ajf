@@ -1746,6 +1746,270 @@ app.delete('/api/users/:id', requireAuth, requirePermission('users.disable'), as
   }
 });
 
+// --- Server-Authoritative Factory Reset Endpoints ---
+
+function computeFactoryResetCounts(db: any) {
+  return {
+    members: Array.isArray(db.members) ? db.members.length : 0,
+    admissions: Array.isArray(db.admissions) ? db.admissions.length : 0,
+    capitalDeposits: Array.isArray(db.capitalDeposits) ? db.capitalDeposits.length : 0,
+    collections: Array.isArray(db.collections) ? db.collections.length : 0,
+    loans: Array.isArray(db.loans) ? db.loans.length : 0,
+    loanRepayments: Array.isArray(db.loanRepayments) ? db.loanRepayments.length : 0,
+    investments: Array.isArray(db.investments) ? db.investments.length : 0,
+    investmentReturns: Array.isArray(db.investmentReturns) ? db.investmentReturns.length : 0,
+    cashTransactions: Array.isArray(db.cashTransactions) ? db.cashTransactions.length : 0,
+    bankTransactions: Array.isArray(db.bankTransactions) ? db.bankTransactions.length : 0,
+    contraTransactions: Array.isArray(db.contraTransactions) ? db.contraTransactions.length : 0,
+    contraEntries: Array.isArray(db.contraEntries) ? db.contraEntries.length : 0,
+    incomes: Array.isArray(db.incomes) ? db.incomes.length : 0,
+    expenses: Array.isArray(db.expenses) ? db.expenses.length : 0,
+    memberLedgers: Array.isArray(db.memberLedgers) ? db.memberLedgers.length : 0,
+    welfareTransactions: Array.isArray(db.welfareTransactions) ? db.welfareTransactions.length : 0,
+    profitAllocations: Array.isArray(db.profitAllocations) ? db.profitAllocations.length : 0,
+    meetings: Array.isArray(db.meetings) ? db.meetings.length : 0,
+    resolutions: Array.isArray(db.resolutions) ? db.resolutions.length : 0,
+    journalEntries: Array.isArray(db.journalEntries) ? db.journalEntries.length : 0,
+    journalLines: Array.isArray(db.journalLines) ? db.journalLines.length : 0,
+    cashReconciliations: Array.isArray(db.cashReconciliations) ? db.cashReconciliations.length : 0,
+    bankReconciliations: Array.isArray(db.bankReconciliations) ? db.bankReconciliations.length : 0,
+    bankStatementTransactions: Array.isArray(db.bankStatementTransactions) ? db.bankStatementTransactions.length : 0,
+    attachments: Array.isArray(db.attachments) ? db.attachments.length : 0,
+    reserveUtilizations: Array.isArray(db.reserveUtilizations) ? db.reserveUtilizations.length : 0,
+    historicalProfits: Array.isArray(db.historicalProfits) ? db.historicalProfits.length : 0,
+    committeeMembers: Array.isArray(db.committeeMembers) ? db.committeeMembers.length : 0,
+    committeeHistory: Array.isArray(db.committeeHistory) ? db.committeeHistory.length : 0,
+    memberExits: Array.isArray(db.memberExits) ? db.memberExits.length : 0,
+    lateFeeWaivers: Array.isArray(db.lateFeeWaivers) ? db.lateFeeWaivers.length : 0,
+    historicalMigrationLog: Array.isArray(db.historicalMigrationLog) ? db.historicalMigrationLog.length : 0,
+    auditLogs: Array.isArray(db.auditLogs) ? db.auditLogs.length : 0,
+  };
+}
+
+const handleFactoryResetPreview = async (req: any, res: any) => {
+  try {
+    const rawData = await fs.readFile(DB_FILE, 'utf8');
+    const db = JSON.parse(rawData);
+    const counts = computeFactoryResetCounts(db);
+
+    const totalMemberRecords = counts.members + counts.admissions + counts.capitalDeposits + counts.collections + counts.memberLedgers + counts.memberExits + counts.lateFeeWaivers;
+    const totalFinancialTransactions = counts.cashTransactions + counts.bankTransactions + counts.contraTransactions + counts.incomes + counts.expenses + counts.welfareTransactions + counts.loans + counts.investments;
+
+    res.json({
+      success: true,
+      counts,
+      summary: {
+        totalMembers: counts.members,
+        totalMemberRecords,
+        totalFinancialTransactions,
+        totalJournals: counts.journalEntries,
+        totalJournalLines: counts.journalLines,
+        totalCashTransactions: counts.cashTransactions,
+        totalBankTransactions: counts.bankTransactions
+      },
+      preserved: {
+        usersCount: Array.isArray(db.users) ? db.users.length : 0,
+        accountsCount: Array.isArray(db.accounts) ? db.accounts.length : 0,
+        bankAccountsCount: Array.isArray(db.bankAccounts) ? db.bankAccounts.length : 0,
+        financialYearsCount: Array.isArray(db.financialYears) ? db.financialYears.length : 0,
+        settings: {
+          orgName: db.settings?.orgName,
+          orgShortName: db.settings?.orgShortName,
+          currentFinancialYear: db.settings?.currentFinancialYear
+        }
+      },
+      requiredPhrase: 'DELETE ALL MEMBER DATA'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Server error generating factory reset preview' });
+  }
+};
+
+app.get('/api/admin/factory-reset/preview', requireAuth, requireRole(['ADMIN']), handleFactoryResetPreview);
+app.get('/api/system/factory-reset/preview', requireAuth, requireRole(['ADMIN']), handleFactoryResetPreview);
+
+const handleFactoryResetExecute = async (req: any, res: any) => {
+  let backupCreated = false;
+  let backupFilePath = '';
+  let backupFileName = '';
+
+  try {
+    const { confirmationPhrase, reason } = req.body || {};
+
+    if (!confirmationPhrase || typeof confirmationPhrase !== 'string' || confirmationPhrase.trim() !== 'DELETE ALL MEMBER DATA') {
+      return res.status(400).json({
+        success: false,
+        error: "Confirmation phrase mismatch. You must provide exactly 'DELETE ALL MEMBER DATA' to execute factory reset."
+      });
+    }
+
+    // 1. Read current authoritative database
+    const rawData = await fs.readFile(DB_FILE, 'utf8');
+    const currentDb = JSON.parse(rawData);
+
+    // 2. Compute before counts
+    const beforeCounts = computeFactoryResetCounts(currentDb);
+
+    // 3. Create automatic backup file
+    const timestamp = Date.now();
+    backupFileName = `database.backup.factory-reset-${timestamp}.json`;
+    backupFilePath = path.join(process.cwd(), backupFileName);
+    await fs.writeFile(backupFilePath, rawData, 'utf8');
+    backupCreated = true;
+
+    // 4. Verify backup file exists and is readable/valid JSON
+    const backupStats = await fs.stat(backupFilePath);
+    if (!backupStats || backupStats.size === 0) {
+      throw new Error('Automatic backup failed: Generated backup file is empty');
+    }
+    const backupRaw = await fs.readFile(backupFilePath, 'utf8');
+    const verifiedBackup = JSON.parse(backupRaw);
+    if (!verifiedBackup || !Array.isArray(verifiedBackup.users) || !Array.isArray(verifiedBackup.accounts) || !verifiedBackup.settings) {
+      throw new Error('Automatic backup verification failed: Corrupted backup data structure');
+    }
+    const backupCounts = computeFactoryResetCounts(verifiedBackup);
+    if (backupCounts.members !== beforeCounts.members || backupCounts.journalEntries !== beforeCounts.journalEntries) {
+      throw new Error('Automatic backup verification failed: Record count mismatch in backup');
+    }
+
+    // 5. Preserve system/security audit logs and add ONE FACTORY_RESET_EXECUTED audit entry
+    const preservedAuditLogs = (currentDb.auditLogs || []).filter((log: any) =>
+      log.module === 'USER_MANAGEMENT' ||
+      log.module === 'AUTH' ||
+      log.module === 'SYSTEM' ||
+      log.action === 'LOGIN' ||
+      log.action === 'LOGOUT' ||
+      log.action === 'USER_CREATED' ||
+      log.action === 'USER_PASSWORD_RESET' ||
+      log.action === 'USER_PIN_RESET' ||
+      log.action === 'USER_DISABLED' ||
+      log.action === 'USER_ENABLED'
+    );
+
+    const resetId = `RST-${timestamp}`;
+    const executedAt = new Date().toISOString();
+    const executedBy = req.user?.username || req.user?.fullName || req.user?.userId || 'admin';
+
+    const resetAuditLog = {
+      auditId: `AL-${timestamp}-1`,
+      userId: req.user?.userId || 'USR-0001',
+      userName: executedBy,
+      dateTime: executedAt,
+      module: 'SYSTEM',
+      action: 'FACTORY_RESET_EXECUTED' as any,
+      recordId: resetId,
+      remarks: `Factory reset executed by ${executedBy}. Deleted ${beforeCounts.members} members, ${beforeCounts.journalEntries} journals, ${beforeCounts.cashTransactions} cash txns, ${beforeCounts.bankTransactions} bank txns. Backup: ${backupFileName}`,
+      oldValue: JSON.stringify({ beforeCounts }),
+      newValue: JSON.stringify({
+        resetId,
+        backupFileName,
+        executedBy,
+        executedAt,
+        reason: reason || 'Full member and transaction factory reset'
+      })
+    };
+    preservedAuditLogs.push(resetAuditLog);
+
+    // 6. Construct clean database state
+    const cleanDb = {
+      ...currentDb,
+      settings: {
+        ...currentDb.settings,
+        isDemoMode: false
+      },
+      users: currentDb.users || [],
+      accounts: currentDb.accounts || [],
+      bankAccounts: currentDb.bankAccounts || [],
+      financialYears: currentDb.financialYears || [],
+      committees: (currentDb.committees || []).map((c: any) => ({ ...c })),
+      
+      // All member & transactional financial arrays cleared to empty []
+      members: [],
+      admissions: [],
+      collections: [],
+      capitalDeposits: [],
+      loans: [],
+      loanRepayments: [],
+      investments: [],
+      investmentReturns: [],
+      cashTransactions: [],
+      bankTransactions: [],
+      contraTransactions: [],
+      contraEntries: [],
+      incomes: [],
+      expenses: [],
+      memberLedgers: [],
+      welfareTransactions: [],
+      profitAllocations: [],
+      meetings: [],
+      resolutions: [],
+      journalEntries: [],
+      journalLines: [],
+      cashReconciliations: [],
+      bankReconciliations: [],
+      bankStatementTransactions: [],
+      attachments: [],
+      reserveUtilizations: [],
+      historicalProfits: [],
+      committeeMembers: [],
+      committeeHistory: [],
+      memberExits: [],
+      lateFeeWaivers: [],
+      historicalMigrationLog: [],
+      
+      // Preserved audit logs with factory reset record
+      auditLogs: preservedAuditLogs,
+      activeUserId: req.user?.userId || currentDb.activeUserId || 'USR-0001'
+    };
+
+    // 7. Atomically write to disk
+    await writeDbFile(cleanDb);
+
+    // 8. Verify the written state
+    const writtenRaw = await fs.readFile(DB_FILE, 'utf8');
+    const writtenDb = JSON.parse(writtenRaw);
+    const afterCounts = computeFactoryResetCounts(writtenDb);
+
+    return res.json({
+      success: true,
+      message: 'Factory reset completed successfully. All member and transactional data permanently deleted.',
+      resetId,
+      backupFileName,
+      backupVerified: true,
+      beforeCounts,
+      deletedCounts: beforeCounts,
+      afterCounts,
+      preserved: {
+        usersCount: cleanDb.users.length,
+        accountsCount: cleanDb.accounts.length,
+        bankAccountsCount: cleanDb.bankAccounts.length,
+        financialYearsCount: cleanDb.financialYears.length,
+        settings: {
+          orgName: cleanDb.settings?.orgName,
+          orgShortName: cleanDb.settings?.orgShortName
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error('Error executing factory reset:', error);
+    if (backupCreated && backupFilePath) {
+      try {
+        await fs.copyFile(backupFilePath, DB_FILE);
+        console.log('🔄 Rolled back database to pre-reset backup state.');
+      } catch (rollbackErr) {
+        console.error('Fatal error during database rollback:', rollbackErr);
+      }
+    }
+    return res.status(500).json({
+      success: false,
+      error: `Factory reset failed: ${error.message || 'Server error'}. Database rolled back to pre-reset state.`
+    });
+  }
+};
+
+app.post('/api/admin/factory-reset', requireAuth, requireRole(['ADMIN']), handleFactoryResetExecute);
+app.post('/api/system/factory-reset', requireAuth, requireRole(['ADMIN']), handleFactoryResetExecute);
+
 // --- API 404 Catch-All ---
 // Unknown /api/* requests must NEVER fall through to the frontend SPA fallback.
 app.all('/api/*', (req: Request, res: Response) => {

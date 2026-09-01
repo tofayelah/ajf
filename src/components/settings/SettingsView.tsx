@@ -62,12 +62,36 @@ export const SettingsView: React.FC = () => {
     type: 'test_data' | 'factory' | null;
     inputText: string;
     isProcessing: boolean;
+    previewData: any | null;
+    resultData: any | null;
+    error: string | null;
   }>({
     isOpen: false,
     type: null,
     inputText: '',
     isProcessing: false,
+    previewData: null,
+    resultData: null,
+    error: null,
   });
+
+  const openFactoryResetModal = async () => {
+    setResetModalState({
+      isOpen: true,
+      type: 'factory',
+      inputText: '',
+      isProcessing: false,
+      previewData: null,
+      resultData: null,
+      error: null,
+    });
+    try {
+      const preview = await appCtx?.getFactoryResetPreview?.();
+      setResetModalState(prev => ({ ...prev, previewData: preview }));
+    } catch (err: any) {
+      console.error('Failed to load reset preview:', err);
+    }
+  };
 
   const [logoError, setLogoError] = useState<string>('');
   const logoInputRef = React.useRef<HTMLInputElement>(null);
@@ -120,7 +144,7 @@ export const SettingsView: React.FC = () => {
   const handleResetConfirm = async () => {
     if (!resetModalState.type) return;
     
-    setResetModalState(prev => ({ ...prev, isProcessing: true }));
+    setResetModalState(prev => ({ ...prev, isProcessing: true, error: null }));
     
     try {
       if (resetModalState.type === 'test_data') {
@@ -130,22 +154,31 @@ export const SettingsView: React.FC = () => {
           setTimeout(() => window.location.reload(), 500);
         } else {
           showNotification("ডেটা মুছে ফেলা সম্ভব হয়নি।", "error");
-          setResetModalState(prev => ({ ...prev, isProcessing: false }));
+          setResetModalState(prev => ({ ...prev, isProcessing: false, error: 'Failed to reset test data' }));
         }
       } else if (resetModalState.type === 'factory') {
-        const success = await clearDatabase?.();
-        if (success) {
-          showNotification("সমিতির সমস্ত ডেটা সফলভাবে মুছে ফেলা হয়েছে। নতুনভাবে শুরু করার জন্য সিস্টেম প্রস্তুত।", "success");
-          setTimeout(() => window.location.reload(), 500);
+        const res = await appCtx?.executeFactoryReset?.(
+          resetModalState.inputText,
+          'Full member and transaction factory reset'
+        );
+        if (res && res.success) {
+          setResetModalState(prev => ({
+            ...prev,
+            isProcessing: false,
+            resultData: res.data,
+            error: null
+          }));
+          showNotification("সমিতির সমস্ত সদস্য ও লেনদেন ডেটা সফলভাবে মুছে ফেলা হয়েছে।", "success");
         } else {
-          showNotification("ফ্যাক্টরি রিসেট ব্যর্থ হয়েছে।", "error");
-          setResetModalState(prev => ({ ...prev, isProcessing: false }));
+          const errMsg = res?.message || "ফ্যাক্টরি রিসেট ব্যর্থ হয়েছে।";
+          showNotification(errMsg, "error");
+          setResetModalState(prev => ({ ...prev, isProcessing: false, error: errMsg }));
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      showNotification("ত্রুটি ঘটেছে।", "error");
-      setResetModalState(prev => ({ ...prev, isProcessing: false }));
+      showNotification("ত্রুটি ঘটেছে: " + error.message, "error");
+      setResetModalState(prev => ({ ...prev, isProcessing: false, error: error.message }));
     }
   };
 
@@ -676,9 +709,9 @@ export const SettingsView: React.FC = () => {
           <div className="border border-rose-100 bg-rose-50/50 p-4 rounded-xl flex flex-col items-center justify-center text-center gap-2">
             <AlertTriangle className="w-6 h-6 text-rose-600" />
             <h4 className="font-bold text-xs text-slate-800">ফ্যাক্টরি রিসেট (ডেটা মুছুন)</h4>
-            <p className="text-[10px] text-slate-500 mb-2">সমিতির সমস্ত ডেটা মুছে নতুন করে শুরু করুন</p>
+            <p className="text-[10px] text-slate-500 mb-2">সমিতির সমস্ত সদস্য ও লেনদেন ডেটা মুছে নতুন করে শুরু করুন</p>
             <button
-              onClick={() => setResetModalState({ isOpen: true, type: 'factory', inputText: '', isProcessing: false })}
+              onClick={openFactoryResetModal}
               className="px-4 py-1.5 bg-white border-2 border-rose-600 text-rose-700 rounded-lg text-xs font-bold w-full hover:bg-rose-50 transition-colors"
             >
               Factory Reset
@@ -690,7 +723,7 @@ export const SettingsView: React.FC = () => {
             <h4 className="font-bold text-xs text-slate-800">Test Data Reset</h4>
             <p className="text-[10px] text-slate-500 mb-2">Clear transactional records only. Keeps settings & users.</p>
             <button
-              onClick={() => setResetModalState({ isOpen: true, type: 'test_data', inputText: '', isProcessing: false })}
+              onClick={() => setResetModalState({ isOpen: true, type: 'test_data', inputText: '', isProcessing: false, previewData: null, resultData: null, error: null })}
               className="px-4 py-1.5 bg-white border-2 border-amber-600 text-amber-700 rounded-lg text-xs font-bold w-full hover:bg-amber-50 transition-colors"
             >
               Reset Test Data
@@ -699,83 +732,222 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Reset Confirmation Modal */}
+      {/* Reset Confirmation / Result Modal */}
       {resetModalState.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-rose-600" />
-                {resetModalState.type === 'factory' ? 'Factory Reset Confirmation' : 'Test Data Reset Confirmation'}
-              </h3>
-              {!resetModalState.isProcessing && (
-                <button
-                  onClick={() => setResetModalState(prev => ({ ...prev, isOpen: false }))}
-                  className="text-slate-400 hover:text-slate-600 transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-            
-            <div className="p-5 space-y-4">
-              <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-800 text-sm">
-                <p className="font-bold mb-1">Production Environment Safety Check</p>
-                <p>
-                  {resetModalState.type === 'factory' 
-                    ? "Are you sure you want to clear all data? This cannot be undone."
-                    : "Are you sure you want to clear all transactional test data? This will NOT delete settings, users, or configuration."}
-                </p>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden my-8">
+            {resetModalState.resultData ? (
+              // Success Screen
+              <div className="p-6 space-y-5">
+                <div className="flex items-center gap-3 text-emerald-700">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-7 h-7 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-slate-900">
+                      {isBangla ? 'ফ্যাক্টরি রিসেট সফলভাবে সম্পন্ন হয়েছে' : 'Factory Reset Completed Successfully'}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      {isBangla ? 'সমিতির সমস্ত সদস্য ও লেনদেন ডেটা মুছে নতুনভাবে শুরু করা হয়েছে' : 'All member & financial transactional records were deleted'}
+                    </p>
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Please type <span className="font-bold font-mono text-rose-600 bg-rose-100 px-1 rounded">{resetModalState.type === 'factory' ? 'RESET' : 'RESET TEST DATA'}</span> to confirm:
-                </label>
-                <input
-                  type="text"
-                  value={resetModalState.inputText}
-                  onChange={(e) => setResetModalState(prev => ({ ...prev, inputText: e.target.value }))}
-                  disabled={resetModalState.isProcessing}
-                  placeholder={resetModalState.type === 'factory' ? 'RESET' : 'RESET TEST DATA'}
-                  className="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm font-mono focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all disabled:opacity-50 disabled:bg-slate-50"
-                  autoComplete="off"
-                />
-              </div>
-            </div>
+                {/* Backup Verification Notice */}
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs flex items-start gap-2.5">
+                  <HardDrive className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">{isBangla ? 'সার্ভার ব্যাকআপ সংরক্ষিত ও পরীক্ষিত:' : 'Server Backup Verified & Stored:'} </span>
+                    <span className="font-mono text-[11px] block mt-0.5 text-blue-800 bg-white px-2 py-1 rounded border border-blue-200">
+                      {resetModalState.resultData.backupFileName}
+                    </span>
+                  </div>
+                </div>
 
-            <div className="p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-              <button
-                onClick={() => setResetModalState(prev => ({ ...prev, isOpen: false }))}
-                disabled={resetModalState.isProcessing}
-                className="px-5 py-2 text-slate-600 font-semibold hover:bg-slate-200 bg-slate-100 rounded-xl text-sm transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleResetConfirm}
-                disabled={
-                  resetModalState.isProcessing || 
-                  (resetModalState.type === 'factory' && resetModalState.inputText !== 'RESET') ||
-                  (resetModalState.type === 'test_data' && resetModalState.inputText !== 'RESET TEST DATA')
-                }
-                className="px-5 py-2 bg-rose-600 text-white font-bold rounded-xl text-sm shadow-md shadow-rose-200 hover:bg-rose-700 transition-all disabled:opacity-50 disabled:shadow-none flex items-center gap-2"
-              >
-                {resetModalState.isProcessing ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Processing...</span>
-                  </>
-                ) : (
-                  <span>Confirm Delete</span>
-                )}
-              </button>
-            </div>
+                {/* Deleted Counts Summary */}
+                <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    {isBangla ? 'মুছে ফেলা রেকর্ডের বিবরণ' : 'Deleted Records Breakdown'}
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                    <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                      <span className="text-slate-500 block text-[11px]">{isBangla ? 'সদস্যগণ (Members)' : 'Members'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{resetModalState.resultData.deletedCounts?.members || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                      <span className="text-slate-500 block text-[11px]">{isBangla ? 'ভর্তি রেকর্ড (Admissions)' : 'Admissions'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{resetModalState.resultData.deletedCounts?.admissions || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                      <span className="text-slate-500 block text-[11px]">{isBangla ? 'মূলধন আমানত (Capital)' : 'Capital Deposits'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{resetModalState.resultData.deletedCounts?.capitalDeposits || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                      <span className="text-slate-500 block text-[11px]">{isBangla ? 'মাসিক চাঁদা (Collections)' : 'Collections'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{resetModalState.resultData.deletedCounts?.collections || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                      <span className="text-slate-500 block text-[11px]">{isBangla ? 'ক্যাশ লেনদেন (Cash Txns)' : 'Cash Txns'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{resetModalState.resultData.deletedCounts?.cashTransactions || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                      <span className="text-slate-500 block text-[11px]">{isBangla ? 'জার্নাল ভাউচার (Journals)' : 'Journals'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{resetModalState.resultData.deletedCounts?.journalEntries || 0} ({resetModalState.resultData.deletedCounts?.journalLines || 0} lines)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preserved Master Data */}
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs">
+                  <span className="font-bold block mb-1">
+                    ✓ {isBangla ? 'সংরক্ষিত সিস্টেম ও অ্যাকাউন্টস মাস্টার:' : 'Preserved Master Configuration:'}
+                  </span>
+                  <ul className="list-disc list-inside space-y-0.5 text-emerald-800 text-[11px]">
+                    <li>{isBangla ? `ইউজার অ্যাকাউন্টস (${resetModalState.resultData.preserved?.usersCount || 0} জন)` : `User Accounts (${resetModalState.resultData.preserved?.usersCount || 0})`}</li>
+                    <li>{isBangla ? `চার্ট অব অ্যাকাউন্টস (${resetModalState.resultData.preserved?.accountsCount || 0} টি কোড)` : `Chart of Accounts (${resetModalState.resultData.preserved?.accountsCount || 0} codes)`}</li>
+                    <li>{isBangla ? 'সংস্থার তথ্য ও সিস্টেম সেটিংস' : 'Organization Settings & Configuration'}</li>
+                    <li>{isBangla ? 'সদস্য নম্বর শুরু হবে AJM-000001 থেকে' : 'Next member will start fresh at AJM-000001'}</li>
+                  </ul>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={() => {
+                      setResetModalState(prev => ({ ...prev, isOpen: false }));
+                      window.location.reload();
+                    }}
+                    className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl text-sm shadow-md hover:bg-emerald-700 transition-all flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>{isBangla ? 'সিস্টেম রিলোড করুন' : 'Complete & Reload App'}</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              // Confirmation Dialog
+              <>
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-rose-600" />
+                    {resetModalState.type === 'factory' 
+                      ? (isBangla ? 'পূর্ণাঙ্গ ফ্যাক্টরি রিসেট কনফার্মেশন' : 'Authoritative Factory Reset')
+                      : 'Test Data Reset Confirmation'}
+                  </h3>
+                  {!resetModalState.isProcessing && (
+                    <button
+                      onClick={() => setResetModalState(prev => ({ ...prev, isOpen: false }))}
+                      className="text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                
+                <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+                  {/* Step 1: Warning Message */}
+                  <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 text-xs space-y-2">
+                    <p className="font-bold text-sm text-rose-700 flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4" />
+                      {isBangla ? 'সতর্কবার্তা: স্থায়ীভাবে ডেটা মুছে ফেলা হবে' : 'Warning: Irreversible Action'}
+                    </p>
+                    <p className="leading-relaxed">
+                      {resetModalState.type === 'factory' 
+                        ? (isBangla
+                            ? "এই অপারেশন সমস্ত Member, Admission, Capital, Monthly Chanda, Loan, Cash/Bank Transaction এবং Accounting Journal Entries স্থায়ীভাবে সার্ভার থেকে মুছে ফেলবে। এটি আর ফিরিয়ে আনা যাবে না।"
+                            : "This action will permanently delete all member records, admissions, collections, loans, cash/bank transactions, and accounting entries. This action cannot be undone.")
+                        : "Are you sure you want to clear all transactional test data? This will NOT delete settings, users, or configuration."}
+                    </p>
+                    <p className="text-[11px] text-rose-800 font-semibold">
+                      ✓ {isBangla ? 'অ্যাডমিন অ্যাকাউন্ট, চার্ট অব অ্যাকাউন্টস এবং সিস্টেম সেটিংস অপরিবর্তিত থাকবে।' : 'Admin accounts, chart of accounts, and system configuration will be preserved.'}
+                    </p>
+                    <p className="text-[11px] text-blue-800 font-semibold bg-blue-50/80 p-2 rounded border border-blue-200">
+                      🔒 {isBangla ? 'মুছে ফেলার পূর্বে সার্ভারে স্বয়ংক্রিয়ভাবে একটি ভেরিফাইড ব্যাকআপ ফাইল তৈরি হবে।' : 'An automatic verified backup will be generated on the server before deletion.'}
+                    </p>
+                  </div>
+
+                  {/* Current Database Summary Preview */}
+                  {resetModalState.type === 'factory' && (
+                    <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50 space-y-2.5">
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        {isBangla ? 'মুছে ফেলা হবে এমন বর্তমান রেকর্ডসমূহ:' : 'Current Records to be Cleared:'}
+                      </h4>
+                      <div className="grid grid-cols-3 gap-2 text-xs text-center">
+                        <div className="p-2 bg-white rounded-lg border border-slate-200">
+                          <span className="text-slate-500 text-[10px] block">{isBangla ? 'মোট সদস্য' : 'Members'}</span>
+                          <span className="font-bold text-slate-800">{resetModalState.previewData?.summary?.totalMembers ?? (db?.members || []).length}</span>
+                        </div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200">
+                          <span className="text-slate-500 text-[10px] block">{isBangla ? 'আর্থিক লেনদেন' : 'Transactions'}</span>
+                          <span className="font-bold text-slate-800">
+                            {resetModalState.previewData?.summary?.totalFinancialTransactions ?? ((db?.cashTransactions || []).length + (db?.bankTransactions || []).length)}
+                          </span>
+                        </div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200">
+                          <span className="text-slate-500 text-[10px] block">{isBangla ? 'জার্নাল ভাউচার' : 'Journals'}</span>
+                          <span className="font-bold text-slate-800">{resetModalState.previewData?.summary?.totalJournals ?? (db?.journalEntries || []).length}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error Alert if any */}
+                  {resetModalState.error && (
+                    <div className="p-3 bg-rose-100 border border-rose-300 rounded-lg text-rose-800 text-xs font-semibold">
+                      {resetModalState.error}
+                    </div>
+                  )}
+
+                  {/* Step 2: Typing Confirmation */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      {isBangla ? 'নিশ্চিত করতে নিচে হুবহু টাইপ করুন:' : 'Please type exactly to confirm:'}
+                      <span className="block mt-1 font-mono font-bold text-rose-600 bg-rose-100 px-2 py-1 rounded text-center text-xs tracking-wider select-all">
+                        {resetModalState.type === 'factory' ? 'DELETE ALL MEMBER DATA' : 'RESET TEST DATA'}
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={resetModalState.inputText}
+                      onChange={(e) => setResetModalState(prev => ({ ...prev, inputText: e.target.value, error: null }))}
+                      disabled={resetModalState.isProcessing}
+                      placeholder={resetModalState.type === 'factory' ? 'DELETE ALL MEMBER DATA' : 'RESET TEST DATA'}
+                      className="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-xs font-mono font-bold focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all disabled:opacity-50 disabled:bg-slate-50"
+                      autoComplete="off"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                  <button
+                    onClick={() => setResetModalState(prev => ({ ...prev, isOpen: false }))}
+                    disabled={resetModalState.isProcessing}
+                    className="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-200 bg-slate-100 rounded-xl text-xs transition-colors disabled:opacity-50"
+                  >
+                    {isBangla ? 'বাতিল' : 'Cancel'}
+                  </button>
+                  <button
+                    onClick={handleResetConfirm}
+                    disabled={
+                      resetModalState.isProcessing || 
+                      (resetModalState.type === 'factory' && resetModalState.inputText !== 'DELETE ALL MEMBER DATA') ||
+                      (resetModalState.type === 'test_data' && resetModalState.inputText !== 'RESET TEST DATA')
+                    }
+                    className="px-5 py-2 bg-rose-600 text-white font-bold rounded-xl text-xs shadow-md shadow-rose-200 hover:bg-rose-700 transition-all disabled:opacity-50 disabled:shadow-none flex items-center gap-2"
+                  >
+                    {resetModalState.isProcessing ? (
+                      <>
+                        <RefreshCw className="animate-spin h-3.5 w-3.5 text-white" />
+                        <span>{isBangla ? 'রিসেট হচ্ছে...' : 'Processing Reset...'}</span>
+                      </>
+                    ) : (
+                      <span>{resetModalState.type === 'factory' ? 'CONFIRM RESET' : 'Confirm Delete'}</span>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
