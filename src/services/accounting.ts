@@ -466,15 +466,32 @@ export class AccountingService {
         (params.transactionNo && inc.voucherNo === params.transactionNo)
       );
 
+    const shouldPostCapital = params.capitalDeposit > 0 &&
+      !params.skipCapitalPosting &&
+      !params.isCapitalAlreadyPosted &&
+      !(db.capitalDeposits || []).some(cd => 
+        (cd.memberId === newMemberId && cd.amount === params.capitalDeposit) ||
+        (params.transactionNo && cd.transactionNo === params.transactionNo)
+      );
+
+    const totalCashBankAmount = (shouldPostAdmissionFee ? params.admissionFee : 0) + (shouldPostCapital ? params.capitalDeposit : 0);
+
+    let feeVoucherNo = '';
+    let capVoucherNo = '';
+    let incomeId = '';
+    let depositId = '';
+
     if (shouldPostAdmissionFee) {
-      const feeVoucherNo = this.generateVoucherNo(db, 'INC', reservedVoucherNos);
+      feeVoucherNo = this.generateVoucherNo(db, 'INC', reservedVoucherNos);
       reservedVoucherNos.add(feeVoucherNo);
-      const incomeId = `INC-${timeSeed}-${uniqueRand}`;
+      incomeId = `INC-${timeSeed}-${uniqueRand}`;
       const newIncome: Income = {
         incomeId,
         voucherNo: feeVoucherNo,
         date: transactionDate,
         incomeHead: 'Admission Fee',
+        memberId: newMemberId,
+        memberName: newMember.fullName,
         amount: params.admissionFee,
         paymentMethod: params.paymentMethod,
         reference: `ভর্তি ফি (${newMemberId})`,
@@ -484,90 +501,12 @@ export class AccountingService {
         createdAt: new Date().toISOString()
       };
       updatedIncomes.unshift(newIncome);
-
-      const feeReceiptRes = this.postCashReceiptAtomic(
-        { ...db, cashTransactions: updatedCash, bankTransactions: updatedBank },
-        {
-          date: transactionDate,
-          amount: params.admissionFee,
-          paymentMethod: params.paymentMethod,
-          sourceType: 'INCOME',
-          sourceId: incomeId,
-          voucherNo: feeVoucherNo,
-          description: `নতুন সদস্য ভর্তি ফি (${newMemberId})`,
-          reference: `ভর্তি ফি: ${newMember.fullName}`,
-          accountId: ACCOUNT_CODES.ADMISSION_FEE,
-          accountName: 'ভর্তি ফি আয়',
-          memberId: newMemberId,
-          createdBy: params.createdBy
-        }
-      );
-
-      if (feeReceiptRes.success) {
-        if (feeReceiptRes.cashTx && !feeReceiptRes.isExisting) {
-          updatedCash.push(feeReceiptRes.cashTx);
-          currentCash = feeReceiptRes.newCashBalance || currentCash;
-        }
-        if (feeReceiptRes.bankTx && !feeReceiptRes.isExisting) {
-          updatedBank.push(feeReceiptRes.bankTx);
-          currentBank = feeReceiptRes.newBankBalance || currentBank;
-        }
-      }
-
-      const feeJournalNo = this.generateVoucherNo(db, 'JNL', reservedVoucherNos);
-      reservedVoucherNos.add(feeJournalNo);
-
-      const debitAccountId = String(params.paymentMethod).toUpperCase() === 'CASH' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK_SONALI;
-      const debitAccountName = String(params.paymentMethod).toUpperCase() === 'CASH' ? 'হাতে নগদ' : 'ব্যাংক হিসাব';
-
-      const journalRes = this.postJournalEntry(
-        { ...db, journalEntries: updatedJournals },
-        {
-          journalNo: feeJournalNo,
-          date: transactionDate,
-          reference: feeVoucherNo,
-          sourceType: 'INCOME',
-          sourceId: incomeId,
-          description: `নতুন সদস্য ${newMember.fullName} (${newMemberId}) এর ভর্তি ফি বাবদ গ্রহণ`,
-          createdBy: params.createdBy,
-          status: "POSTED" as any,
-        },
-        [
-          {
-            accountId: debitAccountId,
-            accountName: debitAccountName,
-            debit: params.admissionFee,
-            credit: 0,
-            description: 'নগদ/ব্যাংক ডেবিট'
-          },
-          {
-            accountId: ACCOUNT_CODES.ADMISSION_FEE,
-            accountName: 'ভর্তি ফি আয়',
-            debit: 0,
-            credit: params.admissionFee,
-            description: 'ভর্তি ফি আয় ক্রেডিট'
-          }
-        ]
-      );
-      if (journalRes.success && journalRes.entry && journalRes.lines) {
-        updatedJournals.unshift(journalRes.entry);
-        updatedJournalLines.push(...journalRes.lines);
-      }
     }
 
-    // Single-execution state checks for Capital Deposit posting (guarantee single atomic execution)
-    const shouldPostCapital = params.capitalDeposit > 0 &&
-      !params.skipCapitalPosting &&
-      !params.isCapitalAlreadyPosted &&
-      !(db.capitalDeposits || []).some(cd => 
-        (cd.memberId === newMemberId && cd.amount === params.capitalDeposit) ||
-        (params.transactionNo && cd.transactionNo === params.transactionNo)
-      );
-
     if (shouldPostCapital) {
-      const capVoucherNo = this.generateVoucherNo(db, 'CAP', reservedVoucherNos);
+      capVoucherNo = this.generateVoucherNo(db, 'CAP', reservedVoucherNos);
       reservedVoucherNos.add(capVoucherNo);
-      const depositId = `CAP-DEP-${timeSeed}-${uniqueRand}`;
+      depositId = `CAP-DEP-${timeSeed}-${uniqueRand}`;
       const newDeposit: CapitalDeposit = {
         depositId,
         voucherNo: capVoucherNo,
@@ -581,8 +520,7 @@ export class AccountingService {
         createdBy: params.createdBy,
         status: "ACTIVE",
         createdAt: new Date().toISOString(),
-  
-      syncStatus: 'LOCAL'
+        syncStatus: 'LOCAL'
       };
       updatedCapitalDeposits.unshift(newDeposit);
 
@@ -603,74 +541,95 @@ export class AccountingService {
         createdAt: new Date().toISOString()
       };
       updatedMemberLedgers.push(ledgerEntry);
+    }
 
-      const capReceiptRes = this.postCashReceiptAtomic(
+    if (totalCashBankAmount > 0) {
+      // 1. Single Cash/Bank Transaction
+      const combinedVoucherNo = capVoucherNo || feeVoucherNo || `ADM-${timeSeed}`;
+      const combinedReceiptRes = this.postCashReceiptAtomic(
         { ...db, cashTransactions: updatedCash, bankTransactions: updatedBank },
         {
           date: transactionDate,
-          amount: params.capitalDeposit,
+          amount: totalCashBankAmount,
           paymentMethod: params.paymentMethod,
-          sourceType: 'CAPITAL',
-          sourceId: depositId,
-          voucherNo: capVoucherNo,
-          description: 'সদস্য মূলধন তহবিল জমা',
-          reference: `মূলধন: ${newMember.fullName}`,
-          accountId: ACCOUNT_CODES.MEMBER_CAPITAL,
-          accountName: 'সদস্যদের মূলধন তহবিল',
+          sourceType: 'ADMISSION',
+          sourceId: admissionId,
+          voucherNo: combinedVoucherNo,
+          description: `সদস্য ভর্তি: ${newMember.fullName} (${newMemberId})`,
+          reference: `ভর্তি ও মূলধন: ${newMemberId}`,
+          accountId: ACCOUNT_CODES.CASH, // postCashReceiptAtomic resolves bank vs cash
+          accountName: 'সদস্য ভর্তি',
           memberId: newMemberId,
           createdBy: params.createdBy
         }
       );
 
-      if (capReceiptRes.success) {
-        if (capReceiptRes.cashTx && !capReceiptRes.isExisting) {
-          updatedCash.push(capReceiptRes.cashTx);
-          currentCash = capReceiptRes.newCashBalance || currentCash;
+      if (combinedReceiptRes.success) {
+        if (combinedReceiptRes.cashTx && !combinedReceiptRes.isExisting) {
+          updatedCash.push(combinedReceiptRes.cashTx);
+          currentCash = combinedReceiptRes.newCashBalance || currentCash;
         }
-        if (capReceiptRes.bankTx && !capReceiptRes.isExisting) {
-          updatedBank.push(capReceiptRes.bankTx);
-          currentBank = capReceiptRes.newBankBalance || currentBank;
+        if (combinedReceiptRes.bankTx && !combinedReceiptRes.isExisting) {
+          updatedBank.push(combinedReceiptRes.bankTx);
+          currentBank = combinedReceiptRes.newBankBalance || currentBank;
         }
       }
 
-      const capJournalNo = this.generateVoucherNo(db, 'JNL', reservedVoucherNos);
-      reservedVoucherNos.add(capJournalNo);
+      // 2. Single Balanced Journal
+      const journalNo = this.generateVoucherNo(db, 'JNL', reservedVoucherNos);
+      reservedVoucherNos.add(journalNo);
 
-      const capDebitAccountId = String(params.paymentMethod).toUpperCase() === 'CASH' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK_SONALI;
-      const capDebitAccountName = String(params.paymentMethod).toUpperCase() === 'CASH' ? 'হাতে নগদ' : 'ব্যাংক হিসাব';
+      const debitAccountId = String(params.paymentMethod).toUpperCase() === 'CASH' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK_SONALI;
+      const debitAccountName = String(params.paymentMethod).toUpperCase() === 'CASH' ? 'হাতে নগদ' : 'ব্যাংক হিসাব';
 
-      const capJournalRes = this.postJournalEntry(
+      const journalLines: any[] = [
+        {
+          accountId: debitAccountId,
+          accountName: debitAccountName,
+          debit: totalCashBankAmount,
+          credit: 0,
+          description: 'নগদ/ব্যাংক ডেবিট (ভর্তি)'
+        }
+      ];
+
+      if (shouldPostCapital) {
+        journalLines.push({
+          accountId: ACCOUNT_CODES.MEMBER_CAPITAL,
+          accountName: 'সদস্যদের মূলধন তহবিল',
+          debit: 0,
+          credit: params.capitalDeposit,
+          description: 'মূলধন ক্রেডিট'
+        });
+      }
+
+      if (shouldPostAdmissionFee) {
+        journalLines.push({
+          accountId: ACCOUNT_CODES.ADMISSION_FEE,
+          accountName: 'ভর্তি ফি আয়',
+          debit: 0,
+          credit: params.admissionFee,
+          description: 'ভর্তি ফি আয় ক্রেডিট'
+        });
+      }
+
+      const journalRes = this.postJournalEntry(
         { ...db, journalEntries: updatedJournals },
         {
-          journalNo: capJournalNo,
+          journalNo,
           date: transactionDate,
-          reference: capVoucherNo,
-          sourceType: 'CAPITAL',
-          sourceId: depositId,
-          description: `নতুন সদস্য ${newMember.fullName} (${newMemberId}) এর প্রাথমিক মূলধন জমা`,
+          reference: combinedVoucherNo,
+          sourceType: 'ADMISSION',
+          sourceId: admissionId,
+          description: `নতুন সদস্য ${newMember.fullName} (${newMemberId}) এর ভর্তি সম্পন্ন`,
           createdBy: params.createdBy,
           status: "POSTED" as any,
         },
-        [
-          {
-            accountId: capDebitAccountId,
-            accountName: capDebitAccountName,
-            debit: params.capitalDeposit,
-            credit: 0,
-            description: 'নগদ/ব্যাংক ডেবিট'
-          },
-          {
-            accountId: ACCOUNT_CODES.MEMBER_CAPITAL,
-            accountName: 'সদস্যদের মূলধন তহবিল',
-            debit: 0,
-            credit: params.capitalDeposit,
-            description: 'সদস্য মূলধন তহবিল ক্রেডিট'
-          }
-        ]
+        journalLines
       );
-      if (capJournalRes.success && capJournalRes.entry && capJournalRes.lines) {
-        updatedJournals.unshift(capJournalRes.entry);
-        updatedJournalLines.push(...capJournalRes.lines);
+
+      if (journalRes.success && journalRes.entry && journalRes.lines) {
+        updatedJournals.unshift(journalRes.entry);
+        updatedJournalLines.push(...journalRes.lines);
       }
     }
 

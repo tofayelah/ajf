@@ -494,6 +494,18 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
+          {selectedMember && !isMemberRole && (
+            <button
+              onClick={() => setCurrentMemberId('')}
+              className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition-all cursor-pointer mr-2"
+              title={isBangla ? 'সদস্য তালিকায় ফিরে যান' : 'Back to Member List'}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span>{isBangla ? 'ফিরে যান' : 'Back'}</span>
+            </button>
+          )}
           <button
             onClick={handlePrint}
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
@@ -523,92 +535,89 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
         </div>
       </div>
 
+
+
+      
+      {!selectedMember && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:hidden">
+          <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-slate-50">
+            <h2 className="text-lg font-bold text-slate-800 shrink-0">
+              {isBangla ? 'সদস্য খতিয়ান তালিকা' : 'Member Ledger Summary'}
+            </h2>
+            <div className="relative w-full sm:max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <input 
+                type="text"
+                placeholder={isBangla ? 'নাম, আইডি বা মোবাইল লিখে খুঁজুন...' : 'Search members by name, ID or phone...'}
+                value={memberSearchQuery}
+                onChange={(e) => setMemberSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-500 transition-shadow"
+              />
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100 text-slate-600 text-[11px] uppercase tracking-wider border-b border-slate-200">
+                  <th className="p-3 font-semibold text-center w-12">#</th>
+                  <th className="p-3 font-semibold">Member</th>
+                  <th className="p-3 font-semibold text-right">Total Capital</th>
+                  <th className="p-3 font-semibold text-right">Admission Fee</th>
+                  <th className="p-3 font-semibold text-right">Chanda (Paid)</th>
+                  <th className="p-3 font-semibold text-right">Chanda (Due)</th>
+                  <th className="p-3 font-semibold text-right">Outstanding</th>
+                  <th className="p-3 font-semibold text-right">Jorimana</th>
+                  <th className="p-3 font-semibold text-right">Benefit / Profit</th>
+                  <th className="p-3 font-semibold text-right">Total Settlement</th>
+                  <th className="p-3 font-semibold text-right bg-slate-200">Member Balance</th>
+                  <th className="p-3 font-semibold text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm divide-y divide-slate-100">
+                {allMembersSummary.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="p-8 text-center text-slate-500">
+                      No members found.
+                    </td>
+                  </tr>
+                ) : allMembersSummary.map((row, index) => (
+                  <tr key={row.member.memberId} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-3 text-center text-slate-400">{index + 1}</td>
+                    <td className="p-3">
+                      <p className="font-bold text-slate-800">{row.member.fullName}</p>
+                      <p className="text-[11px] text-slate-500">{row.member.memberId}</p>
+                    </td>
+                    <td className="p-3 text-right font-medium text-slate-700">{formatMoney(row.ledger?.totalCapital || 0)}</td>
+                    <td className="p-3 text-right font-medium text-slate-500">{formatMoney(row.ledger?.totalAdmissionFee || 0)}</td>
+                    <td className="p-3 text-right font-medium text-slate-700">{formatMoney(row.ledger?.totalMonthlySubscription || 0)}</td>
+                    <td className="p-3 text-right font-medium text-slate-500">{formatMoney(row.ledger?.totalDueAmount || 0)}</td>
+                    <td className="p-3 text-right font-medium text-red-600">{formatMoney(Math.max(0, (row.ledger?.totalDueAmount || 0) - (row.ledger?.totalMonthlySubscription || 0)))}</td>
+                    <td className="p-3 text-right font-medium text-orange-600">{formatMoney(row.ledger?.totalJorimana || 0)}</td>
+                    <td className="p-3 text-right font-medium text-purple-600">{formatMoney(row.ledger?.totalBenefitProfit || 0)}</td>
+                    <td className="p-3 text-right font-medium text-rose-600">{formatMoney(row.ledger?.totalSettlement || 0)}</td>
+                    <td className="p-3 text-right font-black text-emerald-700 bg-slate-50/50">{formatMoney(row.ledger?.currentMemberBalance || 0)}</td>
+                    <td className="p-3 text-center">
+                      <button
+                        onClick={() => setCurrentMemberId(row.member.memberId)}
+                        className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-semibold transition-colors"
+                      >
+                        View Ledger
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {selectedMember && (
+        <div className="space-y-6">
       {/* 2. MEMBER SEARCH & FILTER PANEL */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 print:hidden">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-8 gap-4 items-end">
           
-          {/* Member Search / Selector */}
-          <div className="md:col-span-4 relative">
-            <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <Search className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{isBangla ? 'সদস্য নির্বাচন (নাম / আইডি / মোবাইল):' : 'Select Member (Name / ID / Mobile):'}</span>
-            </label>
-
-            {isMemberRole ? (
-              <div className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 flex items-center justify-between">
-                <span>{selectedMember?.fullName || activeUser?.fullName}</span>
-                <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md font-mono">
-                  {selectedMember?.membershipNo || selectedMember?.memberId}
-                </span>
-              </div>
-            ) : (
-              <div className="relative">
-                <div 
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 cursor-pointer flex items-center justify-between hover:border-emerald-500 transition-colors"
-                >
-                  <div className="truncate">
-                    <span className="font-semibold text-slate-900">{selectedMember?.fullName || 'Select Member'}</span>
-                    <span className="text-xs text-slate-500 ml-2 font-mono">({selectedMember?.membershipNo || selectedMember?.memberId})</span>
-                  </div>
-                  <Search className="w-4 h-4 text-slate-400 shrink-0" />
-                </div>
-
-                {/* Dropdown popup */}
-                {isDropdownOpen && (
-                  <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-xl shadow-xl border border-slate-200 z-50 p-2 space-y-2 max-h-72 flex flex-col">
-                    <div className="relative">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                      <input 
-                        type="text"
-                        autoFocus
-                        placeholder={isBangla ? 'নাম, আইডি বা মোবাইল লিখুন...' : 'Search name, ID or phone...'}
-                        value={memberSearchQuery}
-                        onChange={(e) => setMemberSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
-                      />
-                    </div>
-
-                    <div className="overflow-y-auto space-y-1 flex-1 custom-scrollbar">
-                      {searchedMembers.length === 0 ? (
-                        <div className="p-3 text-xs text-center text-slate-400">
-                          {isBangla ? 'কোনো সদস্য পাওয়া যায়নি' : 'No members found'}
-                        </div>
-                      ) : (
-                        searchedMembers.map((m) => (
-                          <div
-                            key={m.memberId}
-                            onClick={() => {
-                              setCurrentMemberId(m.memberId);
-                              setIsDropdownOpen(false);
-                              setMemberSearchQuery('');
-                              setCurrentPage(1);
-                            }}
-                            className={`p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-colors ${
-                              m.memberId === selectedMember?.memberId
-                                ? 'bg-emerald-50 text-emerald-900 font-bold border border-emerald-200'
-                                : 'hover:bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            <div className="truncate">
-                              <p className="font-semibold text-slate-900 truncate">{m.fullName}</p>
-                              <p className="text-[11px] text-slate-500 font-mono">{m.membershipNo || m.memberId} • {m.mobile || 'No Mobile'}</p>
-                            </div>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                              m.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                            }`}>
-                              {m.status}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
           {/* Date From */}
           <div className="md:col-span-2">
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -701,72 +710,7 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
         </div>
       </div>
 
-      
-      {!selectedMember && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:hidden">
-          <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-slate-50">
-            <h2 className="text-lg font-bold text-slate-800">
-              {isBangla ? 'সদস্য খতিয়ান তালিকা' : 'Member Ledger Summary'}
-            </h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-100 text-slate-600 text-[11px] uppercase tracking-wider border-b border-slate-200">
-                  <th className="p-3 font-semibold text-center w-12">#</th>
-                  <th className="p-3 font-semibold">Member</th>
-                  <th className="p-3 font-semibold text-right">Total Capital</th>
-                  <th className="p-3 font-semibold text-right">Admission Fee</th>
-                  <th className="p-3 font-semibold text-right">Chanda (Paid)</th>
-                  <th className="p-3 font-semibold text-right">Chanda (Due)</th>
-                  <th className="p-3 font-semibold text-right">Outstanding</th>
-                  <th className="p-3 font-semibold text-right">Jorimana</th>
-                  <th className="p-3 font-semibold text-right">Benefit / Profit</th>
-                  <th className="p-3 font-semibold text-right">Total Settlement</th>
-                  <th className="p-3 font-semibold text-right bg-slate-200">Member Balance</th>
-                  <th className="p-3 font-semibold text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm divide-y divide-slate-100">
-                {allMembersSummary.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="p-8 text-center text-slate-500">
-                      No members found.
-                    </td>
-                  </tr>
-                ) : allMembersSummary.map((row, index) => (
-                  <tr key={row.member.memberId} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-3 text-center text-slate-400">{index + 1}</td>
-                    <td className="p-3">
-                      <p className="font-bold text-slate-800">{row.member.fullName}</p>
-                      <p className="text-[11px] text-slate-500">{row.member.memberId}</p>
-                    </td>
-                    <td className="p-3 text-right font-medium text-slate-700">{formatMoney(row.ledger?.totalCapital || 0)}</td>
-                    <td className="p-3 text-right font-medium text-slate-500">{formatMoney(row.ledger?.totalAdmissionFee || 0)}</td>
-                    <td className="p-3 text-right font-medium text-slate-700">{formatMoney(row.ledger?.totalMonthlySubscription || 0)}</td>
-                    <td className="p-3 text-right font-medium text-slate-500">{formatMoney(row.ledger?.totalDueAmount || 0)}</td>
-                    <td className="p-3 text-right font-medium text-red-600">{formatMoney(Math.max(0, (row.ledger?.totalDueAmount || 0) - (row.ledger?.totalMonthlySubscription || 0)))}</td>
-                    <td className="p-3 text-right font-medium text-orange-600">{formatMoney(row.ledger?.totalJorimana || 0)}</td>
-                    <td className="p-3 text-right font-medium text-purple-600">{formatMoney(row.ledger?.totalBenefitProfit || 0)}</td>
-                    <td className="p-3 text-right font-medium text-rose-600">{formatMoney(row.ledger?.totalSettlement || 0)}</td>
-                    <td className="p-3 text-right font-black text-emerald-700 bg-slate-50/50">{formatMoney(row.ledger?.currentMemberBalance || 0)}</td>
-                    <td className="p-3 text-center">
-                      <button
-                        onClick={() => setCurrentMemberId(row.member.memberId)}
-                        className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-semibold transition-colors"
-                      >
-                        View Ledger
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
-      <div className={!selectedMember ? 'hidden' : 'space-y-6'}>
 {/* 3. SELECTED MEMBER CARD & SUMMARY INFO */}
       {selectedMember && (
         <div className="bg-gradient-to-r from-emerald-900 to-slate-900 text-white rounded-2xl p-5 sm:p-6 shadow-md border border-emerald-800/50 space-y-4">
@@ -1173,6 +1117,7 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
       </div>
 
       </div>
+      )}
 
       {/* 6. FORMAL PRINT-ONLY STATEMENT TEMPLATE */}
       <div className="hidden print:block font-serif text-slate-900 p-8 space-y-6 bg-white">

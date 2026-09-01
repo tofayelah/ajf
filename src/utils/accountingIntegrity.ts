@@ -1011,10 +1011,26 @@ export function validateCashMovementsReconciliation(
     totalCashBookOut += cOut;
 
     const moduleKey = resolveCanonicalModule(c, db) as keyof typeof cashBookByModule;
-    cashBookByModule[moduleKey].in += cIn;
-    cashBookByModule[moduleKey].out += cOut;
-    cashBookByModule[moduleKey].count++;
-    cashBookByModule[moduleKey].txns.push(c as any);
+    
+    if (moduleKey === 'ADMISSION' && cIn > 500 && c.reference && c.reference.includes('মূলধন')) {
+      // It's a combined transaction from the new format
+      const admissionAmount = 500;
+      const capitalAmount = cIn - admissionAmount;
+      
+      cashBookByModule.ADMISSION.in += admissionAmount;
+      cashBookByModule.ADMISSION.out += cOut;
+      cashBookByModule.ADMISSION.count++;
+      cashBookByModule.ADMISSION.txns.push(c as any);
+      
+      cashBookByModule.CAPITAL.in += capitalAmount;
+      cashBookByModule.CAPITAL.count++;
+      cashBookByModule.CAPITAL.txns.push(c as any);
+    } else {
+      cashBookByModule[moduleKey].in += cIn;
+      cashBookByModule[moduleKey].out += cOut;
+      cashBookByModule[moduleKey].count++;
+      cashBookByModule[moduleKey].txns.push(c as any);
+    }
   }
 
   // 2. Fetch Individual Sub-Ledger transactions in date range (Admission, Capital, Collection, Loans, etc.)
