@@ -264,6 +264,40 @@ export async function executeFactoryResetAPI(confirmationPhrase: string, reason?
   return response.json();
 }
 
+export async function downloadAuthoritativeBackupAPI() {
+  const response = await authenticatedFetch('/admin/backup/download');
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to download server backup', response.status, err);
+  }
+  return response.json();
+}
+
+export async function validateRestoreBackupAPI(backupPackage: any) {
+  const response = await authenticatedFetch('/admin/restore/validate', {
+    method: 'POST',
+    body: JSON.stringify({ backupPackage })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to validate backup', response.status, err);
+  }
+  return response.json();
+}
+
+export async function executeRestoreBackupAPI(confirmationPhrase: string, backupPackage: any, reason?: string) {
+  const response = await authenticatedFetch('/admin/restore/execute', {
+    method: 'POST',
+    body: JSON.stringify({ confirmationPhrase, backupPackage, reason })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to restore database from backup', response.status, err);
+  }
+  return response.json();
+}
+
+
 
 
 

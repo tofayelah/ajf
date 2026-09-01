@@ -28,7 +28,10 @@ import {
   authenticatedFetch,
   getFactoryResetPreviewAPI,
   executeFactoryResetAPI,
-  fetchDatabaseFromAPI
+  fetchDatabaseFromAPI,
+  downloadAuthoritativeBackupAPI,
+  validateRestoreBackupAPI,
+  executeRestoreBackupAPI
 } from "../services/api";
 
 export type ActiveScreen =
@@ -562,6 +565,9 @@ interface AppContextType {
   clearDatabase: () => Promise<boolean>;
   getFactoryResetPreview: () => Promise<any>;
   executeFactoryReset: (confirmationPhrase: string, reason?: string) => Promise<{ success: boolean; data?: any; message?: string }>;
+  downloadAuthoritativeBackup: () => Promise<{ success: boolean; data?: any; message?: string; filename?: string }>;
+  validateRestoreBackup: (backupPackage: any) => Promise<{ success: boolean; validation?: any; message?: string }>;
+  executeRestoreBackup: (confirmationPhrase: string, backupPackage: any, reason?: string) => Promise<{ success: boolean; data?: any; message?: string }>;
   restoreBackup: (backupDb: any) => Promise<boolean> | boolean;
   resetTestData: () => Promise<boolean>;
   requestMemberExit: (params: any) => Promise<{success: boolean; message: string}>;
@@ -1149,11 +1155,65 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     const res = await executeFactoryReset("DELETE ALL MEMBER DATA", "Factory reset initiated");
     return res.success;
   };
+
+  const downloadAuthoritativeBackup = async (): Promise<{ success: boolean; data?: any; message?: string; filename?: string }> => {
+    try {
+      const backupPackage = await downloadAuthoritativeBackupAPI();
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const filename = `AJF-ERP-FULL-BACKUP-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
+      return {
+        success: true,
+        data: backupPackage,
+        filename
+      };
+    } catch (error: any) {
+      console.error("Backup download error:", error);
+      return { success: false, message: error.message || "Failed to download backup" };
+    }
+  };
+
+  const validateRestoreBackup = async (backupPackage: any): Promise<{ success: boolean; validation?: any; message?: string }> => {
+    try {
+      const result = await validateRestoreBackupAPI(backupPackage);
+      return {
+        success: result.valid,
+        validation: result,
+        message: result.valid ? "Backup validation passed" : (result.errors?.join("; ") || "Validation failed")
+      };
+    } catch (error: any) {
+      console.error("Backup validation error:", error);
+      return { success: false, message: error.message || "Failed to validate backup" };
+    }
+  };
+
+  const executeRestoreBackup = async (confirmationPhrase: string, backupPackage: any, reason?: string): Promise<{ success: boolean; data?: any; message?: string }> => {
+    try {
+      const res = await executeRestoreBackupAPI(confirmationPhrase, backupPackage, reason);
+      if (res && res.success) {
+        // Invalidate all client-side cached databases
+        await clearAllStorage();
+        // Fetch fresh authoritative database from server
+        const freshDb = await fetchDatabaseFromAPI();
+        if (freshDb) {
+          (window as any).skipNextDbSave = true;
+          setDb(freshDb);
+        }
+        showNotification("ডাটাবেজ সফলভাবে রিস্টোর করা হয়েছে!", "success");
+        return { success: true, data: res };
+      }
+      return { success: false, message: res?.error || "Restore execution failed" };
+    } catch (error: any) {
+      console.error("Restore execution error:", error);
+      return { success: false, message: error.message || "Failed to execute restore" };
+    }
+  };
+
   const restoreBackup = async (data: string) => {
     try {
-      setDb(JSON.parse(data));
-      showNotification("Backup restored", "success");
-      return true;
+      const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+      const res = await executeRestoreBackup("RESTORE AJF DATABASE", parsed, "Direct JSON restore");
+      return res.success;
     } catch (e) {
       return false;
     }
@@ -1257,6 +1317,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         clearDatabase,
         getFactoryResetPreview,
         executeFactoryReset,
+        downloadAuthoritativeBackup,
+        validateRestoreBackup,
+        executeRestoreBackup,
         resetTestData,
         restoreBackup,
         requestMemberExit, 
