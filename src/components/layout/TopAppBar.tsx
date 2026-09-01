@@ -91,7 +91,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenDrawer }) => {
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <h1 className="font-bold text-xs sm:text-sm md:text-base leading-tight tracking-tight whitespace-nowrap">
-                  {isBangla ? db.settings.orgShortName : 'AJ Welfare Society'}
+                  {isBangla ? db.settings.orgShortName : 'AJF Welfare ERP'}
                 </h1>
                 <span className="hidden xl:inline-block text-[10px] bg-emerald-700/90 text-emerald-100 px-1.5 py-0.5 rounded-full border border-emerald-600/60 shrink-0">
                   {db.settings.location}
