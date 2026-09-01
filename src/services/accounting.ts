@@ -167,7 +167,7 @@ export class AccountingService {
     let currentBank = this.getBankBalance(updatedBank);
 
     // IDEMPOTENCY CHECK: Look for existing active/posted transaction for same sourceType + sourceId or voucherNo
-    if (params.paymentMethod === 'Cash') {
+    if (String(params.paymentMethod).toUpperCase() === 'CASH') {
       const existingCashTx = updatedCash.find(
         (c) =>
           c.status !== 'CANCELLED' &&
@@ -517,8 +517,8 @@ export class AccountingService {
       const feeJournalNo = this.generateVoucherNo(db, 'JNL', reservedVoucherNos);
       reservedVoucherNos.add(feeJournalNo);
 
-      const debitAccountId = params.paymentMethod === 'Cash' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK_SONALI;
-      const debitAccountName = params.paymentMethod === 'Cash' ? 'হাতে নগদ' : 'ব্যাংক হিসাব';
+      const debitAccountId = String(params.paymentMethod).toUpperCase() === 'CASH' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK_SONALI;
+      const debitAccountName = String(params.paymentMethod).toUpperCase() === 'CASH' ? 'হাতে নগদ' : 'ব্যাংক হিসাব';
 
       const journalRes = this.postJournalEntry(
         { ...db, journalEntries: updatedJournals },
@@ -636,8 +636,8 @@ export class AccountingService {
       const capJournalNo = this.generateVoucherNo(db, 'JNL', reservedVoucherNos);
       reservedVoucherNos.add(capJournalNo);
 
-      const capDebitAccountId = params.paymentMethod === 'Cash' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK_SONALI;
-      const capDebitAccountName = params.paymentMethod === 'Cash' ? 'হাতে নগদ' : 'ব্যাংক হিসাব';
+      const capDebitAccountId = String(params.paymentMethod).toUpperCase() === 'CASH' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK_SONALI;
+      const capDebitAccountName = String(params.paymentMethod).toUpperCase() === 'CASH' ? 'হাতে নগদ' : 'ব্যাংক হিসাব';
 
       const capJournalRes = this.postJournalEntry(
         { ...db, journalEntries: updatedJournals },
@@ -787,8 +787,8 @@ export class AccountingService {
     }
 
     const feeJournalNo = this.generateVoucherNo(db, 'JNL', reservedVoucherNos);
-    const debitAccountId = params.paymentMethod === 'Cash' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK_SONALI;
-    const debitAccountName = params.paymentMethod === 'Cash' ? 'Cash in Hand' : 'Bank Account';
+    const debitAccountId = String(params.paymentMethod).toUpperCase() === 'CASH' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK_SONALI;
+    const debitAccountName = String(params.paymentMethod).toUpperCase() === 'CASH' ? 'Cash in Hand' : 'Bank Account';
 
     const journalRes = this.postJournalEntry(
       { ...db, journalEntries: updatedJournals },
@@ -1791,7 +1791,7 @@ export class AccountingService {
     // Update Cash/Bank Book
     let updatedCash = [...db.cashTransactions];
     let updatedBank = [...db.bankTransactions];
-    if (params.paymentMethod === 'Cash') {
+    if (String(params.paymentMethod).toUpperCase() === 'CASH') {
       const currentCash = this.getCashBalance(db.cashTransactions);
       updatedCash.push({
         transactionId: `CSH-${Date.now()}`,
@@ -1869,8 +1869,8 @@ export class AccountingService {
     }
     
     // Journal Entry (Double Entry)
-    const debitAccountId = params.paymentMethod === 'Cash' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK_SONALI; // 1000=Cash, 1010=Bank
-    const debitAccountName = params.paymentMethod === 'Cash' ? 'Cash in Hand' : 'Bank Account';
+    const debitAccountId = String(params.paymentMethod).toUpperCase() === 'CASH' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK_SONALI; // 1000=Cash, 1010=Bank
+    const debitAccountName = String(params.paymentMethod).toUpperCase() === 'CASH' ? 'Cash in Hand' : 'Bank Account';
     
     const lines: Array<{
       accountId: string;
@@ -2205,7 +2205,7 @@ export class AccountingService {
     let updatedCash = [...db.cashTransactions];
     let updatedBank = [...db.bankTransactions];
 
-    if (params.paymentMethod === 'Cash') {
+    if (String(params.paymentMethod).toUpperCase() === 'CASH') {
       const currentCash = this.getCashBalance(db.cashTransactions);
       updatedCash.push({
         transactionId: `CSH-${Date.now()}`,
@@ -2286,8 +2286,8 @@ export class AccountingService {
     }
 
     // 5. Journal Entry (Double Entry)
-    const debitAccountId = params.paymentMethod === 'Cash' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK_SONALI;
-    const debitAccountName = params.paymentMethod === 'Cash' ? 'Cash in Hand' : 'Bank Account';
+    const debitAccountId = String(params.paymentMethod).toUpperCase() === 'CASH' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK_SONALI;
+    const debitAccountName = String(params.paymentMethod).toUpperCase() === 'CASH' ? 'Cash in Hand' : 'Bank Account';
 
     const journalLines: Array<{
       accountId: string;
@@ -2621,7 +2621,7 @@ export class AccountingService {
     let updatedCash = [...db.cashTransactions];
     let updatedBank = [...db.bankTransactions];
 
-    if (params.paymentMethod === 'Cash') {
+    if (String(params.paymentMethod).toUpperCase() === 'CASH') {
       const currentCash = this.getCashBalance(db.cashTransactions);
       updatedCash.push({
         transactionId: `CSH-${Date.now()}`,
@@ -3095,7 +3095,7 @@ export class AccountingService {
     let updatedCash = [...db.cashTransactions];
     let updatedBank = [...db.bankTransactions];
 
-    if (params.paymentMethod === 'Cash') {
+    if (String(params.paymentMethod).toUpperCase() === 'CASH') {
       const currentCash = this.getCashBalance(db.cashTransactions);
       updatedCash.push({
         transactionId: `CSH-${Date.now()}`,
@@ -3198,7 +3198,7 @@ export class AccountingService {
     let updatedCash = [...db.cashTransactions];
     let updatedBank = [...db.bankTransactions];
 
-    if (params.paymentMethod === 'Cash') {
+    if (String(params.paymentMethod).toUpperCase() === 'CASH') {
       const currentCash = this.getCashBalance(db.cashTransactions);
       updatedCash.push({
         transactionId: `CSH-${Date.now()}`,
@@ -3240,8 +3240,8 @@ export class AccountingService {
 
     const jnlLines = [
       {
-        accountId: params.paymentMethod === 'Cash' ? '1000' : '1010',
-        accountName: params.paymentMethod === 'Cash' ? 'হাতে নগদ' : 'ব্যাংক হিসাব',
+        accountId: String(params.paymentMethod).toUpperCase() === 'CASH' ? '1000' : '1010',
+        accountName: String(params.paymentMethod).toUpperCase() === 'CASH' ? 'হাতে নগদ' : 'ব্যাংক হিসাব',
         debit: params.amount,
         credit: 0
       },
@@ -3329,7 +3329,7 @@ export class AccountingService {
     const isPaid = status === 'PAID';
 
     if (isPaid) {
-      if (params.paymentMethod === 'Cash') {
+      if (String(params.paymentMethod).toUpperCase() === 'CASH') {
         const cash = this.getCashBalance(db.cashTransactions);
         if (cash < params.amount) {
           return { success: false, message: `পর্যাপ্ত নগদ ব্যালেন্স নেই! বর্তমান ক্যাশ: ৳${cash}` };
@@ -3367,7 +3367,7 @@ export class AccountingService {
     let updatedJournalLines = [...(db.journalLines || [])];
 
     if (isPaid) {
-      if (params.paymentMethod === 'Cash') {
+      if (String(params.paymentMethod).toUpperCase() === 'CASH') {
         const currentCash = this.getCashBalance(db.cashTransactions);
         updatedCash.push({
           transactionId: `CSH-${Date.now()}`,
@@ -3412,8 +3412,8 @@ export class AccountingService {
           credit: 0
         },
         {
-          accountId: params.paymentMethod === 'Cash' ? '1000' : '1010',
-          accountName: params.paymentMethod === 'Cash' ? 'হাতে নগদ' : 'ব্যাংক হিসাব',
+          accountId: String(params.paymentMethod).toUpperCase() === 'CASH' ? '1000' : '1010',
+          accountName: String(params.paymentMethod).toUpperCase() === 'CASH' ? 'হাতে নগদ' : 'ব্যাংক হিসাব',
           debit: 0,
           credit: params.amount
         }
@@ -4384,7 +4384,7 @@ export class AccountingService {
     let updatedBank = [...db.bankTransactions];
     const executedBy = params.executedBy || 'Admin';
 
-    if (params.paymentMethod === 'Cash') {
+    if (String(params.paymentMethod).toUpperCase() === 'CASH') {
       const currentCash = this.getCashBalance(db.cashTransactions);
       updatedCash.push({
         transactionId: `CSH-${Date.now()}`,
@@ -4454,8 +4454,8 @@ export class AccountingService {
       lineId: `JNL-L-${Date.now()}-2`,
       journalEntryId: voucherNo,
       entryId: voucherNo,
-      accountId: params.paymentMethod === 'Cash' ? '1000' : '1010',
-      accountName: params.paymentMethod === 'Cash' ? 'হাতে নগদ' : 'ব্যাংক হিসাব',
+      accountId: String(params.paymentMethod).toUpperCase() === 'CASH' ? '1000' : '1010',
+      accountName: String(params.paymentMethod).toUpperCase() === 'CASH' ? 'হাতে নগদ' : 'ব্যাংক হিসাব',
       debit: 0,
       credit: amount
     });
@@ -4737,8 +4737,8 @@ export class AccountingService {
       }
 
       // Credit Cash/Bank
-      const cashAccountId = params.paymentMethod === 'Cash' ? '1001' : '1002'; // Mock IDs
-      const cashAccountName = params.paymentMethod === 'Cash' ? 'Cash in Hand' : 'Bank Account';
+      const cashAccountId = String(params.paymentMethod).toUpperCase() === 'CASH' ? '1001' : '1002'; // Mock IDs
+      const cashAccountName = String(params.paymentMethod).toUpperCase() === 'CASH' ? 'Cash in Hand' : 'Bank Account';
 
       // Debit Reserve Fund Equity/Liability
       const reserveAccountId = '3003'; 
@@ -4801,7 +4801,7 @@ export class AccountingService {
         resolutionNo: params.resolutionNo
       };
       
-      const isCash = params.paymentMethod === 'Cash';
+      const isCash = String(params.paymentMethod).toUpperCase() === 'CASH';
       const cashTx = isCash ? {
         transactionId: `CSH-${Date.now()}`,
         date: dateStr,

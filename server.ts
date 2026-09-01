@@ -399,7 +399,7 @@ app.post('/api/accounting/action', requireAuth, async (req: any, res: any) => {
     const callerName = req.user?.username || 'SYSTEM';
 
     // Call the canonical posting engine on the server
-    const result = (AccountingService as any)[action](db, ...params);
+    const result = await (AccountingService as any)[action](db, ...params);
 
     if (result && result.success && result.updatedDb) {
       // Atomic commit
@@ -412,6 +412,7 @@ app.post('/api/accounting/action', requireAuth, async (req: any, res: any) => {
     }
   } catch (error: any) {
     console.error('[Accounting API Error]:', error);
+    await fs.writeFile('server_error_log.txt', String(error.stack || error));
     res.status(500).json({ error: error.message || 'Internal server error during accounting posting' });
   }
 });

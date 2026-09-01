@@ -25,6 +25,7 @@ import {
   resetUserPasswordAPI,
   resetUserPinAPI,
   deleteUserAPI,
+  authenticatedFetch
 } from "../services/api";
 
 export type ActiveScreen =
@@ -578,23 +579,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
 
   const executeAccountingRPC = async (action: string, args: any[]) => {
     try {
-      const response = await fetch('/api/accounting/action', {
+      const response = await authenticatedFetch('/accounting/action', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`
-        },
         body: JSON.stringify({ action, params: args })
       });
       if (!response.ok) {
-        throw new Error('RPC failed');
+        let errorMsg = 'RPC failed';
+        try {
+          const errData = await response.json();
+          if (errData && errData.error) errorMsg = errData.error;
+        } catch(e) {}
+        throw new Error(errorMsg);
       }
       const result = await response.json();
       
       if (result && result.success) {
-        const newDbResponse = await fetch('/api/sync', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` }
-        });
+        const newDbResponse = await authenticatedFetch('/sync');
         if (newDbResponse.ok) {
            const newDb = await newDbResponse.json();
            (window as any).skipNextDbSave = true;
@@ -815,26 +815,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       nid: params?.memberData?.nid,
       mobile: params?.memberData?.mobile,
     });
-
-    const res = AccountingService.completeAdmission(db, params);
     
-    if (res && res.success && res.updatedDb && res.member) {
-      (window as any).skipNextDbSave = true;
-      setDb(res.updatedDb);
+    // Inject the active user info so the server knows who is doing this if required
+    params.userId = db.activeUserId;
+    params.userName = (db.users || []).find(u => u.userId === db.activeUserId)?.fullName || 'System';
 
-      const storageRes = await saveDatabaseToStorage(res.updatedDb);
-
-      if (!storageRes.success && storageRes.error) {
-        return {
-          ...res,
-          success: false,
-          message: `সার্ভার সিঙ্ক ব্যর্থ হয়েছে: ${storageRes.error}`,
-        };
-      }
-    } else {
-      console.warn('[Admission Validation Failed]:', res?.message);
-    }
-    return res;
+    return executeAccountingRPC('completeAdmission', [params]);
   };
 
   const addMember = async (member: any) => {
