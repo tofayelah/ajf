@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import cookieParser from 'cookie-parser';
 import bcrypt from 'bcryptjs';
 import { AccountingService } from './src/services/accounting';
@@ -1850,26 +1851,26 @@ const handleFactoryResetExecute = async (req: any, res: any) => {
     // 2. Compute before counts
     const beforeCounts = computeFactoryResetCounts(currentDb);
 
-    // 3. Create automatic backup file
+    // 3. Perform a synchronous file backup of database.json before any modifications
     const timestamp = Date.now();
     backupFileName = `database.backup.factory-reset-${timestamp}.json`;
     backupFilePath = path.join(process.cwd(), backupFileName);
-    await fs.writeFile(backupFilePath, rawData, 'utf8');
+    fsSync.copyFileSync(DB_FILE, backupFilePath);
     backupCreated = true;
 
-    // 4. Verify backup file exists and is readable/valid JSON
-    const backupStats = await fs.stat(backupFilePath);
+    // 4. Verify synchronous backup file exists and is readable/valid JSON
+    const backupStats = fsSync.statSync(backupFilePath);
     if (!backupStats || backupStats.size === 0) {
-      throw new Error('Automatic backup failed: Generated backup file is empty');
+      throw new Error('Synchronous backup failed: Generated backup file is empty');
     }
-    const backupRaw = await fs.readFile(backupFilePath, 'utf8');
+    const backupRaw = fsSync.readFileSync(backupFilePath, 'utf8');
     const verifiedBackup = JSON.parse(backupRaw);
     if (!verifiedBackup || !Array.isArray(verifiedBackup.users) || !Array.isArray(verifiedBackup.accounts) || !verifiedBackup.settings) {
-      throw new Error('Automatic backup verification failed: Corrupted backup data structure');
+      throw new Error('Synchronous backup verification failed: Corrupted backup data structure');
     }
     const backupCounts = computeFactoryResetCounts(verifiedBackup);
     if (backupCounts.members !== beforeCounts.members || backupCounts.journalEntries !== beforeCounts.journalEntries) {
-      throw new Error('Automatic backup verification failed: Record count mismatch in backup');
+      throw new Error('Synchronous backup verification failed: Record count mismatch in backup');
     }
 
     // 5. Preserve system/security audit logs and add ONE FACTORY_RESET_EXECUTED audit entry
@@ -1969,6 +1970,11 @@ const handleFactoryResetExecute = async (req: any, res: any) => {
     const writtenRaw = await fs.readFile(DB_FILE, 'utf8');
     const writtenDb = JSON.parse(writtenRaw);
     const afterCounts = computeFactoryResetCounts(writtenDb);
+
+    // 9. Set cache-invalidation headers to prevent stale client/proxy caching
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
     return res.json({
       success: true,
