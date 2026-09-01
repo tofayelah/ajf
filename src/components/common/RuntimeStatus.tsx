@@ -9,92 +9,162 @@ export const RuntimeStatus: React.FC<RuntimeStatusProps> = ({
   className = '',
   hideTextOnMobile = true,
 }) => {
-  const [isHealthy, setIsHealthy] = useState<boolean | null>(null);
+  const [runtimeStatus, setRuntimeStatus] = useState<'OK' | 'ERROR' | 'CHECKING'>('CHECKING');
+  const [dbStatus, setDbStatus] = useState<'OK' | 'ERROR' | 'CHECKING'>('CHECKING');
+  
+  const [githubSync, setGithubSync] = useState<'OK' | 'OUTDATED' | 'CHECK FAILED' | 'UNKNOWN' | 'CHECKING'>('CHECKING');
+  const [githubDetails, setGithubDetails] = useState<any>(null);
 
-  const checkRuntimeHealth = useCallback(async () => {
+  const checkHealth = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout
-
-      const response = await fetch('/api/health', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-        cache: 'no-store',
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      
+      const res = await fetch('/api/system/health', {
         signal: controller.signal,
+        cache: 'no-store'
       });
+      const data = await res.json();
+      
+      if (data.runtime === 'OK') setRuntimeStatus('OK');
+      else setRuntimeStatus('ERROR');
+      
+      if (data.database === 'OK') setDbStatus('OK');
+      else setDbStatus('ERROR');
 
       clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const data = await response.json().catch(() => null);
-        if (data && (data.status === 'ok' || data.runtime)) {
-          setIsHealthy(true);
-          return;
-        }
-      }
-      setIsHealthy(false);
     } catch {
-      // Safe fallback: never throw uncaught error, never crash UI or trigger white screen
-      setIsHealthy(false);
+      setRuntimeStatus('ERROR');
+      setDbStatus('ERROR');
+    }
+  }, []);
+
+  const checkGithub = useCallback(async () => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      
+      const res = await fetch('/api/system/github-status', {
+        signal: controller.signal,
+        cache: 'no-store'
+      });
+      const data = await res.json();
+      setGithubDetails(data);
+
+      if (!data.githubReachable) {
+        setGithubSync('CHECK FAILED');
+      } else if (data.deployedCommitSha === 'unknown' || data.githubCommitSha === 'unknown') {
+        setGithubSync('UNKNOWN');
+      } else if (data.synced) {
+        setGithubSync('OK');
+      } else {
+        setGithubSync('OUTDATED');
+      }
+
+      clearTimeout(timeoutId);
+    } catch {
+      setGithubSync('CHECK FAILED');
     }
   }, []);
 
   useEffect(() => {
-    // Initial check on mount
-    checkRuntimeHealth();
+    checkHealth();
+    checkGithub();
 
-    // Centralized periodic polling (every 45s)
-    const interval = setInterval(checkRuntimeHealth, 45000);
+    const interval = setInterval(() => {
+      checkHealth();
+      checkGithub();
+    }, 60000); // 1 minute
 
-    // Re-check when window regains focus, visibility changes, or network reconnects
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        checkRuntimeHealth();
+        checkHealth();
+        checkGithub();
       }
     };
-    const handleOnline = () => checkRuntimeHealth();
-
+    
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('online', handleOnline);
+    window.addEventListener('online', checkHealth);
+    window.addEventListener('online', checkGithub);
 
     return () => {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('online', checkHealth);
+      window.removeEventListener('online', checkGithub);
     };
-  }, [checkRuntimeHealth]);
+  }, [checkHealth, checkGithub]);
 
-  // Determine current status (treat null initial loading gracefully as healthy or evaluating)
-  const healthy = isHealthy !== false;
+  const getStatusColor = (status: string) => {
+    if (status === 'OK') return 'text-emerald-500';
+    if (status === 'CHECKING' || status === 'UNKNOWN') return 'text-amber-500';
+    return 'text-rose-500';
+  };
+  
+  const getDotColor = (status: string) => {
+    if (status === 'OK') return 'bg-emerald-500';
+    if (status === 'CHECKING' || status === 'UNKNOWN') return 'bg-amber-500';
+    return 'bg-rose-500';
+  };
 
   return (
-    <div
-      id="ajf-runtime-status"
-      className={`inline-flex items-center gap-1.5 ${
-        hideTextOnMobile ? 'px-1.5 py-1 sm:px-2.5 sm:py-0.5' : 'px-2 py-0.5 sm:px-2.5'
-      } rounded-full text-[10px] sm:text-[11px] font-medium tracking-tight transition-all duration-200 select-none shadow-xs border shrink-0 backdrop-blur-xs ${
-        healthy
-          ? 'bg-emerald-950/60 text-emerald-100 border-emerald-500/40 hover:bg-emerald-900/70 hover:border-emerald-400/60'
-          : 'bg-rose-950/70 text-rose-100 border-rose-500/50 hover:bg-rose-900/80 hover:border-rose-400/70'
-      } ${className}`}
-      title={healthy ? 'AJF Welfare ERP Runtime OK' : 'AJF Welfare ERP Runtime Not OK'}
-      aria-label={healthy ? 'AJF Welfare ERP Runtime OK' : 'AJF Welfare ERP Runtime Not OK'}
-    >
-      <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
-        {healthy && (
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-        )}
-        <span
-          className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
-            healthy ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]' : 'bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.9)]'
-          }`}
-        />
-      </span>
-      <span className={`${hideTextOnMobile ? 'hidden sm:inline' : 'inline'} whitespace-nowrap font-medium leading-none`}>
-        {healthy ? 'AJF Welfare ERP Runtime OK' : 'AJF Welfare ERP Runtime Not OK'}
-      </span>
+    <div className={`flex flex-wrap items-center gap-3 text-[11px] sm:text-xs font-medium text-slate-400 bg-slate-900/40 px-3 py-1.5 rounded-md border border-slate-700/50 ${className}`}>
+      
+      {/* Runtime */}
+      <div className="flex items-center gap-1.5">
+        <span className={`h-1.5 w-1.5 rounded-full ${getDotColor(runtimeStatus)}`} />
+        <span>Runtime: <span className={getStatusColor(runtimeStatus)}>{runtimeStatus}</span></span>
+      </div>
+
+      {/* Database */}
+      <div className="flex items-center gap-1.5">
+        <span className={`h-1.5 w-1.5 rounded-full ${getDotColor(dbStatus)}`} />
+        <span>Database: <span className={getStatusColor(dbStatus)}>{dbStatus}</span></span>
+      </div>
+
+      {/* GitHub Sync */}
+      <div className="flex items-center gap-1.5 group relative cursor-help">
+        <span className={`h-1.5 w-1.5 rounded-full ${getDotColor(githubSync)}`} />
+        <span>GitHub Sync: <span className={getStatusColor(githubSync)}>{githubSync}</span></span>
+        
+        {/* Tooltip */}
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-[240px] p-3 bg-slate-800 border border-slate-700 rounded-lg shadow-xl text-[11px] text-slate-300 z-50">
+          <div className="font-semibold text-slate-200 mb-2 border-b border-slate-700 pb-1">GitHub Sync Details</div>
+          {githubDetails ? (
+            <div className="space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Branch:</span>
+                <span className="font-mono text-emerald-400">{githubDetails.githubBranch || 'unknown'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Live Commit:</span>
+                <span className="font-mono">{githubDetails.deployedCommitSha ? githubDetails.deployedCommitSha.substring(0, 7) : 'unknown'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">GitHub Commit:</span>
+                <span className="font-mono">{githubDetails.githubCommitSha ? githubDetails.githubCommitSha.substring(0, 7) : 'unknown'}</span>
+              </div>
+              <div className="flex justify-between mt-2 pt-2 border-t border-slate-700">
+                <span className="text-slate-400">Status:</span>
+                <span className={getStatusColor(githubSync)}>
+                  {githubSync === 'OK' ? 'Synchronized' : githubSync === 'OUTDATED' ? 'Live server is behind GitHub' : githubSync}
+                </span>
+              </div>
+              {githubDetails.buildTime && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Build Time:</span>
+                  <span>{new Date(githubDetails.buildTime).toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>Loading details...</div>
+          )}
+          {/* Tooltip Arrow */}
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 border-b border-r border-slate-700 transform rotate-45" />
+        </div>
+      </div>
+      
     </div>
   );
 };
