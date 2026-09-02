@@ -6707,41 +6707,9 @@ export class AccountingService {
       accountName?: string;
       createdAt?: string;
     }[] = [];
+    let hasAddedAdmission = false;
 
     const processedVouchers = new Set<string>();
-
-    // 1. Explicit member ledger records
-    (db.memberLedgers || []).filter(l => isMemberMatch(l.memberId)).forEach(l => {
-      let tType = l.transactionType as string;
-      if (tType === 'ADMISSION') tType = 'ADMISSION_FEE';
-      if (tType === 'LATE_FINE') tType = 'LATE_FEE';
-      if (tType === 'PROFIT_SHARE') tType = 'PROFIT_DISTRIBUTION';
-      if (tType === 'WELFARE_GRANT') tType = 'BENEFIT';
-      if (tType === 'MEMBER_EXIT') tType = 'SETTLEMENT_PAYMENT';
-      if (tType === 'REVERSAL') tType = 'ADJUSTMENT';
-
-      rawItems.push({
-        id: l.ledgerId || `ML-${l.voucherNo || Math.random()}`,
-        date: l.date,
-        voucherNo: l.voucherNo,
-        receiptNo: l.receiptNo,
-        transactionType: tType,
-        particulars: l.description,
-        debit: l.debit || 0,
-        credit: l.credit || 0,
-        reference: l.reference || l.voucherNo,
-  
-        sourceType: l.sourceType,
-        sourceId: l.sourceId,
-        status: (l as any).status || "ACTIVE",
-        createdAt: l.createdAt
-      });
-
-      if (l.voucherNo) processedVouchers.add(l.voucherNo);
-      if (l.receiptNo) processedVouchers.add(l.receiptNo);
-      if (l.sourceId) processedVouchers.add(l.sourceId);
-      if (l.ledgerId) processedVouchers.add(l.ledgerId);
-    });
 
     // 2. Harmonize Admission from db.admissions & db.incomes if not in member ledger
     (db.admissions || []).filter(a => isMemberMatch(a.memberId) && (a.status as string) !== 'CANCELLED' && (a.status as string) !== 'REVERSED' && (a.admissionFee || 0) > 0).forEach(a => {
@@ -7011,7 +6979,64 @@ export class AccountingService {
       }
     });
 
-    // Sort chronologically
+    
+    // 8. Explicit member ledger records (Fallback for legacy/manual entries)
+    (db.memberLedgers || []).filter(l => isMemberMatch(l.memberId)).forEach(l => {
+      // Skip if this ledger entry's source or voucher was already processed from primary tables
+      if ((l.voucherNo && processedVouchers.has(l.voucherNo)) || 
+          (l.receiptNo && processedVouchers.has(l.receiptNo)) || 
+          (l.sourceId && processedVouchers.has(l.sourceId)) || 
+          (l.ledgerId && processedVouchers.has(l.ledgerId))) {
+          return;
+      }
+
+      let tType = l.transactionType as string;
+      if (tType === 'ADMISSION') tType = 'ADMISSION_FEE';
+      if (tType === 'LATE_FINE') tType = 'LATE_FEE';
+      if (tType === 'PROFIT_SHARE') tType = 'PROFIT_DISTRIBUTION';
+      if (tType === 'WELFARE_GRANT') tType = 'BENEFIT';
+      if (tType === 'MEMBER_EXIT') tType = 'SETTLEMENT_PAYMENT';
+      if (tType === 'REVERSAL') tType = 'ADJUSTMENT';
+
+      rawItems.push({
+        id: l.ledgerId || `ML-${l.voucherNo || Math.random()}`,
+        date: l.date,
+        voucherNo: l.voucherNo,
+        receiptNo: l.receiptNo,
+        transactionType: tType,
+        particulars: (l as any).particulars || l.description || '', // Fix for particulars falling back to description
+        debit: l.debit || 0,
+        credit: l.credit || 0,
+        reference: l.reference || l.voucherNo,
+  
+        sourceType: l.sourceType,
+        sourceId: l.sourceId,
+        status: (l as any).status || "ACTIVE",
+        createdAt: l.createdAt
+      });
+
+      if (l.voucherNo) processedVouchers.add(l.voucherNo);
+      if (l.receiptNo) processedVouchers.add(l.receiptNo);
+      if (l.sourceId) processedVouchers.add(l.sourceId);
+      if (l.ledgerId) processedVouchers.add(l.ledgerId);
+    });
+
+
+    // Deduplicate admission fees (a member can only have one admission fee)
+    const admissionItems = rawItems.filter(i => i.transactionType === 'ADMISSION_FEE');
+    if (admissionItems.length > 1) {
+        // Keep the one from db.incomes if it exists, or just the first one
+        const incomeAdm = admissionItems.find(i => i.id.startsWith('INC-'));
+        const admToKeep = incomeAdm || admissionItems[0];
+        
+        // Remove all admission fees
+        for (let i = rawItems.length - 1; i >= 0; i--) {
+            if (rawItems[i].transactionType === 'ADMISSION_FEE' && rawItems[i].id !== admToKeep.id) {
+                rawItems.splice(i, 1);
+            }
+        }
+    }
+// Sort chronologically
     rawItems.sort((a, b) => {
       const timeA = new Date(a.date).getTime() || 0;
       const timeB = new Date(b.date).getTime() || 0;
