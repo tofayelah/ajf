@@ -612,6 +612,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
            const newDb = await newDbResponse.json();
            (window as any).skipNextDbSave = true;
            setDb(newDb);
+           try {
+             window.dispatchEvent(new CustomEvent('app:rpc-update', { detail: { action, result, timestamp: Date.now() } }));
+           } catch {}
         }
       }
       

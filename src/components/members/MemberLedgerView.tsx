@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AccountingService } from '../../services/accounting';
 import { 
@@ -30,7 +30,8 @@ import {
   Clock,
   ArrowLeft,
   Building2,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { MemberProfileModal } from './MemberProfileModal';
 import { AJFLogo } from '../common/AJFLogo';
@@ -42,6 +43,25 @@ interface MemberLedgerViewProps {
 export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMemberId }) => {
   const { db, language, activeUser, navigateTo } = useApp();
   const isBangla = language === 'bn';
+
+  // State to track RPC update invalidations & force immediate re-render
+  const [rpcVersion, setRpcVersion] = useState<number>(0);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+  // Subscribe to RPC updates and global DB context synchronization
+  useEffect(() => {
+    const handleRpcUpdate = () => {
+      setRpcVersion(prev => prev + 1);
+    };
+
+    window.addEventListener('app:rpc-update', handleRpcUpdate);
+    window.addEventListener('storage', handleRpcUpdate);
+
+    return () => {
+      window.removeEventListener('app:rpc-update', handleRpcUpdate);
+      window.removeEventListener('storage', handleRpcUpdate);
+    };
+  }, []);
 
   // Role check: If user is a MEMBER, lock to their linked member ID
   const isMemberRole = activeUser?.role === 'MEMBER';
@@ -77,7 +97,7 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
   const printAreaRef = useRef<HTMLDivElement>(null);
 
   // Sync if initialMemberId changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (initialMemberId && initialMemberId !== currentMemberId && !isMemberRole) {
       setCurrentMemberId(initialMemberId);
     }
@@ -86,13 +106,13 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
   // All active/registered members from authoritative DB
   const membersList = useMemo(() => {
     return db.members || [];
-  }, [db.members]);
+  }, [db.members, rpcVersion]);
 
   // Selected member object
   const selectedMember = useMemo(() => {
     if (!currentMemberId) return null;
-    return membersList.find(m => m.memberId === currentMemberId) || null;
-  }, [membersList, currentMemberId]);
+    return membersList.find(m => m.memberId === currentMemberId || m.membershipNo === currentMemberId || (m as any).id === currentMemberId) || null;
+  }, [membersList, currentMemberId, rpcVersion]);
 
   // Filtered members for top autocomplete
   const searchedMembers = useMemo(() => {
@@ -105,7 +125,7 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
       m.mobile?.toLowerCase().includes(query) ||
       m.nid?.toLowerCase().includes(query)
     );
-  }, [membersList, memberSearchQuery]);
+  }, [membersList, memberSearchQuery, rpcVersion]);
 
   // =========================================================================
   // CANONICAL 9-HEAD CALCULATION PER MEMBER & ALL MEMBERS COMBINED
@@ -140,7 +160,7 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
         ledger
       };
     });
-  }, [db]);
+  }, [db, rpcVersion]);
 
   // Aggregated 9 Heads for ALL members combined
   const allMembersAggregate = useMemo(() => {
@@ -199,7 +219,7 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
       transactionType: transactionType !== 'ALL' ? transactionType : undefined,
       status: statusFilter !== 'ALL' ? statusFilter : undefined
     });
-  }, [db, selectedMember, dateFrom, dateTo, transactionType, statusFilter]);
+  }, [db, selectedMember, dateFrom, dateTo, transactionType, statusFilter, rpcVersion]);
 
   // Active 9-head summary object (Either selected member or all members aggregate)
   const activeSummary = useMemo(() => {
@@ -219,14 +239,99 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
     return allMembersAggregate;
   }, [selectedMember, selectedMemberLedgerData, allMembersAggregate]);
 
-  // Paginated Transactions for Single Member
-  const paginatedSingleMemberItems = useMemo(() => {
-    if (!selectedMemberLedgerData?.items) return [];
-    const startIndex = (currentPage - 1) * pageSize;
-    return selectedMemberLedgerData.items.slice(startIndex, startIndex + pageSize);
-  }, [selectedMemberLedgerData, currentPage, pageSize]);
+  // Manual refresh handler to trigger recalculation and invalidation
+  const handleManualRefresh = () => {
+    setIsRefreshing(true);
+    setRpcVersion(prev => prev + 1);
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 400);
+  };
 
-  const totalSingleMemberPages = Math.ceil((selectedMemberLedgerData?.items?.length || 0) / pageSize) || 1;
+  // Grouped Transactions for Bulk Collection Display
+  const groupedSingleMemberItems = useMemo(() => {
+    if (!selectedMemberLedgerData?.items) return [];
+
+    const grouped: any[] = [];
+    let currentGroup: any = null;
+
+    for (const item of selectedMemberLedgerData.items) {
+      const isCollection = item.transactionType === 'MONTHLY_COLLECTION' || item.transactionType === 'LATE_FEE' || item.transactionType === 'LATE_FINE';
+      const receiptId = item.receiptNo || (item.voucherNo?.startsWith('REC-') ? item.voucherNo : null);
+
+      if (isCollection && receiptId) {
+        if (currentGroup && currentGroup.receiptId === receiptId) {
+          currentGroup.items.push(item);
+          currentGroup.credit += item.credit || 0;
+          currentGroup.debit += item.debit || 0;
+          currentGroup.balance = item.balance;
+        } else {
+          if (currentGroup) grouped.push(currentGroup.groupedItem);
+          currentGroup = {
+            receiptId,
+            items: [item],
+            credit: item.credit || 0,
+            debit: item.debit || 0,
+            balance: item.balance,
+            get groupedItem() {
+              // We check if this receipt had any discount/waived fees in db.collections
+              const sourceCollections = db.collections?.filter(c => {
+                const col = c as any;
+                return col.receiptNo === this.receiptId || col.voucherNo === this.receiptId;
+              }) || [];
+              const hasWaivedFee = sourceCollections.some(c => Number(c.discount || 0) > 0);
+              
+              if (this.items.length === 1 && !hasWaivedFee) {
+                return { ...this.items[0], isGrouped: false };
+              }
+              
+              const breakdown = this.items.map((i: any) => {
+                 const match = String(i.particulars).match(/(\d{4}-\d{2})/);
+                 const m = match ? match[1] : '';
+                 const label = (i.transactionType === 'LATE_FEE' || i.transactionType === 'LATE_FINE') ? 'Late Fee' : (m || 'Chanda');
+                 return `${label} — BDT ${i.credit}`;
+              }).join('\n');
+              
+              const waivedText = hasWaivedFee ? '\nLate Fee: BDT 0 Waived: YES' : '';
+              const finalParticulars = `Total Receipt: BDT ${this.credit}\nBreakdown:\n${breakdown}\nTotal: BDT ${this.credit}${waivedText}`;
+
+              return {
+                ...this.items[0],
+                credit: this.credit,
+                debit: this.debit,
+                balance: this.balance,
+                isGrouped: true,
+                subItems: this.items,
+                transactionType: 'BULK_COLLECTION',
+                particulars: finalParticulars
+              };
+            }
+          };
+        }
+      } else {
+        if (currentGroup) {
+          grouped.push(currentGroup.groupedItem);
+          currentGroup = null;
+        }
+        grouped.push(item);
+      }
+    }
+
+    if (currentGroup) {
+      grouped.push(currentGroup.groupedItem);
+    }
+
+    return grouped;
+  }, [selectedMemberLedgerData, db.collections]);
+
+  // Paginated Transactions for Single Member (Using Grouped Items)
+  const paginatedSingleMemberItems = useMemo(() => {
+    if (!groupedSingleMemberItems) return [];
+    const startIndex = (currentPage - 1) * pageSize;
+    return groupedSingleMemberItems.slice(startIndex, startIndex + pageSize);
+  }, [groupedSingleMemberItems, currentPage, pageSize]);
+
+  const totalSingleMemberPages = Math.ceil((groupedSingleMemberItems?.length || 0) / pageSize) || 1;
 
   // Formatting helpers
   const formatMoney = (amount: number) => {
@@ -311,6 +416,11 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
         return {
           label: isBangla ? 'নিষ্পত্তি পরিশোধ' : 'Settlement Payout',
           bg: 'bg-pink-100 text-pink-900 border-pink-300'
+        };
+      case 'BULK_COLLECTION':
+        return {
+          label: isBangla ? 'সম্মিলিত আদায়' : 'Bulk Collection',
+          bg: 'bg-blue-100 text-blue-900 border-blue-400'
         };
       case 'ADJUSTMENT':
       case 'REVERSAL':
@@ -686,6 +796,15 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
               )}
             </div>
           )}
+
+          <button
+            onClick={handleManualRefresh}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+            title={isBangla ? 'ডাটাবেজ ও খতিয়ান হিসাব হালনাগাদ করুন' : 'Refresh Ledger Calculations'}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-600' : ''}`} />
+            <span>{isBangla ? 'হালনাগাদ' : 'Refresh'}</span>
+          </button>
 
           <button
             onClick={handlePrint}
@@ -1426,7 +1545,7 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
                               {badge.label}
                             </span>
                           </td>
-                          <td className="py-3 px-3.5 text-slate-700 font-medium">
+                          <td className="py-3 px-3.5 text-slate-700 font-medium whitespace-pre-wrap">
                             {item.particulars}
                           </td>
                           <td className="py-3 px-3.5 text-right font-mono text-rose-700 font-semibold whitespace-nowrap">

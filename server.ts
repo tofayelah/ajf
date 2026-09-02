@@ -264,11 +264,11 @@ app.get('/api/sync', requireAuth, async (req: any, res: any) => {
     if (req.user.role === 'MEMBER') {
       const memberId = req.user.linkedMemberId;
       const safeDb = {
-        settings: {
-          currentFinancialYear: db.settings?.currentFinancialYear,
-          language: db.settings?.language,
-          organizationNameEn: db.settings?.organizationNameEn,
-          organizationNameBn: db.settings?.organizationNameBn
+        settings: db.settings || {
+          currentFinancialYear: '2026-2027',
+          monthlyContribution: 1000,
+          lateFine: 0,
+          latePaymentDay: 10
         },
         members: db.members?.filter((m: any) => m.memberId === memberId) || [],
         admissions: db.admissions?.filter((a: any) => a.memberId === memberId) || [],

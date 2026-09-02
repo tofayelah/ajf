@@ -6680,8 +6680,15 @@ export class AccountingService {
       status?: string;
     }
   ) {
-    const member = (db.members || []).find(m => m.memberId === memberId);
+    const member = (db.members || []).find(m => m.memberId === memberId || m.membershipNo === memberId || (m as any).id === memberId);
     if (!member) return null;
+
+    const targetMemberId = member.memberId;
+    const targetMembershipNo = member.membershipNo;
+    const isMemberMatch = (mId?: string) => {
+      if (!mId) return false;
+      return mId === targetMemberId || mId === memberId || (!!targetMembershipNo && mId === targetMembershipNo);
+    };
 
     const rawItems: {
       id: string;
@@ -6704,7 +6711,7 @@ export class AccountingService {
     const processedVouchers = new Set<string>();
 
     // 1. Explicit member ledger records
-    (db.memberLedgers || []).filter(l => l.memberId === memberId).forEach(l => {
+    (db.memberLedgers || []).filter(l => isMemberMatch(l.memberId)).forEach(l => {
       let tType = l.transactionType as string;
       if (tType === 'ADMISSION') tType = 'ADMISSION_FEE';
       if (tType === 'LATE_FINE') tType = 'LATE_FEE';
@@ -6726,29 +6733,30 @@ export class AccountingService {
   
         sourceType: l.sourceType,
         sourceId: l.sourceId,
-        status: "ACTIVE",
+        status: (l as any).status || "ACTIVE",
         createdAt: l.createdAt
       });
 
       if (l.voucherNo) processedVouchers.add(l.voucherNo);
       if (l.receiptNo) processedVouchers.add(l.receiptNo);
       if (l.sourceId) processedVouchers.add(l.sourceId);
+      if (l.ledgerId) processedVouchers.add(l.ledgerId);
     });
 
     // 2. Harmonize Admission from db.admissions & db.incomes if not in member ledger
-    (db.admissions || []).filter(a => a.memberId === memberId && (a.status as string) !== 'CANCELLED' && (a.status as string) !== 'REVERSED' && (a.admissionFee || 0) > 0).forEach(a => {
+    (db.admissions || []).filter(a => isMemberMatch(a.memberId) && (a.status as string) !== 'CANCELLED' && (a.status as string) !== 'REVERSED' && (a.admissionFee || 0) > 0).forEach(a => {
       const adm = a as any;
       const matchingJournal = (db.journalEntries || []).find(j => 
         j.sourceId === adm.admissionId || 
         j.sourceId === adm.incomeId ||
         (j.sourceType === 'INCOME' && j.reference && adm.voucherNo && j.reference === adm.voucherNo) ||
-        (j.reference?.startsWith('VCH-') && (j.description?.includes(memberId) || (member?.fullName && j.description?.includes(member.fullName))) && j.description?.toLowerCase().includes('ভর্তি'))
+        (j.reference?.startsWith('VCH-') && (j.description?.includes(targetMemberId) || (member?.fullName && j.description?.includes(member.fullName))) && j.description?.toLowerCase().includes('ভর্তি'))
       );
 
       const matchingCash = (db.cashTransactions || []).find(c => 
         c.sourceId === adm.admissionId ||
         c.sourceId === adm.incomeId ||
-        (c.memberId === memberId && (c.accountId === '4000' || c.accountId === '4010' || (c as any).accountCode === '4000' || (c as any).accountCode === '4010' || c.sourceType === 'ADMISSION')) ||
+        (isMemberMatch(c.memberId) && (c.accountId === '4000' || c.accountId === '4010' || (c as any).accountCode === '4000' || (c as any).accountCode === '4010' || c.sourceType === 'ADMISSION')) ||
         (c.voucherNo && adm.voucherNo && c.voucherNo === adm.voucherNo)
       );
 
@@ -6758,7 +6766,7 @@ export class AccountingService {
       if (!processedVouchers.has(vNo) && !processedVouchers.has(rNo) && !processedVouchers.has(adm.admissionId)) {
         const admDate = adm.date || member?.joiningDate || adm.approvalDate || adm.applicationDate || '2026-06-01';
         rawItems.push({
-          id: adm.admissionId || `ADM-${memberId}`,
+          id: adm.admissionId || `ADM-${targetMemberId}`,
           date: admDate,
           voucherNo: vNo,
           receiptNo: rNo,
@@ -6789,11 +6797,7 @@ export class AccountingService {
         .join(' ')
         .toLowerCase();
         
-      const mIdLower = String(member?.memberId || '').toLowerCase();
-      const mNameLower = String(member?.fullName || '').toLowerCase();
-      
-      const isMemMatch = inc.memberId === memberId; // Strict matching only
-        
+      const isMemMatch = isMemberMatch(inc.memberId);
       const isAdmCategory = inc.category === 'ADMISSION' || inc.category === 'MEMBERSHIP_FEE' || inc.sourceType === 'ADMISSION' || desc.includes('admission') || desc.includes('ভর্তি');
       return isMemMatch && isAdmCategory;
     }).forEach(i => {
@@ -6822,9 +6826,8 @@ export class AccountingService {
     });
 
     // 3. Harmonize Capital Deposits if not in member ledger
-    (db.capitalDeposits || []).filter(c => c.memberId === memberId && c.status !== 'REVERSED' && c.status !== 'CANCELLED').forEach(c => {
+    (db.capitalDeposits || []).filter(c => isMemberMatch(c.memberId) && c.status !== 'REVERSED' && c.status !== 'CANCELLED').forEach(c => {
       const cap = c as any;
-      // Strict by depositId
       if (cap.depositId && processedVouchers.has(cap.depositId)) return;
 
       const isInitialAdmissionDeposit = (cap.remarks?.includes('ভর্তিকালীন') || cap.remarks?.includes('প্রাথমিক') || cap.transactionNo?.startsWith('ADM-'));
@@ -6854,7 +6857,7 @@ export class AccountingService {
     });
 
     // 4. Harmonize Monthly Collections if not in member ledger
-    (db.collections || []).filter(c => c.memberId === memberId && c.status !== 'REVERSED' && c.status !== 'CANCELLED').forEach(c => {
+    (db.collections || []).filter(c => isMemberMatch(c.memberId) && c.status !== 'REVERSED' && c.status !== 'CANCELLED').forEach(c => {
       const col = c as any;
       const vNo = col.voucherNo || col.receiptNo;
       if (col.collectionId && processedVouchers.has(col.collectionId)) return;
@@ -6906,15 +6909,14 @@ export class AccountingService {
         });
       }
 
-      if (col.voucherNo) processedVouchers.add(col.voucherNo);
-      if (col.receiptNo) processedVouchers.add(col.receiptNo);
+      if (col.collectionId) processedVouchers.add(col.collectionId);
     });
 
     // 5. Harmonize Loans & Repayments
-    (db.loans || []).filter(l => l.memberId === memberId && (l.status === 'ACTIVE' || l.status === 'COMPLETED')).forEach(l => {
+    (db.loans || []).filter(l => isMemberMatch(l.memberId) && (l.status === 'ACTIVE' || l.status === 'COMPLETED')).forEach(l => {
       const loan = l as any;
       const vNo = loan.voucherNo || loan.disbursementVoucherNo || loan.loanId;
-      if (!processedVouchers.has(vNo)) {
+      if (!processedVouchers.has(vNo) && !processedVouchers.has(loan.loanId)) {
         rawItems.push({
           id: loan.loanId,
           date: loan.disbursementDate || loan.applicationDate,
@@ -6930,13 +6932,14 @@ export class AccountingService {
           status: "ACTIVE"
         });
         processedVouchers.add(vNo);
+        processedVouchers.add(loan.loanId);
       }
     });
 
-    (db.loanRepayments || []).filter(r => r.memberId === memberId && r.status !== 'REVERSED' && r.status !== 'CANCELLED').forEach(r => {
+    (db.loanRepayments || []).filter(r => isMemberMatch(r.memberId) && r.status !== 'REVERSED' && r.status !== 'CANCELLED').forEach(r => {
       const rep = r as any;
       const vNo = rep.voucherNo || rep.repaymentId;
-      if (!processedVouchers.has(vNo)) {
+      if (!processedVouchers.has(vNo) && !processedVouchers.has(rep.repaymentId)) {
         rawItems.push({
           id: rep.repaymentId,
           date: rep.date || rep.paymentDate,
@@ -6953,34 +6956,37 @@ export class AccountingService {
           status: "ACTIVE"
         });
         processedVouchers.add(vNo);
+        processedVouchers.add(rep.repaymentId);
       }
     });
 
     // 6. Harmonize Settlements
-    (db.memberExits || []).filter(e => e.memberId === memberId && ['APPROVED', 'COMPLETED', 'SETTLED', 'REFUNDED'].includes(e.status)).forEach(e => {
+    (db.memberExits || []).filter(e => isMemberMatch(e.memberId) && ['APPROVED', 'COMPLETED', 'SETTLED', 'REFUNDED'].includes(e.status)).forEach(e => {
       const ext = e as any;
       const vNo = ext.voucherNo || ext.refundVoucherNo || ext.exitRequestId || ext.exitId;
-      if (!processedVouchers.has(vNo)) {
+      const idKey = ext.exitRequestId || ext.exitId;
+      if (!processedVouchers.has(vNo) && !processedVouchers.has(idKey)) {
         rawItems.push({
-          id: ext.exitRequestId || ext.exitId,
+          id: idKey,
           date: ext.refundProcessDate || ext.settlementDate || ext.requestDate,
           voucherNo: vNo,
           transactionType: ext.exitType === 'NORMAL' ? 'NORMAL_EXIT' : ext.exitType === 'EARLY' ? 'EARLY_EXIT' : 'DEATH_SETTLEMENT',
           particulars: `Member Settlement Payout / সদস্য প্রস্থান ও হিসাব নিষ্পত্তি`,
           debit: ext.netSettlementAmount || ext.netRefundAmount || ext.totalRefundAmount || ext.payoutAmount || 0,
           credit: 0,
-          reference: ext.exitRequestId || ext.exitId,
+          reference: idKey,
     
           sourceType: 'SETTLEMENT',
-          sourceId: ext.exitRequestId || ext.exitId,
+          sourceId: idKey,
           status: "ACTIVE"
         });
         processedVouchers.add(vNo);
+        processedVouchers.add(idKey);
       }
     });
 
     // 7. Harmonize Late Fee Waivers (Informative Line Items in Ledger)
-    (db.lateFeeWaivers || []).filter(w => w.memberId === memberId && w.status !== 'REVERSED' && w.status !== 'CANCELLED').forEach(w => {
+    (db.lateFeeWaivers || []).filter(w => isMemberMatch(w.memberId) && w.status !== 'REVERSED' && w.status !== 'CANCELLED').forEach(w => {
       const vNo = `WVR-${w.receiptNo || w.collectionId || w.waiverId}`;
       if (!processedVouchers.has(vNo) && !processedVouchers.has(w.waiverId)) {
         rawItems.push({
@@ -7054,7 +7060,7 @@ export class AccountingService {
     // The running balance MUST only accumulate eligible refundable balance components
     let runningBalance = 0;
     const itemsWithBalance = rawItems.map(item => {
-      if (item.transactionType !== 'ADMISSION_FEE' && item.transactionType !== 'LATE_FEE' && item.transactionType !== 'LATE_FINE') {
+      if (item.transactionType !== 'ADMISSION_FEE' && item.transactionType !== 'LATE_FEE' && item.transactionType !== 'LATE_FINE' && item.transactionType !== 'LATE_FEE_WAIVER') {
         runningBalance += (item.credit - item.debit);
       }
       return {
