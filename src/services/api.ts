@@ -264,8 +264,18 @@ export async function executeFactoryResetAPI(confirmationPhrase: string, reason?
   return response.json();
 }
 
-export async function downloadAuthoritativeBackupAPI() {
-  const response = await authenticatedFetch('/admin/backup/download');
+export async function fetchBackupPreviewAPI() {
+  const response = await authenticatedFetch('/admin/backup/preview');
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to fetch backup preview', response.status, err);
+  }
+  return response.json();
+}
+
+export async function downloadAuthoritativeBackupAPI(allowEmpty?: boolean) {
+  const url = `/admin/backup/download${allowEmpty ? '?allowEmpty=true' : ''}`;
+  const response = await authenticatedFetch(url);
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new ApiError(err.error || 'Failed to download server backup', response.status, err);

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Database, Download, Upload, RefreshCw, AlertTriangle, FileJson } from 'lucide-react';
 import { format } from 'date-fns';
+import { DatabaseStatusReport } from './DatabaseStatusReport';
 
 export const BackupRestoreView: React.FC = () => {
   const { db, language, showNotification, updateSettings } = useApp();
@@ -70,6 +71,9 @@ export const BackupRestoreView: React.FC = () => {
           {isBangla ? 'আপনার সিস্টেমের সম্পূর্ণ ডেটা নিরাপদে সংরক্ষণ করুন' : 'Safely backup and restore your entire system data offline'}
         </p>
       </div>
+
+      {/* Database Status & Verification Report */}
+      <DatabaseStatusReport />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Export Card */}

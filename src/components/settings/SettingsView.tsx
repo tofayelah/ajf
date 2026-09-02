@@ -32,6 +32,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { AccountingMigrationView } from './AccountingMigrationView';
+import { DatabaseStatusReport } from './DatabaseStatusReport';
 import { AJFLogo } from '../common/AJFLogo';
 
 export const SettingsView: React.FC = () => {
@@ -122,6 +123,14 @@ export const SettingsView: React.FC = () => {
 
   const [isDownloadingBackup, setIsDownloadingBackup] = useState(false);
   const [downloadSummaryModal, setDownloadSummaryModal] = useState<any | null>(null);
+  const [copiedSha, setCopiedSha] = useState(false);
+  const [emptyBackupConfirmModal, setEmptyBackupConfirmModal] = useState<{
+    isOpen: boolean;
+    previewData: any | null;
+  }>({
+    isOpen: false,
+    previewData: null
+  });
 
   const [restoreModalState, setRestoreModalState] = useState<{
     isOpen: boolean;
@@ -147,10 +156,17 @@ export const SettingsView: React.FC = () => {
     error: null
   });
 
-  const exportDataBackup = async () => {
+  const exportDataBackup = async (allowEmpty: boolean = false) => {
     setIsDownloadingBackup(true);
     try {
-      const res = await appCtx?.downloadAuthoritativeBackup?.();
+      const res = await appCtx?.downloadAuthoritativeBackup?.(allowEmpty);
+      if (res && res.isConfirmationRequired) {
+        setEmptyBackupConfirmModal({
+          isOpen: true,
+          previewData: res.previewData
+        });
+        return;
+      }
       if (res && res.success && res.data) {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.data, null, 2));
         const downloadAnchor = document.createElement('a');
@@ -160,12 +176,15 @@ export const SettingsView: React.FC = () => {
         downloadAnchor.click();
         downloadAnchor.remove();
 
+        setEmptyBackupConfirmModal({ isOpen: false, previewData: null });
         setDownloadSummaryModal(res.data);
         if (updateSettings) {
           updateSettings({ lastBackupDate: new Date().toISOString() });
         }
         showNotification(
-          isBangla ? 'সার্ভার অথরিটেটিভ ব্যাকআপ সফলভাবে ডাউনলোড হয়েছে' : 'Server authoritative backup downloaded successfully',
+          res.data.isEmptyDatabase
+            ? (isBangla ? 'খালি ডাটাবেজ ব্যাকআপ সফলভাবে ডাউনলোড হয়েছে' : 'Empty database backup downloaded successfully')
+            : (isBangla ? 'সার্ভার অথরিটেটিভ ব্যাকআপ সফলভাবে ডাউনলোড হয়েছে' : 'Server authoritative backup downloaded successfully'),
           'success'
         );
       } else {
@@ -818,8 +837,26 @@ export const SettingsView: React.FC = () => {
         </div>
       </form>
 
+      {/* Database Status & Verification Dashboard Card */}
+      <DatabaseStatusReport
+        className="mt-8"
+        onExportBackup={(allowEmpty) => exportDataBackup(allowEmpty)}
+        onOpenRestore={() => setRestoreModalState({
+          isOpen: true,
+          step: 'upload',
+          fileName: null,
+          backupPackage: null,
+          isValidating: false,
+          validationResult: null,
+          confirmInput: '',
+          isExecuting: false,
+          restoreResult: null,
+          error: null
+        })}
+      />
+
       {/* Database Management Section */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 mt-8">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 mt-6">
         <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2 border-b pb-2">
           <HardDrive className="w-4 h-4 text-emerald-700" />
           <span>ডেটাবেজ ও ব্যাকআপ ব্যবস্থাপনা (Database & Backup)</span>
@@ -1134,26 +1171,26 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* Backup Download Summary Modal */}
-      {downloadSummaryModal && (
+      {/* Empty Database Confirmation Modal */}
+      {emptyBackupConfirmModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden my-8">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-emerald-50/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-amber-100 flex items-center justify-between bg-amber-50/70">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700">
-                  <CheckCircle2 className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">
-                    {isBangla ? 'সার্ভার ব্যাকআপ ফাইল তৈরি ও ডাউনলোড সম্পন্ন' : 'Authoritative Backup Generated & Downloaded'}
+                    {isBangla ? 'খালি ডাটাবেজ ব্যাকআপ নিশ্চিতকরণ' : 'Empty Database Backup Confirmation'}
                   </h3>
-                  <p className="text-[10px] text-slate-500">
-                    {isBangla ? 'সার্ভার অথরিটেটিভ ডাটাবেজ প্যাকেজ সফলভাবে এক্সপোর্ট করা হয়েছে' : 'Full authoritative production database package exported with SHA-256'}
+                  <p className="text-[11px] text-amber-800">
+                    {isBangla ? 'সার্ভার ডাটাবেজে কোনো লেনদেন বা সদস্য নেই' : 'Authoritative database has zero operational records'}
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setDownloadSummaryModal(null)}
+                onClick={() => setEmptyBackupConfirmModal({ isOpen: false, previewData: null })}
                 className="text-slate-400 hover:text-slate-600 transition-colors p-1"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1162,83 +1199,255 @@ export const SettingsView: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
-              {/* Checksum info */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    <span>SHA-256 Checksum:</span>
-                  </span>
-                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full">
-                    INTEGRITY VERIFIED
-                  </span>
-                </div>
-                <div className="font-mono text-[10px] text-slate-600 bg-white p-2 rounded border border-slate-200 break-all select-all flex items-center justify-between">
-                  <span>{downloadSummaryModal.metadata?.checksumSha256 || 'N/A'}</span>
-                </div>
+            <div className="p-6 space-y-4 text-xs text-slate-600">
+              <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2 text-amber-950">
+                <p className="font-semibold leading-relaxed">
+                  {isBangla
+                    ? 'বর্তমান authoritative server database-এ কোনো সদস্য বা আর্থিক লেনদেনের রেকর্ড নেই (Members: 0, Collections: 0, Journals: 0)।'
+                    : 'The authoritative production server database is currently empty (Members: 0, Collections: 0, Journals: 0).'}
+                </p>
+                <p className="text-[11px] text-amber-800 leading-normal">
+                  {isBangla
+                    ? 'সাধারণত একটি সক্রিয় অ্যাকাউন্টিং ব্যাকআপে লেনদেন থাকে। আপনি যদি ফ্যাক্টরি রিসেট পরবর্তী বা প্রাথমিক খালি কাঠামোর ব্যাকআপ নিতে চান, তবে নিশ্চিত করুন।'
+                    : 'A production backup typically contains active member records. If you intentionally wish to export an initial or reset empty database snapshot, please confirm.'}
+                </p>
               </div>
 
-              {/* Breakdown Grid */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  {isBangla ? 'ব্যাকআপে অন্তর্ভুক্ত সম্পূর্ণ রেকর্ডসমূহ' : 'Exported Database Summary'}
-                </h4>
-                <div className="grid grid-cols-3 gap-2 text-xs text-center">
-                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                    <span className="text-slate-500 text-[10px] block">{isBangla ? 'মোট সদস্য' : 'Members'}</span>
-                    <span className="font-bold text-slate-800 text-base">{downloadSummaryModal.metadata?.counts?.members || 0}</span>
-                  </div>
-                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                    <span className="text-slate-500 text-[10px] block">{isBangla ? 'ভর্তি রেকর্ড' : 'Admissions'}</span>
-                    <span className="font-bold text-slate-800 text-base">{downloadSummaryModal.metadata?.counts?.admissions || 0}</span>
-                  </div>
-                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                    <span className="text-slate-500 text-[10px] block">{isBangla ? 'মাসিক চাঁদা' : 'Collections'}</span>
-                    <span className="font-bold text-slate-800 text-base">{downloadSummaryModal.metadata?.counts?.collections || 0}</span>
-                  </div>
-                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                    <span className="text-slate-500 text-[10px] block">{isBangla ? 'ক্যাশ লেনদেন' : 'Cash Txns'}</span>
-                    <span className="font-bold text-slate-800 text-base">{downloadSummaryModal.metadata?.counts?.cashTransactions || 0}</span>
-                  </div>
-                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                    <span className="text-slate-500 text-[10px] block">{isBangla ? 'ব্যাংক লেনদেন' : 'Bank Txns'}</span>
-                    <span className="font-bold text-slate-800 text-base">{downloadSummaryModal.metadata?.counts?.bankTransactions || 0}</span>
-                  </div>
-                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                    <span className="text-slate-500 text-[10px] block">{isBangla ? 'জার্নাল এন্ট্রি' : 'Journals'}</span>
-                    <span className="font-bold text-slate-800 text-base">
-                      {downloadSummaryModal.metadata?.counts?.journalEntries || 0}
-                    </span>
-                  </div>
+              {/* Zero counts preview */}
+              <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                  <span className="text-slate-500 block text-[10px]">{isBangla ? 'সদস্য' : 'Members'}</span>
+                  <span className="font-bold text-slate-800">0</span>
                 </div>
-              </div>
-
-              {/* Accounting Verification */}
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="font-bold">
-                    {isBangla ? 'ট্রায়াল ব্যালেন্স ও অ্যাকাউন্টিং ইন্টিগ্রিটি:' : 'Trial Balance & Accounting Integrity:'}
-                  </span>
+                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                  <span className="text-slate-500 block text-[10px]">{isBangla ? 'চাঁদা' : 'Collections'}</span>
+                  <span className="font-bold text-slate-800">0</span>
                 </div>
-                <span className="font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-300 text-[11px]">
-                  PASS (Balanced)
-                </span>
+                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                  <span className="text-slate-500 block text-[10px]">{isBangla ? 'জার্নাল' : 'Journals'}</span>
+                  <span className="font-bold text-slate-800">0</span>
+                </div>
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
               <button
-                onClick={() => setDownloadSummaryModal(null)}
-                className="px-5 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl hover:bg-slate-900 transition-colors"
+                onClick={() => setEmptyBackupConfirmModal({ isOpen: false, previewData: null })}
+                className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl hover:bg-slate-100 transition-colors"
               >
-                {isBangla ? 'ঠিক আছে' : 'Done'}
+                {isBangla ? 'বাতিল' : 'Cancel'}
+              </button>
+              <button
+                onClick={() => exportDataBackup(true)}
+                disabled={isDownloadingBackup}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              >
+                {isDownloadingBackup ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>{isBangla ? 'ডাউনলোড হচ্ছে...' : 'Downloading...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{isBangla ? 'হ্যাঁ, খালি ব্যাকআপ ডাউনলোড করুন' : 'Confirm & Download Empty Backup'}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Backup Download Summary Modal */}
+      {downloadSummaryModal && (() => {
+        const isBackupEmpty = Boolean(downloadSummaryModal.isEmptyDatabase);
+        const sha256 = downloadSummaryModal.sha256 || downloadSummaryModal.integrity?.sha256 || downloadSummaryModal.metadata?.checksumSha256;
+        const hasValidSha = Boolean(sha256 && sha256 !== 'N/A' && typeof sha256 === 'string' && sha256.length >= 32);
+        const counts = downloadSummaryModal.recordCounts || downloadSummaryModal.metadata?.counts || {};
+        const acc = downloadSummaryModal.accountingSummary || {};
+        const integrity = downloadSummaryModal.integrity || {};
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200">
+              <div className={`p-5 border-b flex items-center justify-between ${isBackupEmpty ? 'bg-amber-50/70 border-amber-100' : 'bg-emerald-50/70 border-emerald-100'}`}>
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isBackupEmpty ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {isBackupEmpty ? <AlertTriangle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900">
+                      {isBackupEmpty
+                        ? (isBangla ? 'খালি ডাটাবেজ ব্যাকআপ সম্পন্ন' : 'Empty Database Backup Generated')
+                        : (isBangla ? 'সম্পূর্ণ সার্ভার ব্যাকআপ তৈরি ও ডাউনলোড সম্পন্ন' : 'Authoritative Full Backup Downloaded')}
+                    </h3>
+                    <p className="text-[10px] text-slate-500">
+                      {isBackupEmpty
+                        ? (isBangla ? '০ টি সদস্য ও লেনদেন বিশিষ্ট কাঠামোগত ব্যাকআপ প্যাকেজ' : 'Structural backup package containing 0 active records')
+                        : (isBangla ? 'সার্ভার অথরিটেটিভ প্রোডাকশন ডাটাবেজের সম্পূর্ণ কপি' : 'Production database snapshot with SHA-256 integrity')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setDownloadSummaryModal(null)}
+                  className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+                {/* Empty Warning notice if empty */}
+                {isBackupEmpty && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold block text-amber-800">{isBangla ? 'সতর্কতা: খালি ডাটাবেজ ব্যাকআপ' : 'Notice: Empty Database Backup'}</span>
+                      <span className="text-[11px] text-amber-700">
+                        {isBangla ? 'এই ব্যাকআপ ফাইলে কোনো সদস্য বা আর্থিক লেনদেন রেকর্ড নেই।' : 'This backup file contains 0 active member or financial transactions.'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Checksum info with Copy Button & Proper Status */}
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <ShieldCheck className={`w-4 h-4 ${hasValidSha ? (isBackupEmpty ? 'text-amber-600' : 'text-emerald-600') : 'text-rose-600'}`} />
+                      <span>SHA-256 Checksum:</span>
+                    </span>
+                    {hasValidSha ? (
+                      <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full ${isBackupEmpty ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                        {isBackupEmpty ? 'EMPTY DATABASE VERIFIED' : 'INTEGRITY VERIFIED'}
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 bg-rose-100 text-rose-800 text-[10px] font-bold rounded-full">
+                        CHECKSUM MISSING
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-mono text-[10.5px] text-slate-700 bg-white p-2 rounded-lg border border-slate-200 break-all select-all flex-1">
+                      {hasValidSha ? sha256 : (sha256 || 'N/A (Error: Checksum not generated)')}
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (hasValidSha && sha256) {
+                          navigator.clipboard.writeText(sha256);
+                          setCopiedSha(true);
+                          setTimeout(() => setCopiedSha(false), 2000);
+                        }
+                      }}
+                      disabled={!hasValidSha}
+                      className="px-2.5 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-200 text-xs font-medium flex items-center gap-1 shrink-0 transition-colors disabled:opacity-40"
+                    >
+                      {copiedSha ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedSha ? (isBangla ? 'কপি হয়েছে' : 'Copied!') : (isBangla ? 'কপি' : 'Copy')}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Breakdown Grid */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      {isBangla ? 'ব্যাকআপে অন্তর্ভুক্ত সম্পূর্ণ রেকর্ডসমূহ' : 'Exported Database Summary'}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      Total: {(Object.values(counts) as any[]).reduce((a: number, b: any) => a + (typeof b === 'number' ? b : 0), 0)} records
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 text-xs text-center">
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 text-[10px] block">{isBangla ? 'সদস্যগণ' : 'Members'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{counts.members || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 text-[10px] block">{isBangla ? 'ভর্তি রেকর্ড' : 'Admissions'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{counts.admissions || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 text-[10px] block">{isBangla ? 'মাসিক চাঁদা' : 'Collections'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{counts.collections || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 text-[10px] block">{isBangla ? 'মূলধন জমা' : 'Capital'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{counts.capitalDeposits || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 text-[10px] block">{isBangla ? 'ঋণ ও কিস্তি' : 'Loans / Repay'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{counts.loans || 0} / {counts.loanRepayments || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 text-[10px] block">{isBangla ? 'কল্যাণ অনুদান' : 'Welfare'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{counts.welfareTransactions || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 text-[10px] block">{isBangla ? 'ক্যাশ লেনদেন' : 'Cash Txns'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{counts.cashTransactions || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 text-[10px] block">{isBangla ? 'ব্যাংক লেনদেন' : 'Bank Txns'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{counts.bankTransactions || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 text-[10px] block">{isBangla ? 'জার্নাল এন্ট্রি' : 'Journals'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{counts.journalEntries || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 text-[10px] block">{isBangla ? 'হিসাব চার্ট' : 'Accounts'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{counts.accounts || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 text-[10px] block">{isBangla ? 'ব্যবহারকারী' : 'Users'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{counts.users || 0}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 text-[10px] block">{isBangla ? 'অডিট লগ' : 'Audit Logs'}</span>
+                      <span className="font-bold text-slate-800 text-sm">{counts.auditLogs || 0}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Accounting Verification */}
+                <div className={`p-3.5 border rounded-xl text-xs space-y-1.5 ${isBackupEmpty ? 'bg-amber-50/50 border-amber-200 text-amber-900' : 'bg-emerald-50/70 border-emerald-200 text-emerald-900'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className={`w-4 h-4 shrink-0 ${isBackupEmpty ? 'text-amber-600' : 'text-emerald-600'}`} />
+                      <span className="font-bold">
+                        {isBangla ? 'ট্রায়াল ব্যালেন্স ও অ্যাকাউন্টিং ইন্টিগ্রিটি:' : 'Trial Balance & Accounting Integrity:'}
+                      </span>
+                    </div>
+                    <span className={`font-bold px-2 py-0.5 rounded border text-[11px] ${isBackupEmpty ? 'text-amber-800 bg-white border-amber-300' : 'text-emerald-800 bg-white border-emerald-300'}`}>
+                      {isBackupEmpty ? 'EMPTY DATABASE (0 Txns)' : (acc.trialBalanceStatus === 'BALANCED' || integrity.trialBalanceStatus === 'PASS' ? 'PASS (Balanced)' : 'VERIFIED')}
+                    </span>
+                  </div>
+                  {!isBackupEmpty && typeof acc.totalDebit === 'number' && (
+                    <div className="text-[11px] text-slate-600 flex items-center justify-between pt-1 border-t border-emerald-200/60 font-mono">
+                      <span>Total Debit: ৳{acc.totalDebit.toLocaleString('en-IN')}</span>
+                      <span>Total Credit: ৳{acc.totalCredit?.toLocaleString('en-IN')}</span>
+                      <span className="text-emerald-700 font-bold">Diff: ৳{acc.difference || 0}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={() => setDownloadSummaryModal(null)}
+                  className="px-5 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl hover:bg-slate-900 transition-colors"
+                >
+                  {isBangla ? 'ঠিক আছে' : 'Done'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Authoritative Restore Modal */}
       {restoreModalState.isOpen && (
