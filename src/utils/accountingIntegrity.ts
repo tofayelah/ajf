@@ -1346,7 +1346,7 @@ export function validateCashMovementsReconciliation(
     'ADMISSION',
     'Admission Fees / ভর্তি ফি',
     subledgerAdmissionSum,
-    cashBookByModule.ADMISSION.in,
+    cashBookByModule.ADMISSION.in - cashBookByModule.ADMISSION.out,
     admissions.length,
     cashBookByModule.ADMISSION.count,
     []
@@ -1356,7 +1356,7 @@ export function validateCashMovementsReconciliation(
     'CAPITAL',
     'Capital Deposits / মূলধন জমা',
     subledgerCapitalSum,
-    cashBookByModule.CAPITAL.in,
+    cashBookByModule.CAPITAL.in - cashBookByModule.CAPITAL.out,
     capitalDeposits.length,
     cashBookByModule.CAPITAL.count,
     []
@@ -1366,7 +1366,7 @@ export function validateCashMovementsReconciliation(
     'COLLECTION',
     'Monthly Collections / মাসিক চাঁদা',
     subledgerCollectionSum,
-    cashBookByModule.COLLECTION.in,
+    cashBookByModule.COLLECTION.in - cashBookByModule.COLLECTION.out,
     collections.length,
     cashBookByModule.COLLECTION.count,
     []
@@ -1386,7 +1386,7 @@ export function validateCashMovementsReconciliation(
     'EXPENSE',
     'Expenses / ব্যয়',
     subledgerExpenseSum,
-    cashBookByModule.EXPENSE.out,
+    cashBookByModule.EXPENSE.out - cashBookByModule.EXPENSE.in,
     expenses.length,
     cashBookByModule.EXPENSE.count,
     []
@@ -1396,7 +1396,7 @@ export function validateCashMovementsReconciliation(
     'INCOME',
     'Other Incomes / অন্যান্য আয়',
     subledgerIncomeSum,
-    cashBookByModule.INCOME.in,
+    cashBookByModule.INCOME.in - cashBookByModule.INCOME.out,
     otherIncomes.length,
     cashBookByModule.INCOME.count,
     []
@@ -1406,7 +1406,7 @@ export function validateCashMovementsReconciliation(
     'MEMBER_SETTLEMENT',
     'Member Exit & Settlements / সদস্য বহির্গমন ও নিষ্পত্তি',
     subledgerSettlementSum,
-    cashBookByModule.MEMBER_SETTLEMENT.out,
+    cashBookByModule.MEMBER_SETTLEMENT.out - cashBookByModule.MEMBER_SETTLEMENT.in,
     memberExits.length,
     cashBookByModule.MEMBER_SETTLEMENT.count,
     settlementUnreconciled
@@ -1416,7 +1416,7 @@ export function validateCashMovementsReconciliation(
     'WELFARE',
     'Welfare Fund / কল্যাণ তহবিল',
     subledgerWelfareOut,
-    cashBookByModule.WELFARE.out,
+    cashBookByModule.WELFARE.out - cashBookByModule.WELFARE.in,
     welfareTransactions.length,
     cashBookByModule.WELFARE.count,
     welfareUnreconciled

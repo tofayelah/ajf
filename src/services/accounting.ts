@@ -7039,6 +7039,7 @@ export class AccountingService {
       if (tType === 'WELFARE_GRANT') tType = 'BENEFIT';
       if (tType === 'MEMBER_EXIT') tType = 'SETTLEMENT_PAYMENT';
       if (tType === 'REVERSAL') tType = 'ADJUSTMENT';
+      if (tType === 'COLLECTION_REVERSAL') tType = 'MONTHLY_COLLECTION';
       if (l.description?.includes('কালেকশন রিভার্সাল')) tType = 'MONTHLY_COLLECTION';
 
       rawItems.push({
@@ -7128,7 +7129,19 @@ export class AccountingService {
     // The running balance MUST only accumulate eligible refundable balance components
     let runningBalance = 0;
     const itemsWithBalance = rawItems.map(item => {
-      if (item.transactionType !== 'ADMISSION_FEE' && item.transactionType !== 'LATE_FEE' && item.transactionType !== 'LATE_FINE' && item.transactionType !== 'LATE_FEE_WAIVER') {
+      const isEligible = [
+        'CAPITAL_DEPOSIT',
+        'MONTHLY_COLLECTION',
+        'COLLECTION_REVERSAL',
+        'BENEFIT',
+        'PROFIT_DISTRIBUTION',
+        'NORMAL_EXIT',
+        'EARLY_EXIT',
+        'DEATH_SETTLEMENT',
+        'SETTLEMENT_PAYMENT'
+      ].includes(item.transactionType);
+      
+      if (isEligible) {
         runningBalance += (item.credit - item.debit);
       }
       return {
