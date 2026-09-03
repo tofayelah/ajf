@@ -167,32 +167,35 @@ export const SettingsView: React.FC = () => {
         });
         return;
       }
-      if (res && res.success && res.data) {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.data, null, 2));
+      if (res && res.success && res.blob) {
+        const url = window.URL.createObjectURL(res.blob);
         const downloadAnchor = document.createElement('a');
-        downloadAnchor.setAttribute("href", dataStr);
-        downloadAnchor.setAttribute("download", res.filename || `AJF-ERP-FULL-BACKUP-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
+        downloadAnchor.setAttribute("href", url);
+        downloadAnchor.setAttribute("download", res.filename || `AJF_FULL_BACKUP_${new Date().toISOString().replace(/[:.]/g, '-')}.zip`);
         document.body.appendChild(downloadAnchor);
         downloadAnchor.click();
         downloadAnchor.remove();
-
+        window.URL.revokeObjectURL(url);
+        
         setEmptyBackupConfirmModal({ isOpen: false, previewData: null });
-        setDownloadSummaryModal(res.data);
+        setDownloadSummaryModal({
+           message: 'Full authoritative backup (ZIP) downloaded successfully.',
+           counts: res.previewData?.counts || res.previewData?.recordCounts || {},
+           metadata: res.metadata
+        });
+        
         if (updateSettings) {
           updateSettings({ lastBackupDate: new Date().toISOString() });
         }
         showNotification(
-          res.data.isEmptyDatabase
-            ? (isBangla ? 'খালি ডাটাবেজ ব্যাকআপ সফলভাবে ডাউনলোড হয়েছে' : 'Empty database backup downloaded successfully')
-            : (isBangla ? 'সার্ভার অথরিটেটিভ ব্যাকআপ সফলভাবে ডাউনলোড হয়েছে' : 'Server authoritative backup downloaded successfully'),
+           isBangla ? 'সার্ভার অথরিটেটিভ ব্যাকআপ জিপ সফলভাবে ডাউনলোড হয়েছে' : 'Server authoritative ZIP backup downloaded successfully',
           'success'
         );
       } else {
-        showNotification(res?.message || 'ব্যাকআপ ডাউনলোড ব্যর্থ হয়েছে', 'error');
+        showNotification(res?.message || (isBangla ? 'ব্যাকআপ ডাউনলোড ব্যর্থ হয়েছে' : 'Backup download failed'), 'error');
       }
     } catch (err: any) {
-      console.error("Backup download error:", err);
-      showNotification('ত্রুটি ঘটেছে: ' + err.message, 'error');
+      showNotification(isBangla ? 'সার্ভার ত্রুটি: ' + err.message : 'Server Error: ' + err.message, 'error');
     } finally {
       setIsDownloadingBackup(false);
     }
@@ -200,6 +203,7 @@ export const SettingsView: React.FC = () => {
 
   const handleRestoreFileSelected = async (file: File) => {
     if (!file) return;
+
     setRestoreModalState(prev => ({
       ...prev,
       fileName: file.name,
@@ -210,40 +214,25 @@ export const SettingsView: React.FC = () => {
       confirmInput: ''
     }));
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const content = event.target?.result as string;
-        const parsed = JSON.parse(content);
-        
-        // Call backend authoritative validator
-        const validation = await appCtx?.validateRestoreBackup?.(parsed);
-        
-        setRestoreModalState(prev => ({
-          ...prev,
-          isValidating: false,
-          backupPackage: parsed,
-          validationResult: validation?.validation || null,
-          step: 'preview',
-          error: validation?.success ? null : (validation?.message || 'Validation failed')
-        }));
-      } catch (err: any) {
-        console.error("Error parsing backup file:", err);
-        setRestoreModalState(prev => ({
-          ...prev,
-          isValidating: false,
-          error: isBangla ? 'অকার্যকর JSON ফাইল অথবা ত্রুটিপূর্ণ ফরম্যাট: ' + err.message : 'Invalid JSON file format: ' + err.message
-        }));
-      }
-    };
-    reader.onerror = () => {
+    try {
+      const validation = await appCtx?.validateRestoreBackup?.(file);
+      
       setRestoreModalState(prev => ({
         ...prev,
         isValidating: false,
-        error: isBangla ? 'ফাইলটি পড়তে ব্যর্থ হয়েছে' : 'Failed to read file'
+        backupPackage: file,
+        validationResult: validation?.validation || null,
+        step: 'preview',
+        error: validation?.success ? null : (validation?.message || 'Validation failed')
       }));
-    };
-    reader.readAsText(file);
+    } catch (err: any) {
+      console.error("Error parsing backup file:", err);
+      setRestoreModalState(prev => ({
+        ...prev,
+        isValidating: false,
+        error: err.message || 'Invalid backup file format'
+      }));
+    }
   };
 
   const handleExecuteRestoreConfirm = async () => {
@@ -1264,7 +1253,7 @@ export const SettingsView: React.FC = () => {
         const isBackupEmpty = Boolean(downloadSummaryModal.isEmptyDatabase);
         const sha256 = downloadSummaryModal.sha256 || downloadSummaryModal.integrity?.sha256 || downloadSummaryModal.metadata?.checksumSha256;
         const hasValidSha = Boolean(sha256 && sha256 !== 'N/A' && typeof sha256 === 'string' && sha256.length >= 32);
-        const counts = downloadSummaryModal.recordCounts || downloadSummaryModal.metadata?.counts || {};
+        const counts = downloadSummaryModal.counts || downloadSummaryModal.recordCounts || downloadSummaryModal.metadata?.counts || {};
         const acc = downloadSummaryModal.accountingSummary || {};
         const integrity = downloadSummaryModal.integrity || {};
 

@@ -280,14 +280,42 @@ export async function downloadAuthoritativeBackupAPI(allowEmpty?: boolean) {
     const err = await response.json().catch(() => ({}));
     throw new ApiError(err.error || 'Failed to download server backup', response.status, err);
   }
-  return response.json();
+  const blob = await response.blob();
+  const contentDisposition = response.headers.get('Content-Disposition');
+  const metadataHeader = response.headers.get('X-Backup-Metadata');
+  let metadata: any = {};
+  if (!metadataHeader) {
+    throw new Error('Backup metadata unavailable (Missing Headers)');
+  }
+  try {
+    metadata = JSON.parse(decodeURIComponent(metadataHeader));
+    if (!metadata.counts || Object.keys(metadata.counts).length === 0) {
+      throw new Error('Backup metadata empty counts');
+    }
+  } catch(e) {
+    throw new Error('Backup metadata unavailable (Parse Error)');
+  }
+  let filename = 'AJF_FULL_BACKUP.zip';
+  if (contentDisposition) { 
+    const match = contentDisposition.match(/filename="(.+)"/);
+    if (match) { filename = match[1]; }
+  }
+  return { blob, filename, metadata };
 }
 
 export async function validateRestoreBackupAPI(backupPackage: any) {
+  const formData = new FormData();
+  if (backupPackage instanceof File) {
+    formData.append('backupFile', backupPackage);
+  } else {
+    formData.append('backupPackage', JSON.stringify(backupPackage));
+  }
   const response = await authenticatedFetch('/admin/restore/validate', {
     method: 'POST',
-    body: JSON.stringify({ backupPackage })
+    body: backupPackage instanceof File ? formData : JSON.stringify({ backupPackage }),
+    headers: backupPackage instanceof File ? {} : undefined
   });
+  
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new ApiError(err.error || 'Failed to validate backup', response.status, err);
@@ -296,10 +324,20 @@ export async function validateRestoreBackupAPI(backupPackage: any) {
 }
 
 export async function executeRestoreBackupAPI(confirmationPhrase: string, backupPackage: any, reason?: string) {
+  const formData = new FormData();
+  formData.append('confirmationPhrase', confirmationPhrase);
+  if (reason) formData.append('reason', reason);
+  if (backupPackage instanceof File) {
+    formData.append('backupFile', backupPackage);
+  } else {
+    formData.append('backupPackage', JSON.stringify(backupPackage));
+  }
   const response = await authenticatedFetch('/admin/restore/execute', {
     method: 'POST',
-    body: JSON.stringify({ confirmationPhrase, backupPackage, reason })
+    body: backupPackage instanceof File ? formData : JSON.stringify({ confirmationPhrase, backupPackage, reason }),
+    headers: backupPackage instanceof File ? {} : undefined
   });
+  
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new ApiError(err.error || 'Failed to restore database from backup', response.status, err);

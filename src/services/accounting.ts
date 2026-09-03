@@ -2498,6 +2498,39 @@ export class AccountingService {
       remarks: `কালেকশন রসিদ ${receiptNo} বাতিল/রিভার্স করা হয়েছে (কারণ: ${reason})`
     };
 
+    // 6. Reverse Journal Entry
+    let updatedJournalEntries = [...(db.journalEntries || [])];
+    let updatedJournalLines = [...(db.journalLines || [])];
+    
+    const originalJournal = (db.journalEntries || []).find(j => j.reference === receiptNo && j.sourceType === 'COLLECTION');
+    if (originalJournal) {
+      const originalLines = (db.journalLines || []).filter(l => l.journalEntryId === originalJournal.id);
+      
+      const revLines = originalLines.map(line => ({
+        accountId: line.accountId,
+        accountName: line.accountName,
+        debit: line.credit || 0,
+        credit: line.debit || 0,
+        description: `কালেকশন বাতিল রিভার্সাল: ${line.description || receiptNo}`
+      }));
+
+      const journalRes = this.postJournalEntry(db, {
+        journalNo: `JNL-REV-${Date.now()}`,
+        date: dateStr,
+        reference: receiptNo,
+        description: `Collection Reversal for ${memberName} (${receiptNo})`,
+        sourceType: 'COLLECTION_REVERSAL',
+        sourceId: (originalJournal.sourceId || targetCollections[0].collectionId) + '-REV',
+        createdBy: reversedBy,
+        status: 'ACTIVE'
+      }, revLines);
+
+      if (journalRes.success && journalRes.entry && journalRes.lines) {
+        updatedJournalEntries.push(journalRes.entry);
+        updatedJournalLines.push(...journalRes.lines);
+      }
+    }
+
     const updatedDb: AppDatabaseState = {
       ...db,
       collections: updatedCollections,
@@ -2505,7 +2538,9 @@ export class AccountingService {
       cashTransactions: updatedCash,
       bankTransactions: updatedBank,
       lateFeeWaivers: updatedWaivers,
-      auditLogs: [auditLog, ...(db.auditLogs || [])]
+      auditLogs: [auditLog, ...(db.auditLogs || [])],
+      journalEntries: updatedJournalEntries,
+      journalLines: updatedJournalLines
     };
 
     return {

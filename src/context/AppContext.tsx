@@ -567,7 +567,7 @@ interface AppContextType {
   getFactoryResetPreview: () => Promise<any>;
   executeFactoryReset: (confirmationPhrase: string, reason?: string) => Promise<{ success: boolean; data?: any; message?: string }>;
   fetchBackupPreview: () => Promise<any>;
-  downloadAuthoritativeBackup: (allowEmpty?: boolean) => Promise<{ success: boolean; data?: any; message?: string; filename?: string; isConfirmationRequired?: boolean; isEmptyDatabase?: boolean; previewData?: any }>;
+  downloadAuthoritativeBackup: (allowEmpty?: boolean) => Promise<{ success: boolean; data?: any; blob?: Blob; message?: string; filename?: string; isConfirmationRequired?: boolean; isEmptyDatabase?: boolean; previewData?: any; metadata?: any }>;
   validateRestoreBackup: (backupPackage: any) => Promise<{ success: boolean; validation?: any; message?: string }>;
   executeRestoreBackup: (confirmationPhrase: string, backupPackage: any, reason?: string) => Promise<{ success: boolean; data?: any; message?: string }>;
   restoreBackup: (backupDb: any) => Promise<boolean> | boolean;
@@ -1170,16 +1170,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const downloadAuthoritativeBackup = async (allowEmpty?: boolean): Promise<{ success: boolean; data?: any; message?: string; filename?: string; isConfirmationRequired?: boolean; isEmptyDatabase?: boolean; previewData?: any }> => {
+  const downloadAuthoritativeBackup = async (allowEmpty?: boolean): Promise<{ success: boolean; data?: any; blob?: Blob; message?: string; filename?: string; isConfirmationRequired?: boolean; isEmptyDatabase?: boolean; previewData?: any; metadata?: any }> => {
     try {
-      const backupPackage = await downloadAuthoritativeBackupAPI(allowEmpty);
-      const now = new Date();
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const filename = `AJF-ERP-FULL-BACKUP-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
+      const result = await downloadAuthoritativeBackupAPI(allowEmpty);
       return {
         success: true,
-        data: backupPackage,
-        filename
+        blob: result.blob,
+        filename: result.filename,
+        metadata: result.metadata,
+        previewData: result.metadata
       };
     } catch (error: any) {
       if (error?.data?.error === 'EMPTY_DATABASE_CONFIRMATION_REQUIRED' || error?.status === 400) {
@@ -1188,10 +1187,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
           isConfirmationRequired: true,
           isEmptyDatabase: true,
           previewData: error.data,
-          message: error.data?.message || "Authoritative database contains 0 records."
+          message: error.message || 'Empty database confirmation required'
         };
       }
-      console.error("Backup download error:", error);
       return { success: false, message: error.message || "Failed to download backup" };
     }
   };
