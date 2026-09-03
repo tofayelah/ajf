@@ -21,7 +21,7 @@ interface ReceiptModalProps {
 }
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receiptNo, isOpen, onClose }) => {
-  const { db, language, reverseCollection } = useApp();
+  const { db, language, reverseCollection, activeUser } = useApp();
   const isBangla = language === 'bn';
 
   const [receiptFormat, setReceiptFormat] = useState<'A4' | 'POS'>('A4');
@@ -52,10 +52,21 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receiptNo, isOpen, o
     PdfService.exportToPdf('printable-money-receipt', `AJ_Receipt_${collection.receiptNo}.pdf`);
   };
 
-  const handleReverseSubmit = (e: React.FormEvent) => {
+  const handleReverseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reversalReason.trim()) return;
-    reverseCollection(collection.receiptNo, reversalReason.trim());
+    
+    try {
+      const res = await reverseCollection(collection.receiptNo, reversalReason.trim(), activeUser?.username || 'System');
+      if (res && res.success) {
+        alert('রসিদটি সফলভাবে রিভার্স/বাতিল করা হয়েছে।');
+      } else {
+        alert('রিভার্স করতে সমস্যা হয়েছে: ' + (res?.message || 'অজানা ত্রুটি'));
+      }
+    } catch (err: any) {
+      alert('ত্রুটি: ' + err.message);
+    }
+    
     setIsReversalDialogOpen(false);
   };
 

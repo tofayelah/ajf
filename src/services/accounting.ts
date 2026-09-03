@@ -6983,10 +6983,17 @@ export class AccountingService {
     // 8. Explicit member ledger records (Fallback for legacy/manual entries)
     (db.memberLedgers || []).filter(l => isMemberMatch(l.memberId)).forEach(l => {
       // Skip if this ledger entry's source or voucher was already processed from primary tables
-      if ((l.voucherNo && processedVouchers.has(l.voucherNo)) || 
+      // We skip if we are an ACTIVE original entry processed above.
+      // But we MUST NOT skip if we are a reversal entry (OTHER or explicitly a reversal)
+      // because primary tables only process ACTIVE collections above.
+      const isReversal = l.description?.includes('কালেকশন রিভার্সাল') || l.transactionType === 'OTHER';
+      
+      if (!isReversal && (
+          (l.voucherNo && processedVouchers.has(l.voucherNo)) || 
           (l.receiptNo && processedVouchers.has(l.receiptNo)) || 
           (l.sourceId && processedVouchers.has(l.sourceId)) || 
-          (l.ledgerId && processedVouchers.has(l.ledgerId))) {
+          (l.ledgerId && processedVouchers.has(l.ledgerId))
+      )) {
           return;
       }
 
@@ -6997,6 +7004,7 @@ export class AccountingService {
       if (tType === 'WELFARE_GRANT') tType = 'BENEFIT';
       if (tType === 'MEMBER_EXIT') tType = 'SETTLEMENT_PAYMENT';
       if (tType === 'REVERSAL') tType = 'ADJUSTMENT';
+      if (l.description?.includes('কালেকশন রিভার্সাল')) tType = 'MONTHLY_COLLECTION';
 
       rawItems.push({
         id: l.ledgerId || `ML-${l.voucherNo || Math.random()}`,

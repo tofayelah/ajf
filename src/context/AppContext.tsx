@@ -192,7 +192,7 @@ interface AppContextType {
   }) => Promise<{ success: boolean; message: string; receiptNo?: string; updatedDb?: AppDatabaseState }> | { success: boolean; message: string; receiptNo?: string; updatedDb?: AppDatabaseState };
   reverseCollection: (
     receiptNo: string,
-    reason: string,
+    reason: string, reversedBy?: string
   ) => Promise<{ success: boolean; message: string }> | { success: boolean; message: string };
   postCapitalDeposit: (params: {
     memberId: string;
