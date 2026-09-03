@@ -117,33 +117,81 @@ export function scanAuditExceptions(db: AppDatabaseState): AuditException[] {
   });
 
   // 2. Duplicate Voucher Numbers across primary financial transaction records
-  const voucherSources = new Map<string, string[]>();
-  const checkVoucher = (vNo?: string, moduleName?: string) => {
+  const voucherSources = new Map<string, Array<{ moduleName: string; record: any }>>();
+  
+  const checkVoucher = (record: any, moduleName: string) => {
+    const vNo = record.voucherNo || record.loanId;
     if (!vNo) return;
-    const modules = voucherSources.get(vNo) || [];
-    modules.push(moduleName || 'Transaction');
-    voucherSources.set(vNo, modules);
-    if (modules.length === 2) {
-      exceptions.push({
-        id: `EXC-DUP-VOUCHER-${vNo}`,
-        severity: 'CRITICAL',
-        category: 'CASH_BANK',
-        title: 'Duplicate Voucher Number Detected (দ্বৈত ভাউচার নম্বর)',
-        description: `Voucher No "${vNo}" is duplicated across: ${modules.join(', ')}.`,
-        referenceId: vNo,
-        voucherNo: vNo,
-        suggestedAction: 'Inspect records using this voucher and re-assign unique serial identifiers.'
-      });
+    
+    const existingRecords = voucherSources.get(vNo) || [];
+    
+    let isDuplicate = false;
+    let dupDetails = '';
+    
+    for (const existing of existingRecords) {
+      // RULE 2: Different member under same voucher
+      const hasMember1 = Boolean(existing.record.memberId);
+      const hasMember2 = Boolean(record.memberId);
+      if (hasMember1 && hasMember2 && existing.record.memberId !== record.memberId) {
+        isDuplicate = true;
+        dupDetails = `Voucher assigned to multiple members (${existing.record.memberId} vs ${record.memberId})`;
+        break;
+      }
+      
+      // RULE 3 & 6: Same Member + Same Financial Component (TRUE DUPLICATE)
+      const isActive1 = ['POSTED', 'ACTIVE', 'APPROVED'].includes(existing.record.status?.toUpperCase() || 'POSTED');
+      const isActive2 = ['POSTED', 'ACTIVE', 'APPROVED'].includes(record.status?.toUpperCase() || 'POSTED');
+      
+      if (isActive1 && isActive2) {
+        if (existing.record.memberId === record.memberId) {
+          const sameAmount = (existing.record.amount || existing.record.paidAmount || 0) === (record.amount || record.paidAmount || 0);
+          
+          const head1 = existing.record.incomeHead || existing.record.expenseHead || existing.record.accountId || existing.record.type || '';
+          const head2 = record.incomeHead || record.expenseHead || record.accountId || record.type || '';
+          const sameHead = head1 === head2;
+          
+          if (sameAmount && sameHead && head1 !== '') {
+            const sourceType1 = existing.record.sourceType || '';
+            const sourceType2 = record.sourceType || '';
+            const isCorrection = (sourceType1 !== sourceType2) && (sourceType1.includes('CORRECTION') || sourceType2.includes('CORRECTION') || sourceType1.includes('REVERSAL') || sourceType2.includes('REVERSAL'));
+            
+            if (!isCorrection) {
+              isDuplicate = true;
+              dupDetails = `True duplicate financial transaction (same amount and head: ${head1})`;
+              break;
+            }
+          }
+        }
+      }
     }
+
+    if (isDuplicate) {
+      const alreadyFlagged = exceptions.some(e => e.id === `EXC-DUP-VOUCHER-${vNo}`);
+      if (!alreadyFlagged) {
+        exceptions.push({
+          id: `EXC-DUP-VOUCHER-${vNo}`,
+          severity: 'CRITICAL',
+          category: 'CASH_BANK',
+          title: 'Duplicate Voucher Number Detected (দ্বৈত ভাউচার নম্বর)',
+          description: `Voucher No "${vNo}" has duplicate financial transactions (${dupDetails}).`,
+          referenceId: vNo,
+          voucherNo: vNo,
+          suggestedAction: 'Inspect records using this voucher and remove or re-assign duplicate financial transactions.'
+        });
+      }
+    }
+    
+    existingRecords.push({ moduleName, record });
+    voucherSources.set(vNo, existingRecords);
   };
 
-  (db.incomes || []).forEach(i => checkVoucher(i.voucherNo, 'Income'));
-  (db.expenses || []).forEach(e => checkVoucher(e.voucherNo, 'Expense'));
-  (db.capitalDeposits || []).forEach(c => checkVoucher(c.voucherNo, 'Capital Deposit'));
-  (db.contraTransactions || []).forEach(c => checkVoucher(c.voucherNo, 'Contra'));
-  (db.loanRepayments || []).forEach(r => checkVoucher(r.voucherNo, 'Loan Repayment'));
-  (db.loans || []).forEach(l => checkVoucher(l.loanId, 'Loan'));
-  (db.welfareTransactions || []).forEach(w => checkVoucher(w.voucherNo, 'Welfare Transaction'));
+  (db.incomes || []).forEach(i => checkVoucher(i, 'Income'));
+  (db.expenses || []).forEach(e => checkVoucher(e, 'Expense'));
+  (db.capitalDeposits || []).forEach(c => checkVoucher(c, 'Capital Deposit'));
+  (db.contraTransactions || []).forEach(c => checkVoucher(c, 'Contra'));
+  (db.loanRepayments || []).forEach(r => checkVoucher(r, 'Loan Repayment'));
+  (db.loans || []).forEach(l => checkVoucher(l, 'Loan'));
+  (db.welfareTransactions || []).forEach(w => checkVoucher(w, 'Welfare Transaction'));
 
   // 3. Duplicate Collections for Same Member in Same Month
   const memberMonthCollections = new Map<string, any[]>();
