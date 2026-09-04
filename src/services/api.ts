@@ -117,6 +117,18 @@ export async function updateUserAPI(userId: string, data: any) {
   return response.json();
 }
 
+export async function updateUserAccountStatusAPI(userId: string, status: 'ACTIVE' | 'DISABLED' | 'LOCKED') {
+  const response = await authenticatedFetch(`/users/${userId}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to update user account status', response.status, err);
+  }
+  return response.json();
+}
+
 export async function resetUserPasswordAPI(userId: string, password: string) {
   const response = await authenticatedFetch(`/users/${userId}/reset-password`, {
     method: 'POST',

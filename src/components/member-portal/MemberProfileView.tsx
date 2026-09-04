@@ -28,6 +28,7 @@ export const MemberProfileView: React.FC = () => {
   // Server-authoritative linkedMemberId is the only permitted ID
   const linkedMemberId = activeUser?.linkedMemberId;
   const initialCachedMember = (db.members || []).find(m => m.memberId === linkedMemberId) || null;
+  const userAccount = (db.users || []).find(u => u.linkedMemberId === linkedMemberId && u.role === 'MEMBER') || activeUser;
 
   const [member, setMember] = useState<Member | null>(initialCachedMember);
   const [isLoading, setIsLoading] = useState<boolean>(!initialCachedMember && !!linkedMemberId);
@@ -464,6 +465,64 @@ export const MemberProfileView: React.FC = () => {
               {isBangla ? 'কোন নমিনীর তথ্য অন্তর্ভুক্ত নেই' : 'No nominee information on record'}
             </div>
           )}
+        </div>
+
+        {/* Card 5: Account Status (STRICTLY READ-ONLY FOR MEMBER) */}
+        <div id="member-account-status-card" className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4 md:col-span-2">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-blue-600" />
+              <span>{isBangla ? 'অ্যাকাউন্টের অবস্থা (Login Account)' : 'Account Status'}</span>
+            </h3>
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
+              <span>{isBangla ? 'শুধুমাত্র প্রদর্শনযোগ্য (View Only)' : 'View Only'}</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+            <div>
+              <span className="text-slate-500 text-xs font-medium block mb-1">
+                {isBangla ? 'অ্যাকাউন্টের অবস্থা' : 'Status'}
+              </span>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+                (userAccount?.status || 'ACTIVE') === 'ACTIVE'
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  : 'bg-rose-100 text-rose-800 border border-rose-300'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${(userAccount?.status || 'ACTIVE') === 'ACTIVE' ? 'bg-emerald-600' : 'bg-rose-600'}`}></span>
+                {userAccount?.status || (member.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')}
+              </span>
+            </div>
+
+            <div>
+              <span className="text-slate-500 text-xs font-medium block mb-1">
+                {isBangla ? 'ইউজারনেম' : 'Username'}
+              </span>
+              <span className="text-slate-900 font-bold font-mono text-sm">
+                {userAccount?.username || activeUser?.username || member.mobile || '—'}
+              </span>
+            </div>
+
+            <div>
+              <span className="text-slate-500 text-xs font-medium block mb-1">
+                {isBangla ? 'সর্বশেষ লগইন' : 'Last Login'}
+              </span>
+              <span className="text-slate-700 font-medium text-xs">
+                {userAccount?.lastLoginAt 
+                  ? new Date(userAccount.lastLoginAt).toLocaleString() 
+                  : activeUser?.lastLoginAt
+                  ? new Date(activeUser.lastLoginAt).toLocaleString()
+                  : (isBangla ? 'কখনও না (Never)' : 'Never')}
+              </span>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-slate-500 italic">
+            {isBangla
+              ? 'নিরাপত্তা বিধি অনুযায়ী অ্যাকাউন্টের অবস্থা পরিবর্তন কেবল কেন্দ্রীয় অ্যাডমিন দ্বারা নিয়ন্ত্রিত।'
+              : 'Per society security policy, login account status is strictly view-only and controlled by system administration.'}
+          </p>
         </div>
       </div>
         </>

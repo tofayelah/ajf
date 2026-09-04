@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { AttachmentManager } from '../shared/AttachmentManager';
 import { User, X, Phone, Mail, MapPin, Briefcase, Calendar, KeyRound, ShieldCheck, Lock, Unlock, UserX, UserCheck, Trash2, BookOpen } from 'lucide-react';
 import { MemberActionModals } from './MemberActionModals';
+import { updateUserAccountStatusAPI } from '../../services/api';
 
 interface Props {
   memberId: string;
@@ -10,7 +11,7 @@ interface Props {
 }
 
 export const MemberProfileModal: React.FC<Props> = ({ memberId, onClose }) => {
-  const { db, setDb, language, getCurrentUser, navigateTo } = useApp();
+  const { db, setDb, language, getCurrentUser, navigateTo, showNotification } = useApp();
   const isBangla = language === 'bn';
   const currentUser = getCurrentUser();
   const isAdmin = currentUser?.role === 'ADMIN';
@@ -65,13 +66,26 @@ export const MemberProfileModal: React.FC<Props> = ({ memberId, onClose }) => {
     setIsCreatingLogin(false);
   };
 
-  const handleToggleStatus = () => {
-    if (!userAccount) return;
+  const handleToggleStatus = async () => {
+    if (!userAccount || !isAdmin) return;
     const newStatus = userAccount.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
-    setDb(prev => ({
-      ...prev,
-      users: (prev.users || []).map(u => u.userId === userAccount.userId ? { ...u, status: newStatus as any } : u)
-    }));
+    try {
+      const res = await updateUserAccountStatusAPI(userAccount.userId, newStatus);
+      if (res && res.success) {
+        setDb(prev => ({
+          ...prev,
+          users: (prev.users || []).map(u => u.userId === userAccount.userId ? { ...u, status: newStatus as any } : u)
+        }));
+        showNotification(
+          isBangla 
+            ? `অ্যাকাউন্ট সফলভাবে ${newStatus === 'ACTIVE' ? 'সক্রিয়' : 'নিষ্ক্রিয়'} করা হয়েছে` 
+            : `Account successfully ${newStatus === 'ACTIVE' ? 'enabled' : 'disabled'}`,
+          'success'
+        );
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Failed to update account status', 'error');
+    }
   };
 
   return (
@@ -215,32 +229,42 @@ export const MemberProfileModal: React.FC<Props> = ({ memberId, onClose }) => {
                   <p className="text-sm text-slate-600 mt-1">Username: <strong>{userAccount.username}</strong></p>
                   <p className="text-xs text-slate-500">Last Login: {userAccount.lastLoginAt ? new Date(userAccount.lastLoginAt).toLocaleString() : 'Never'}</p>
                 </div>
-                <div className="flex flex-col gap-2 w-full sm:w-auto">
-                  <button 
-                    onClick={handleToggleStatus}
-                    className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 ${
-                      userAccount.status === 'ACTIVE' 
-                        ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' 
-                        : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                    }`}
-                  >
-                    {userAccount.status === 'ACTIVE' ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-                    <span>{userAccount.status === 'ACTIVE' ? (isBangla ? 'নিষ্ক্রিয় করুন' : 'Disable Account') : (isBangla ? 'সক্রিয় করুন' : 'Enable Account')}</span>
-                  </button>
-                </div>
+                {isAdmin ? (
+                  <div className="flex flex-col gap-2 w-full sm:w-auto">
+                    <button 
+                      id="btn-toggle-account-status"
+                      onClick={handleToggleStatus}
+                      className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors ${
+                        userAccount.status === 'ACTIVE' 
+                          ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' 
+                          : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                      }`}
+                    >
+                      {userAccount.status === 'ACTIVE' ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                      <span>{userAccount.status === 'ACTIVE' ? (isBangla ? 'নিষ্ক্রিয় করুন' : 'Disable Account') : (isBangla ? 'সক্রিয় করুন' : 'Enable Account')}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-200/70 px-3 py-1.5 rounded-full border border-slate-300/60">
+                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{isBangla ? 'শুধুমাত্র প্রদর্শনযোগ্য (View Only)' : 'View Only'}</span>
+                  </span>
+                )}
               </div>
             ) : (
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                 <p className="text-sm font-medium text-slate-600">
                   {isBangla ? 'এই সদস্যের জন্য কোনো লগইন অ্যাকাউন্ট নেই।' : 'No login account exists for this member.'}
                 </p>
-                <button 
-                  onClick={() => setIsCreatingLogin(true)}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold flex items-center gap-2"
-                >
-                  <KeyRound className="w-4 h-4" />
-                  <span>{isBangla ? 'লগইন অ্যাকাউন্ট তৈরি করুন' : 'Create Login Account'}</span>
-                </button>
+                {isAdmin && (
+                  <button 
+                    onClick={() => setIsCreatingLogin(true)}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 cursor-pointer"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                    <span>{isBangla ? 'লগইন অ্যাকাউন্ট তৈরি করুন' : 'Create Login Account'}</span>
+                  </button>
+                )}
               </div>
             )}
           </div>

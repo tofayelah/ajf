@@ -993,6 +993,19 @@ app.put("/api/member/profile", requireAuth, async (req, res) => {
       return res.status(403).json({ error: "Forbidden: Cannot update another member's profile" });
     }
 
+    // CRITICAL: Prevent any attempt by a member to alter account status, role, permissions, credentials, or IDs
+    const FORBIDDEN_SECURITY_FIELDS = [
+      'status', 'accountStatus', 'role', 'permissions', 
+      'linkedMemberId', 'userId', 'username', 'membershipNo', 'membershipId'
+    ];
+    for (const field of FORBIDDEN_SECURITY_FIELDS) {
+      if (req.body && req.body[field] !== undefined) {
+        return res.status(403).json({ 
+          error: `Forbidden: Members are strictly prohibited from modifying ${field}` 
+        });
+      }
+    }
+
     // STRICT WHITELIST: Reject any attempt to submit unapproved fields (e.g. capital, balance, chanda, loan, etc.)
     const submittedKeys = Object.keys(req.body || {});
     const disallowedKeys = submittedKeys.filter(k => !ALLOWED_MEMBER_SELF_UPDATE_FIELDS.has(k));
@@ -2044,6 +2057,9 @@ app.post("/api/users", requireAuth, requirePermission("users.create"), async (re
 });
 app.put("/api/users/:id", requireAuth, requirePermission("users.edit"), async (req, res) => {
   try {
+    if (req.user?.role === "MEMBER") {
+      return res.status(403).json({ error: "Forbidden: Members are strictly prohibited from modifying user accounts or account status" });
+    }
     const data = await fs.readFile(DB_FILE, "utf8");
     const db = JSON.parse(data);
     const { fullName, username, mobile, email, role, status, linkedMemberId, password, pin, permissions } = req.body;
@@ -2221,6 +2237,9 @@ app.post("/api/users/:id/permissions", requireAuth, requirePermission("users.ass
 });
 app.delete("/api/users/:id", requireAuth, requirePermission("users.disable"), async (req, res) => {
   try {
+    if (req.user?.role === "MEMBER") {
+      return res.status(403).json({ error: "Forbidden: Members cannot delete or disable user accounts" });
+    }
     const data = await fs.readFile(DB_FILE, "utf8");
     const db = JSON.parse(data);
     const userIndex = db.users?.findIndex((u) => u.userId === req.params.id);
@@ -2240,6 +2259,164 @@ app.delete("/api/users/:id", requireAuth, requirePermission("users.disable"), as
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message || "Server error deleting user" });
+  }
+});
+
+// Dedicated Account Status Endpoints (Independently enforce authorization)
+app.all([
+  "/api/users/:id/status",
+  "/api/users/:id/disable",
+  "/api/users/:id/enable",
+  "/api/users/:id/activate",
+  "/api/users/:id/deactivate",
+  "/api/users/:id/suspend",
+  "/api/users/:id/reactivate"
+], requireAuth, async (req, res) => {
+  try {
+    // CRITICAL: A MEMBER must NEVER be able to change account status
+    if (req.user?.role === "MEMBER") {
+      return res.status(403).json({ 
+        error: "Forbidden: Members are strictly prohibited from changing account status" 
+      });
+    }
+
+    // Must be ADMIN or have explicit users.disable / users.edit permission
+    const data = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(data);
+    if (req.user?.role !== "ADMIN") {
+      const caller = db.users?.find((u) => u.userId === req.user?.userId);
+      const explicitPerms = caller?.permissions || [];
+      if (!explicitPerms.includes("users.disable") && !explicitPerms.includes("users.edit")) {
+        return res.status(403).json({ error: "Forbidden: Insufficient permissions to change account status" });
+      }
+    }
+
+    const userIndex = db.users?.findIndex((u) => u.userId === req.params.id);
+    if (userIndex === -1 || userIndex === undefined) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    const targetUser = db.users[userIndex];
+
+    let targetStatus: string;
+    const url = req.originalUrl || req.url || '';
+    if (url.includes('/disable') || url.includes('/deactivate') || url.includes('/suspend')) {
+      targetStatus = 'DISABLED';
+    } else if (url.includes('/enable') || url.includes('/activate') || url.includes('/reactivate')) {
+      targetStatus = 'ACTIVE';
+    } else {
+      targetStatus = req.body?.status 
+        ? String(req.body.status).toUpperCase() 
+        : (targetUser.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE');
+    }
+
+    if (!VALID_STATUSES.includes(targetStatus)) {
+      return res.status(400).json({ error: `Invalid status: ${targetStatus}` });
+    }
+
+    if (targetUser.role === "ADMIN" && targetUser.status === "ACTIVE" && targetStatus !== "ACTIVE") {
+      const activeAdmins = db.users.filter((u) => u.role === "ADMIN" && u.status === "ACTIVE");
+      if (activeAdmins.length <= 1) {
+        return res.status(400).json({ error: "Cannot deactivate or disable the last active ADMIN" });
+      }
+    }
+
+    const oldStatus = targetUser.status;
+    targetUser.status = targetStatus;
+
+    const caller = db.users.find((u) => u.userId === req.user.userId);
+    if (caller) req.user.username = caller.fullName || caller.username;
+    logAudit(
+      db,
+      req,
+      targetStatus === "ACTIVE" ? "USER_ENABLED" : "USER_DISABLED",
+      "USER_MANAGEMENT",
+      `Status changed from ${oldStatus} to ${targetStatus} for ${targetUser.username}`,
+      targetUser.userId
+    );
+
+    await writeDbFile(db);
+    const { passwordHash, pinHash, salt, ...safeUser } = targetUser;
+    res.json({ success: true, status: targetStatus, user: safeUser });
+  } catch (error: any) {
+    console.error("Error updating account status:", error);
+    res.status(500).json({ error: error.message || "Server error updating account status" });
+  }
+});
+
+// Member Account Status Interceptors (Protection against self or other member status mutations)
+app.all([
+  "/api/member/account-status", 
+  "/api/member/status", 
+  "/api/members/:memberId/account-status", 
+  "/api/members/:memberId/status",
+  "/api/members/:memberId/disable",
+  "/api/members/:memberId/enable",
+  "/api/members/:memberId/activate",
+  "/api/members/:memberId/deactivate",
+  "/api/members/:memberId/suspend",
+  "/api/members/:memberId/reactivate"
+], requireAuth, async (req, res) => {
+  try {
+    // CRITICAL: A MEMBER must NEVER be able to change account status
+    if (req.user?.role === "MEMBER") {
+      return res.status(403).json({ 
+        error: "Forbidden: Members are strictly prohibited from changing account status" 
+      });
+    }
+
+    if (req.user?.role !== "ADMIN") {
+      return res.status(403).json({ error: "Forbidden: Only administrators can modify member account status" });
+    }
+
+    const memberId = req.params.memberId || req.body?.memberId;
+    if (!memberId) {
+      return res.status(400).json({ error: "Missing memberId" });
+    }
+
+    const data = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(data);
+    const userIndex = (db.users || []).findIndex((u: any) => u.linkedMemberId === memberId && u.role === "MEMBER");
+    if (userIndex === -1) {
+      return res.status(404).json({ error: "No user account linked to this member" });
+    }
+    const targetUser = db.users[userIndex];
+
+    let targetStatus: string;
+    const url = req.originalUrl || req.url || '';
+    if (url.includes('/disable') || url.includes('/deactivate') || url.includes('/suspend')) {
+      targetStatus = 'DISABLED';
+    } else if (url.includes('/enable') || url.includes('/activate') || url.includes('/reactivate')) {
+      targetStatus = 'ACTIVE';
+    } else {
+      targetStatus = req.body?.status 
+        ? String(req.body.status).toUpperCase() 
+        : (targetUser.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE');
+    }
+
+    if (!VALID_STATUSES.includes(targetStatus)) {
+      return res.status(400).json({ error: `Invalid status: ${targetStatus}` });
+    }
+
+    const oldStatus = targetUser.status;
+    targetUser.status = targetStatus;
+
+    const caller = db.users.find((u: any) => u.userId === req.user.userId);
+    if (caller) req.user.username = caller.fullName || caller.username;
+    logAudit(
+      db,
+      req,
+      targetStatus === "ACTIVE" ? "USER_ENABLED" : "USER_DISABLED",
+      "USER_MANAGEMENT",
+      `Admin changed status from ${oldStatus} to ${targetStatus} for member account ${targetUser.username}`,
+      targetUser.userId
+    );
+
+    await writeDbFile(db);
+    const { passwordHash, pinHash, salt, ...safeUser } = targetUser;
+    res.json({ success: true, status: targetStatus, user: safeUser });
+  } catch (error: any) {
+    console.error("Error in member account status endpoint:", error);
+    res.status(500).json({ error: error.message || "Server error" });
   }
 });
 function computeDetailedCounts(db) {
