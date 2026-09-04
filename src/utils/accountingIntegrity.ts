@@ -1107,7 +1107,7 @@ export function validateCashMovementsReconciliation(
   // E. Expenses
   const expenses = (db.expenses || []).filter(
     (e: any) =>
-      e.status !== 'REVERSED' &&
+      e.status !== 'REVERSED' && e.approvalStatus !== 'REVERSED' && e.correctionStatus !== 'CORRECTION' &&
       e.status !== 'CANCELLED' &&
       isCashPayment(e.paymentMethod) &&
       isDateInRange(e.date || e.createdAt)

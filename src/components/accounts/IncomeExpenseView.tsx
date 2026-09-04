@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 export const IncomeExpenseView = () => {
-  const { db, setDb, activeUser, showNotification } = useApp();
+  const { db, setDb, activeUser, showNotification, executeAccountingRPC } = useApp();
   const [activeTab, setActiveTab] = useState<'INCOME' | 'EXPENSE'>('INCOME');
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,7 +54,7 @@ export const IncomeExpenseView = () => {
   // -------------------------------------------------------------
   // INCOME ACTIONS
   // -------------------------------------------------------------
-  const saveIncomeDraft = () => {
+  const saveIncomeDraft = async () => {
     if (!formData.incomeHead || formData.amount <= 0 || !formData.paymentMethod || !formData.date) {
       showNotification('দয়া করে সমস্ত আবশ্যক তথ্য দিন।', 'error');
       return;
@@ -65,14 +65,13 @@ export const IncomeExpenseView = () => {
       return;
     }
 
-    const result = AccountingService.saveIncomeDraft(db, {
+    const result = await executeAccountingRPC("saveIncomeDraft", [{
       ...formData,
       createdBy: activeUser?.fullName || 'SYSTEM'
-    });
+    }]);
 
     if (result.success) {
-      setDb(result.updatedDb!);
-      showNotification(result.message, 'success');
+            showNotification(result.message, 'success');
       setShowIncomeModal(false);
       setFormData({});
     } else {
@@ -80,37 +79,34 @@ export const IncomeExpenseView = () => {
     }
   };
 
-  const postIncome = (id: string) => {
+  const postIncome = async (id: string) => {
     if (!activeUser) return;
-    const result = AccountingService.postIncomeDraft(db, id, activeUser.userId, activeUser.fullName);
+    const result = await executeAccountingRPC("postIncomeDraft", [id, activeUser.userId, activeUser.fullName]);
     if (result.success) {
-      setDb(result.updatedDb!);
-      showNotification(result.message, 'success');
+            showNotification(result.message, 'success');
     } else {
       showNotification(result.message, 'error');
     }
   };
 
-  const deleteIncomeDraft = (id: string) => {
+  const deleteIncomeDraft = async (id: string) => {
     if (!activeUser) return;
     if (!window.confirm('আপনি কি এই খসড়া আয় মুছে ফেলতে চান?')) return;
-    const result = AccountingService.deleteIncomeDraft(db, id, activeUser.userId, activeUser.fullName);
+    const result = await executeAccountingRPC("deleteIncomeDraft", [id, activeUser.userId, activeUser.fullName]);
     if (result.success) {
-      setDb(result.updatedDb!);
-      showNotification(result.message, 'success');
+            showNotification(result.message, 'success');
     } else {
       showNotification(result.message, 'error');
     }
   };
 
-  const reverseIncome = () => {
+  const reverseIncome = async () => {
     if (!activeUser || !selectedRecord || !correctionReason) return;
     if (!window.confirm('আপনি কি নিশ্চিত যে এই লেনদেনটি বাতিল করতে চান?')) return;
     
-    const result = AccountingService.reverseIncome(db, selectedRecord.incomeId, activeUser.userId, activeUser.fullName, correctionReason);
+    const result = await executeAccountingRPC("reverseIncome", [selectedRecord.incomeId, activeUser.userId, activeUser.fullName, correctionReason]);
     if (result.success) {
-      setDb(result.updatedDb!);
-      showNotification(result.message, 'success');
+            showNotification(result.message, 'success');
       setShowReversalModal(false);
       setCorrectionReason('');
       setSelectedRecord(null);
@@ -119,17 +115,16 @@ export const IncomeExpenseView = () => {
     }
   };
 
-  const correctIncome = () => {
+  const correctIncome = async () => {
     if (!activeUser || !selectedRecord || !correctionReason) return;
     if (!formData.incomeHead || formData.amount <= 0 || !formData.paymentMethod) {
       showNotification('দয়া করে সমস্ত আবশ্যক তথ্য দিন।', 'error');
       return;
     }
 
-    const result = AccountingService.correctIncome(db, selectedRecord.incomeId, formData, activeUser.userId, activeUser.fullName, correctionReason);
+    const result = await executeAccountingRPC("correctIncome", [selectedRecord.incomeId, formData, activeUser.userId, activeUser.fullName, correctionReason]);
     if (result.success) {
-      setDb(result.updatedDb!);
-      showNotification(result.message, 'success');
+            showNotification(result.message, 'success');
       setShowCorrectionModal(false);
       setCorrectionReason('');
       setSelectedRecord(null);
@@ -142,7 +137,7 @@ export const IncomeExpenseView = () => {
   // -------------------------------------------------------------
   // EXPENSE ACTIONS
   // -------------------------------------------------------------
-  const saveExpenseDraft = () => {
+  const saveExpenseDraft = async () => {
     if (!formData.expenseHead || formData.amount <= 0 || !formData.paymentMethod || !formData.date) {
       showNotification('দয়া করে সমস্ত আবশ্যক তথ্য দিন।', 'error');
       return;
@@ -153,14 +148,13 @@ export const IncomeExpenseView = () => {
       return;
     }
 
-    const result = AccountingService.saveExpenseDraft(db, {
+    const result = await executeAccountingRPC("saveExpenseDraft", [{
       ...formData,
       createdBy: activeUser?.fullName || 'SYSTEM'
-    });
+    }]);
 
     if (result.success) {
-      setDb(result.updatedDb!);
-      showNotification(result.message, 'success');
+            showNotification(result.message, 'success');
       setShowExpenseModal(false);
       setFormData({});
     } else {
@@ -168,59 +162,54 @@ export const IncomeExpenseView = () => {
     }
   };
 
-  const submitExpense = (id: string) => {
+  const submitExpense = async (id: string) => {
     if (!activeUser) return;
-    const result = AccountingService.submitExpenseDraft(db, id, activeUser.userId, activeUser.fullName);
+    const result = await executeAccountingRPC("submitExpenseDraft", [id, activeUser.userId, activeUser.fullName]);
     if (result.success) {
-      setDb(result.updatedDb!);
-      showNotification(result.message, 'success');
+            showNotification(result.message, 'success');
     } else {
       showNotification(result.message, 'error');
     }
   };
 
-  const approveExpense = (id: string) => {
+  const approveExpense = async (id: string) => {
     if (!activeUser) return;
-    const result = AccountingService.approveExpense(db, id, activeUser.userId, activeUser.fullName);
+    const result = await executeAccountingRPC("approveExpense", [id, activeUser.userId, activeUser.fullName]);
     if (result.success) {
-      setDb(result.updatedDb!);
-      showNotification(result.message, 'success');
+            showNotification(result.message, 'success');
     } else {
       showNotification(result.message, 'error');
     }
   };
 
-  const postExpense = (id: string) => {
+  const postExpense = async (id: string) => {
     if (!activeUser) return;
-    const result = AccountingService.postExpenseDraft(db, id, activeUser.userId, activeUser.fullName);
+    const result = await executeAccountingRPC("postExpenseDraft", [id, activeUser.userId, activeUser.fullName]);
     if (result.success) {
-      setDb(result.updatedDb!);
-      showNotification(result.message, 'success');
+            showNotification(result.message, 'success');
     } else {
       showNotification(result.message, 'error');
     }
   };
 
-  const deleteExpenseDraft = (id: string) => {
+  const deleteExpenseDraft = async (id: string) => {
     if (!activeUser) return;
     if (!window.confirm('আপনি কি এই খসড়া ব্যয় মুছে ফেলতে চান?')) return;
-    const result = AccountingService.deleteExpenseDraft(db, id, activeUser.userId, activeUser.fullName);
+    const result = await executeAccountingRPC("deleteExpenseDraft", [id, activeUser.userId, activeUser.fullName]);
     if (result.success) {
-      setDb(result.updatedDb!);
-      showNotification(result.message, 'success');
+            showNotification(result.message, 'success');
     } else {
       showNotification(result.message, 'error');
     }
   };
 
-  const reverseExpense = () => {
+  const reverseExpense = async () => {
     if (!activeUser || !selectedRecord || !correctionReason) return;
     if (!window.confirm('আপনি কি নিশ্চিত যে এই লেনদেনটি বাতিল করতে চান?')) return;
     
-    const result = AccountingService.reverseExpense(db, selectedRecord.expenseId, activeUser.userId, activeUser.fullName, correctionReason);
+    const result = await executeAccountingRPC("reverseExpense", [selectedRecord.expenseId, activeUser.userId, activeUser.fullName, correctionReason]);
     if (result.success) {
-      setDb(result.updatedDb!);
-      showNotification(result.message, 'success');
+            showNotification(result.message, 'success');
       setShowReversalModal(false);
       setCorrectionReason('');
       setSelectedRecord(null);
@@ -229,17 +218,16 @@ export const IncomeExpenseView = () => {
     }
   };
 
-  const correctExpense = () => {
+  const correctExpense = async () => {
     if (!activeUser || !selectedRecord || !correctionReason) return;
     if (!formData.expenseHead || formData.amount <= 0 || !formData.paymentMethod) {
       showNotification('দয়া করে সমস্ত আবশ্যক তথ্য দিন।', 'error');
       return;
     }
 
-    const result = AccountingService.correctExpense(db, selectedRecord.expenseId, formData, activeUser.userId, activeUser.fullName, correctionReason);
+    const result = await executeAccountingRPC("correctExpense", [selectedRecord.expenseId, formData, activeUser.userId, activeUser.fullName, correctionReason]);
     if (result.success) {
-      setDb(result.updatedDb!);
-      showNotification(result.message, 'success');
+            showNotification(result.message, 'success');
       setShowCorrectionModal(false);
       setCorrectionReason('');
       setSelectedRecord(null);

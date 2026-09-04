@@ -7216,7 +7216,7 @@ export class AccountingService {
     const totalIncome = (db.incomes || []).filter(i => i.status === 'POSTED')
       .reduce((sum, i) => sum + i.amount, 0);
 
-    const totalExpense = (db.expenses || []).filter(e => e.approvalStatus === 'PAID')
+    const totalExpense = (db.expenses || []).filter(e => e.approvalStatus === 'POSTED')
       .reduce((sum, e) => sum + e.amount, 0);
 
     const cashBalance = this.getCashBalance(db.cashTransactions);

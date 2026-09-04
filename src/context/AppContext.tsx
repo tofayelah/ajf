@@ -346,6 +346,7 @@ interface AppContextType {
     status?: "ACTIVE" | "INACTIVE";
     remarks?: string;
   }) => Promise<{ success: boolean; message: string; updatedDb?: AppDatabaseState }> | { success: boolean; message: string; updatedDb?: AppDatabaseState };
+  executeAccountingRPC: (action: string, args: any[]) => Promise<any>;
   postExpense: (params: {
     expenseHead: string;
     payee: string;
@@ -1299,6 +1300,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         addBankAccount,
         updateBankAccount,
         postExpense,
+        executeAccountingRPC,
         postCashTransaction,
         saveCashTransactionDraft,
         editDraftCashTransaction,

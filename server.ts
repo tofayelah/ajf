@@ -312,7 +312,6 @@ app.post("/api/sync", async (req, res) => {
             }
           });
           const protectedKeys = [
-            "members",
             "admissions",
             "collections",
             "capitalDeposits",
@@ -330,11 +329,7 @@ app.post("/api/sync", async (req, res) => {
             "journalEntries",
             "journalLines",
             "memberExits",
-            "auditLogs",
-            "cashReconciliations",
-            "bankReconciliations",
-            "bankStatementTransactions"
-          ];
+            ];
           const dbToSave = {
             ...req.body,
             users: mergedUsers.length > 0 ? mergedUsers : currentUsers
@@ -961,9 +956,9 @@ function calculateFinancialSummaryHelper(db, query = {}) {
   let filterStart = null;
   let filterEnd = null;
   const now = /* @__PURE__ */ new Date();
-  const todayStr = now.toISOString().slice10;
-  const currentMonthPrefix = todayStr.slice7;
-  const currentYearPrefix = todayStr.slice4;
+  const todayStr = now.toISOString().slice(0, 10);
+  const currentMonthPrefix = todayStr.slice(0, 7);
+  const currentYearPrefix = todayStr.slice(0, 4);
   if (period === "today") {
     filterStart = todayStr;
     filterEnd = todayStr;
@@ -980,7 +975,7 @@ function calculateFinancialSummaryHelper(db, query = {}) {
   const isDateInFilter = (dateStr) => {
     if (!filterStart && !filterEnd) return true;
     if (!dateStr) return false;
-    const d = dateStr.slice10;
+    const d = dateStr.slice(0, 10);
     if (filterStart && d < filterStart) return false;
     if (filterEnd && d > filterEnd) return false;
     return true;
@@ -1475,7 +1470,6 @@ function validateAccountingAndIntegrity(db) {
     };
   }
   const requiredArrays = [
-    "members",
     "admissions",
     "capitalDeposits",
     "collections",
@@ -1515,7 +1509,7 @@ function validateAccountingAndIntegrity(db) {
     }
   });
   if (duplicateMembers.length > 0) {
-    errors.push(`Duplicate Member IDs detected: ${duplicateMembers.slice5.join(", ")}`);
+    errors.push(`Duplicate Member IDs detected: ${duplicateMembers.slice(0, 5).join(", ")}`);
   }
   let orphanMemberTxnsCount = 0;
   const memberLinkedArrays = [
@@ -1553,7 +1547,7 @@ function validateAccountingAndIntegrity(db) {
     }
   });
   if (duplicateJournals.length > 0) {
-    errors.push(`Duplicate Journal Entry IDs detected: ${duplicateJournals.slice5.join(", ")}`);
+    errors.push(`Duplicate Journal Entry IDs detected: ${duplicateJournals.slice(0, 5).join(", ")}`);
   }
   let totalDebit = 0;
   let totalCredit = 0;
@@ -1593,7 +1587,7 @@ function validateAccountingAndIntegrity(db) {
     }
   });
   if (unbalancedJournals.length > 0) {
-    errors.push(`Unbalanced journal entries detected: ${unbalancedJournals.slice5.join("; ")}`);
+    errors.push(`Unbalanced journal entries detected: ${unbalancedJournals.slice(0, 5).join("; ")}`);
   }
   const diff = Math.abs(totalDebit - totalCredit);
   if (diff > 0.01) {
@@ -2137,7 +2131,48 @@ var handleRestoreExecute = async (req, res) => {
     });
   }
 };
-var handleFactoryResetPreview = async (req, res) => {
+function computeFactoryResetCounts(db: any) {
+  return {
+    members: Array.isArray(db.members) ? db.members.length : 0,
+    admissions: Array.isArray(db.admissions) ? db.admissions.length : 0,
+    collections: Array.isArray(db.collections) ? db.collections.length : 0,
+    capitalDeposits: Array.isArray(db.capitalDeposits) ? db.capitalDeposits.length : 0,
+    loans: Array.isArray(db.loans) ? db.loans.length : 0,
+    loanRepayments: Array.isArray(db.loanRepayments) ? db.loanRepayments.length : 0,
+    investments: Array.isArray(db.investments) ? db.investments.length : 0,
+    investmentReturns: Array.isArray(db.investmentReturns) ? db.investmentReturns.length : 0,
+    cashTransactions: Array.isArray(db.cashTransactions) ? db.cashTransactions.length : 0,
+    bankTransactions: Array.isArray(db.bankTransactions) ? db.bankTransactions.length : 0,
+    contraTransactions: Array.isArray(db.contraTransactions) ? db.contraTransactions.length : 0,
+    contraEntries: Array.isArray(db.contraEntries) ? db.contraEntries.length : 0,
+    incomes: Array.isArray(db.incomes) ? db.incomes.length : 0,
+    expenses: Array.isArray(db.expenses) ? db.expenses.length : 0,
+    memberLedgers: Array.isArray(db.memberLedgers) ? db.memberLedgers.length : 0,
+    welfareTransactions: Array.isArray(db.welfareTransactions) ? db.welfareTransactions.length : 0,
+    profitAllocations: Array.isArray(db.profitAllocations) ? db.profitAllocations.length : 0,
+    meetings: Array.isArray(db.meetings) ? db.meetings.length : 0,
+    resolutions: Array.isArray(db.resolutions) ? db.resolutions.length : 0,
+    journalEntries: Array.isArray(db.journalEntries) ? db.journalEntries.length : 0,
+    journalLines: Array.isArray(db.journalLines) ? db.journalLines.length : 0,
+    cashReconciliations: Array.isArray(db.cashReconciliations) ? db.cashReconciliations.length : 0,
+    bankReconciliations: Array.isArray(db.bankReconciliations) ? db.bankReconciliations.length : 0,
+    bankStatementTransactions: Array.isArray(db.bankStatementTransactions) ? db.bankStatementTransactions.length : 0,
+    attachments: Array.isArray(db.attachments) ? db.attachments.length : 0,
+    reserveUtilizations: Array.isArray(db.reserveUtilizations) ? db.reserveUtilizations.length : 0,
+    historicalProfits: Array.isArray(db.historicalProfits) ? db.historicalProfits.length : 0,
+    committeeMembers: Array.isArray(db.committeeMembers) ? db.committeeMembers.length : 0,
+    committeeHistory: Array.isArray(db.committeeHistory) ? db.committeeHistory.length : 0,
+    memberExits: Array.isArray(db.memberExits) ? db.memberExits.length : 0,
+    lateFeeWaivers: Array.isArray(db.lateFeeWaivers) ? db.lateFeeWaivers.length : 0,
+    historicalMigrationLog: Array.isArray(db.historicalMigrationLog) ? db.historicalMigrationLog.length : 0,
+    auditLogs: Array.isArray(db.auditLogs) ? db.auditLogs.length : 0,
+    lateFees: Array.isArray(db.collections) ? db.collections.filter((c: any) => c.lateFeeWaived === false || (c.lateFee && c.lateFee > 0)).length : 0,
+    settlements: Array.isArray(db.memberExits) ? db.memberExits.length : 0,
+    profits: Array.isArray(db.profitAllocations) ? db.profitAllocations.length : 0
+  };
+}
+
+var handleFactoryResetPreview = async (req: Request, res: Response) => {
   try {
     const rawData = await fs.readFile(DB_FILE, "utf8");
     const db = JSON.parse(rawData);
