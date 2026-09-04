@@ -318,7 +318,7 @@ export async function validateRestoreBackupAPI(backupPackage: any) {
   
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new ApiError(err.error || 'Failed to validate backup', response.status, err);
+    if (response.status === 400 && err.valid === false) return err; throw new ApiError(err.error || (err.errors ? err.errors.join("; ") : 'Failed to validate backup'), response.status, err);
   }
   return response.json();
 }

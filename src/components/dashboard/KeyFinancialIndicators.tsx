@@ -8,7 +8,7 @@ import {
   Smartphone,
   PiggyBank,
   CreditCard,
-  UserPlus,
+  UserPlus, UserMinus,
   AlertCircle,
   TrendingUp,
   TrendingDown,
@@ -53,6 +53,9 @@ export interface KeyFinancialIndicatorsData {
   outstandingDue: number;
   totalOutstandingDue: number;
   outstandingLoan: number;
+  totalMemberBalance: number;
+  totalBenefitProfit: number;
+  totalSettlement: number;
   totalLoanOutstanding: number;
   totalAssets: number;
   totalLiabilities: number;
@@ -363,7 +366,7 @@ export const KeyFinancialIndicators: React.FC<KeyFinancialIndicatorsProps> = ({
           <div>
             <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-emerald-600" />
-              <span>{isBangla ? '১৬টি মূল আর্থিক নির্দেশক' : '16 Key Financial Indicators'}</span>
+              <span>{isBangla ? '১৯টি মূল আর্থিক নির্দেশক' : '19 Key Financial Indicators'}</span>
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* 1. Cash in Hand */}
@@ -656,6 +659,59 @@ export const KeyFinancialIndicators: React.FC<KeyFinancialIndicatorsProps> = ({
                 </p>
               </div>
             </div>
+              {/* 17. Total Benefit / Profit */}
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-purple-300 transition-colors">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-500">
+                    {isBangla ? '১৭. মোট লভ্যাংশ/কল্যাণ' : '17. Total Benefit / Profit'}
+                  </span>
+                  <div className="p-2 bg-purple-50 text-purple-600 rounded-xl">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                </div>
+                <p className="text-xl sm:text-2xl font-black text-purple-700 tracking-tight">
+                  {formatBDT(summary.totalBenefitProfit || 0)}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {isBangla ? 'বণ্টনকৃত মুনাফা' : 'Allocated Profits'}
+                </p>
+              </div>
+
+              {/* 18. Total Settlement */}
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-rose-300 transition-colors">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-500">
+                    {isBangla ? '১৮. মোট নিষ্পত্তি' : '18. Total Settlement'}
+                  </span>
+                  <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                    <UserMinus className="w-4 h-4" />
+                  </div>
+                </div>
+                <p className="text-xl sm:text-2xl font-black text-rose-700 tracking-tight">
+                  {formatBDT(summary.totalSettlement || 0)}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {isBangla ? 'প্রাক্তন সদস্যদের পরিশোধ' : 'Member Exits Paid'}
+                </p>
+              </div>
+
+              {/* 19. Total Member Balance */}
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-blue-300 transition-colors">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-500">
+                    {isBangla ? '১৯. মোট সদস্য স্থিতি' : '19. Member Balance'}
+                  </span>
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                    <Users className="w-4 h-4" />
+                  </div>
+                </div>
+                <p className="text-xl sm:text-2xl font-black text-blue-700 tracking-tight">
+                  {formatBDT(summary.totalMemberBalance || 0)}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {isBangla ? 'সদস্যদের পাওনা স্থিতি' : 'Total Member Equity'}
+                </p>
+              </div>
           </div>
 
           {/* SECTION B: SOCIETY FINANCIAL POSITION ("সমিতির বর্তমান আর্থিক অবস্থা") */}

@@ -19,8 +19,11 @@ interface SpeedDialFabProps {
 
 export const SpeedDialFab: React.FC<SpeedDialFabProps> = ({ onQuickAction }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const { language } = useApp();
+  const { language, activeUser } = useApp();
   const isBangla = language === 'bn';
+
+  if (activeUser?.role === 'MEMBER') return null;
+
 
   const actions = [
     {

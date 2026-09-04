@@ -2,6 +2,7 @@ import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { ShieldCheck, TrendingUp, HandCoins, Building, Calendar, ArrowRight, LineChart } from 'lucide-react';
 import { AccountingService } from '../../services/accounting';
+import { KeyFinancialIndicators } from '../dashboard/KeyFinancialIndicators';
 
 export const MemberDashboard: React.FC = () => {
   const { db, activeUser, language, navigateTo } = useApp();
@@ -86,6 +87,10 @@ export const MemberDashboard: React.FC = () => {
         </div>
       </div>
       
+      
+      <div className="mt-8">
+        <KeyFinancialIndicators showTitle={true} compact={false} />
+      </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-6">
         <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
           <h3 className="font-bold text-slate-800">{isBangla ? 'সাম্প্রতিক লেনদেন' : 'Recent Transactions'}</h3>

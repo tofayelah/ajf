@@ -363,7 +363,7 @@ app.all(["/api/members", "/api/members/:memberId"], requireAuth, (req, res, next
   }
   return res.status(405).json({ error: "Method not allowed" });
 });
-app.post("/api/accounting/action", requireAuth, async (req, res) => {
+app.post("/api/accounting/action", requireAuth, requireRole(["ADMIN", "ACCOUNTANT", "COLLECTION_OFFICER"]), async (req, res) => {
   try {
     const { action, params } = req.body;
     if (!action || typeof action !== "string") {
@@ -1019,6 +1019,17 @@ function calculateFinancialSummaryHelper(db, query = {}) {
   const totalIncome = (db.incomes || []).filter((i) => i.status === "POSTED" && isDateInFilter(i.incomeDate || i.date || i.createdAt)).reduce((sum, i) => sum + (i.amount || 0), 0);
   const totalExpense = (db.expenses || []).filter((e) => (e.approvalStatus === "PAID" || e.approvalStatus === "POSTED") && isDateInFilter(e.expenseDate || e.date || e.createdAt)).reduce((sum, e) => sum + (e.amount || 0), 0);
   const loanDisbursed = (db.loans || []).filter((l) => (l.status === "ACTIVE" || l.status === "COMPLETED") && isDateInFilter(l.disbursementDate || l.applicationDate || l.createdAt)).reduce((sum, l) => sum + (l.approvedAmount ?? l.appliedAmount ?? l.requestedAmount ?? 0), 0);
+  let totalBenefitProfit = 0;
+  let totalSettlement = 0;
+  (db.memberLedgers || []).forEach(item => {
+    if (['BENEFIT', 'PROFIT_DISTRIBUTION'].includes(item.transactionType)) {
+      totalBenefitProfit += (item.credit || 0);
+    }
+    if (['NORMAL_EXIT', 'EARLY_EXIT', 'DEATH_SETTLEMENT', 'SETTLEMENT_PAYMENT'].includes(item.transactionType)) {
+      totalSettlement += (item.debit || 0);
+    }
+  });
+  const totalMemberBalance = totalCapital + totalMonthlyCollections + totalBenefitProfit - totalSettlement;
   const totalLoanDisbursed = loanDisbursed;
   const loanRepaid = (db.loanRepayments || []).filter((r) => (r.status === "ACTIVE" || r.status === "POSTED" || !r.status) && isDateInFilter(r.repaymentDate || r.paymentDate || r.date || r.createdAt)).reduce((sum, r) => sum + (r.paidAmount ?? r.principalAmount ?? 0), 0);
   const totalLoanRepaid = loanRepaid;
@@ -1064,6 +1075,9 @@ function calculateFinancialSummaryHelper(db, query = {}) {
     totalOutstandingDue: outstandingDue,
     outstandingLoan,
     totalLoanOutstanding: outstandingLoan,
+    totalBenefitProfit,
+    totalSettlement,
+    totalMemberBalance,
     // Position
     totalAssets,
     totalLiabilities,

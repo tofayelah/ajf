@@ -177,10 +177,8 @@ const RoleGuard = ({ children }: { children: React.ReactNode }) => {
 
   if (activeUser?.role === 'MEMBER') {
     const allowedScreens = [
-      'DASHBOARD', 'PROFILE', 'MEMBER_PROFILE', 'COLLECTIONS', 'CAPITAL', 'LOANS', 'MEMBER_LEDGER', 'NOTIFICATIONS',
-      'MEMBER_SETTLEMENT',
-      // Society Financial Status & Financial Statements (Read-Only)
-      'MEMBER_FINANCIAL_SUMMARY', 'FINANCIAL_SUMMARY', 'REPORTS', 'SOCIETY_FINANCIAL_STATUS', 'FINANCIAL_STATUS', 'FINANCIAL_STATEMENTS', 'BALANCE_SHEET', 'INCOME_STATEMENT', 'TRIAL_BALANCE'
+      'DASHBOARD', 'PROFILE', 'MEMBER_PROFILE', 'MEMBER_LEDGER', 'NOTIFICATIONS',
+      'MEMBER_FINANCIAL_SUMMARY', 'FINANCIAL_SUMMARY', 'SOCIETY_FINANCIAL_STATUS', 'FINANCIAL_STATUS'
     ];
 
     if (!allowedScreens.includes(activeScreen as string)) {
