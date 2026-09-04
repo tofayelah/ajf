@@ -7,7 +7,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
-import { Meeting, UserAccount, UserRole, Member, PaymentMethod, Nominee, Admission, BankAccount, ContraType, ContraTransaction, AuditLog } from '../types';
+import { Meeting, UserAccount, UserRole, Member, PaymentMethod, Nominee, Admission, BankAccount, ContraType, ContraTransaction, AuditLog, AppNotification } from '../types';
 import {
   AppDatabaseState,
   getInitialDatabase,
@@ -32,7 +32,8 @@ import {
   fetchBackupPreviewAPI,
   downloadAuthoritativeBackupAPI,
   validateRestoreBackupAPI,
-  executeRestoreBackupAPI
+  executeRestoreBackupAPI,
+  fetchMemberLoginNotificationsAPI
 } from "../services/api";
 
 export type ActiveScreen =
@@ -585,6 +586,10 @@ interface AppContextType {
   rejectSettlement: (params: any) => Promise<{success: boolean; message: string}>;
   processMemberExitRefund: (params: any) => Promise<{success: boolean; message: string; voucherNo?: string}>;
   processSettlementRefund: (params: any) => Promise<{success: boolean; message: string; voucherNo?: string}>;
+  activeLoginNotifications: AppNotification[];
+  setActiveLoginNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>;
+  loginSessionId: string;
+  checkMemberLoginNotifications: (sessionId?: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -645,6 +650,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     type: "success" | "error" | "info";
   } | null>(null);
 
+  // Member Login Notification Modal Subsystem
+  const [activeLoginNotifications, setActiveLoginNotifications] = useState<AppNotification[]>([]);
+  const [loginSessionId, setLoginSessionId] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem("ajf_login_session_id") || "";
+    } catch {
+      return "";
+    }
+  });
+
+  const checkMemberLoginNotifications = async (sessionId?: string) => {
+    try {
+      const sess = sessionId || loginSessionId;
+      const res = await fetchMemberLoginNotificationsAPI(sess);
+      if (res.success && Array.isArray(res.notifications) && res.notifications.length > 0) {
+        setActiveLoginNotifications(res.notifications);
+      } else {
+        setActiveLoginNotifications([]);
+      }
+    } catch (err) {
+      console.error("Failed to check member login notifications:", err);
+      setActiveLoginNotifications([]);
+    }
+  };
+
   // Initial async load from storage
   useEffect(() => {
     authService.checkSession().then(async (session) => {
@@ -659,6 +689,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       if (session.authenticated && session.user) {
         setActiveUser(session.user);
         setIsAuthenticated(true);
+
+        // Evaluate login notifications on restored session if member
+        if (session.user.role === "MEMBER") {
+          try {
+            const evaluated = sessionStorage.getItem("ajf_notifs_evaluated");
+            if (!evaluated) {
+              let sessId = sessionStorage.getItem("ajf_login_session_id");
+              if (!sessId) {
+                sessId = "sess_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+                sessionStorage.setItem("ajf_login_session_id", sessId);
+              }
+              setLoginSessionId(sessId);
+              const notifRes = await fetchMemberLoginNotificationsAPI(sessId);
+              if (notifRes.success && Array.isArray(notifRes.notifications) && notifRes.notifications.length > 0) {
+                setActiveLoginNotifications(notifRes.notifications);
+              }
+              sessionStorage.setItem("ajf_notifs_evaluated", "true");
+            }
+          } catch (err) {
+            console.error("Initial login notification check error:", err);
+          }
+        }
       } else {
         setActiveUser(null);
         setIsAuthenticated(false);
@@ -783,6 +835,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       (window as any).skipNextDbSave = true;
       setDb(loadedDb);
       
+      // Member Login Notification Popup Evaluation
+      if (result.user.role === "MEMBER") {
+        const sessId = "sess_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+        try {
+          sessionStorage.setItem("ajf_login_session_id", sessId);
+          sessionStorage.setItem("ajf_notifs_evaluated", "true");
+        } catch {}
+        setLoginSessionId(sessId);
+
+        try {
+          const notifRes = await fetchMemberLoginNotificationsAPI(sessId);
+          if (notifRes.success && Array.isArray(notifRes.notifications) && notifRes.notifications.length > 0) {
+            setActiveLoginNotifications(notifRes.notifications);
+          } else {
+            setActiveLoginNotifications([]);
+          }
+        } catch (err) {
+          console.error("Failed to fetch login notifications:", err);
+          setActiveLoginNotifications([]);
+        }
+      } else {
+        setActiveLoginNotifications([]);
+      }
+
       setIsDbLoading(false);
       return true;
     } else {
@@ -794,6 +870,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
 
   const logout = async () => {
     await authService.logout();
+    try {
+      sessionStorage.removeItem("ajf_login_session_id");
+      sessionStorage.removeItem("ajf_notifs_evaluated");
+    } catch {}
+    setActiveLoginNotifications([]);
     setActiveUser(null);
     setIsAuthenticated(false);
     (window as any).skipNextDbSave = true;
@@ -1370,6 +1451,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         rejectSettlement: rejectMemberExit,
         processMemberExitRefund,
         processSettlementRefund: processMemberExitRefund,
+        activeLoginNotifications,
+        setActiveLoginNotifications,
+        loginSessionId,
+        checkMemberLoginNotifications,
       }}
     >
       {children}

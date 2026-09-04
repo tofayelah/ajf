@@ -469,3 +469,106 @@ export async function rejectPaymentRequestAPI(id: string, reason: string) {
   }
   return response.json();
 }
+
+// ============================================================================
+// NOTIFICATIONS API CLIENT METHODS
+// ============================================================================
+
+export async function fetchNotificationsAPI() {
+  const response = await authenticatedFetch('/notifications');
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to fetch notifications', response.status, err);
+  }
+  return response.json();
+}
+
+export async function fetchMemberLoginNotificationsAPI(sessionId?: string) {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
+  const response = await authenticatedFetch(`/member/login-notifications${query}`);
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to fetch login notifications', response.status, err);
+  }
+  return response.json();
+}
+
+export async function createNotificationAPI(data: any) {
+  const response = await authenticatedFetch('/notifications', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to create notification', response.status, err);
+  }
+  return response.json();
+}
+
+export async function updateNotificationAPI(id: string, data: any) {
+  const response = await authenticatedFetch(`/notifications/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to update notification', response.status, err);
+  }
+  return response.json();
+}
+
+export async function deleteNotificationAPI(id: string) {
+  const response = await authenticatedFetch(`/notifications/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to delete notification', response.status, err);
+  }
+  return response.json();
+}
+
+export async function publishNotificationAPI(id: string) {
+  const response = await authenticatedFetch(`/notifications/${encodeURIComponent(id)}/publish`, {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to publish notification', response.status, err);
+  }
+  return response.json();
+}
+
+export async function unpublishNotificationAPI(id: string) {
+  const response = await authenticatedFetch(`/notifications/${encodeURIComponent(id)}/unpublish`, {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to unpublish notification', response.status, err);
+  }
+  return response.json();
+}
+
+export async function acknowledgeNotificationAPI(id: string, sessionId?: string) {
+  const response = await authenticatedFetch(`/notifications/${encodeURIComponent(id)}/acknowledge`, {
+    method: 'POST',
+    body: JSON.stringify({ sessionId }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to acknowledge notification', response.status, err);
+  }
+  return response.json();
+}
+
+export async function recordNotificationViewAPI(id: string) {
+  const response = await authenticatedFetch(`/notifications/${encodeURIComponent(id)}/view`, {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to record view', response.status, err);
+  }
+  return response.json();
+}

@@ -5,7 +5,7 @@ import {
   LogOut, Shield, ChevronLeft, CalendarDays, Receipt,
   BookOpen, Calculator, BarChart3, TrendingUp, HandCoins,
   History, Scale, Key, FileSpreadsheet, PlusCircle,
-  Building2, Users2, LineChart, Briefcase, ChevronDown, ChevronRight, UserMinus, ShieldCheck, CheckCircle, HeartHandshake
+  Building2, Users2, LineChart, Briefcase, ChevronDown, ChevronRight, UserMinus, ShieldCheck, CheckCircle, HeartHandshake, Bell
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { AJFLogo } from '../common/AJFLogo';
@@ -37,6 +37,7 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ isOpen = false, onClose })
       roles: ['MEMBER'],
       items: [
         { id: 'DASHBOARD', icon: BarChart3, label: isBangla ? 'আমার ড্যাশবোর্ড' : 'Dashboard', roles: ['MEMBER'] },
+        { id: 'NOTIFICATIONS', icon: Bell, label: isBangla ? 'বিজ্ঞপ্তি ও নোটিস' : 'Notifications', roles: ['MEMBER'] },
         { id: 'MEMBER_CHANDA_PAYMENT', icon: CreditCard, label: isBangla ? 'চাঁদা পরিশোধ অনুরোধ' : 'Chanda Payment', roles: ['MEMBER'] },
         { id: 'MEMBER_FINANCIAL_SUMMARY', icon: LineChart, label: isBangla ? 'সমিতির আর্থিক অবস্থা' : 'Financial Summary', roles: ['MEMBER'] },
         { id: 'MEMBER_PROFILE', icon: Users, label: isBangla ? 'আমার প্রোফাইল' : 'My Profile', roles: ['MEMBER'] },
@@ -111,6 +112,7 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ isOpen = false, onClose })
       title: isBangla ? 'প্রশাসন ও সেটিং' : 'Admin & Settings',
       roles: ['ADMIN'],
       items: [
+        { id: 'NOTIFICATIONS', icon: Bell, label: isBangla ? 'বিজ্ঞপ্তি ও ঘোষণা ব্যবস্থাপনা' : 'Notification Management', roles: ['ADMIN'] },
         { id: 'COMMITTEE_MANAGEMENT', icon: Users, label: isBangla ? 'কমিটি ব্যবস্থাপনা' : 'Committee Management', roles: ['ADMIN'] },
         { id: 'USERS', icon: Shield, label: isBangla ? 'ব্যবহারকারী' : 'User Management', roles: ['ADMIN'] },
         { id: 'FINANCIAL_YEAR', icon: CalendarDays, label: isBangla ? 'অর্থবছর' : 'Financial Year', roles: ['ADMIN'] },

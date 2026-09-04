@@ -1411,3 +1411,61 @@ export interface MemberPaymentRequest {
   approvedReceiptNo?: string;
   approvedCollectionId?: string;
 }
+
+export type NotificationType = 
+  | 'MEETING' 
+  | 'GENERAL' 
+  | 'ANNOUNCEMENT' 
+  | 'EVENT' 
+  | 'EMERGENCY' 
+  | 'PAYMENT_COLLECTION' 
+  | 'SOCIETY_INFO';
+
+export type NotificationPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export type NotificationAudience = 'ALL_MEMBERS' | 'ACTIVE_MEMBERS';
+
+export type NotificationDisplayMode = 'SHOW_ONCE' | 'SHOW_EVERY_LOGIN';
+
+export type NotificationStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED' | 'EXPIRED';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  titleBn?: string;
+  message: string;
+  messageBn?: string;
+  priority: NotificationPriority;
+  audience: NotificationAudience;
+  showOnMemberLogin: boolean;
+  displayMode: NotificationDisplayMode;
+  startDateTime: string;
+  endDateTime?: string;
+  
+  // Meeting specific fields
+  meetingDate?: string;
+  meetingTime?: string;
+  meetingLocation?: string;
+  meetingLocationBn?: string;
+  meetingDescription?: string;
+  instructions?: string;
+  instructionsBn?: string;
+  
+  issuedBy: string;
+  status: NotificationStatus;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+}
+
+export interface NotificationAcknowledgement {
+  id: string;
+  notificationId: string;
+  memberId: string;
+  userId: string;
+  status: 'VIEWED' | 'ACKNOWLEDGED';
+  viewedAt: string;
+  acknowledgedAt?: string;
+  loginSessionId?: string;
+}

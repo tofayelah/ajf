@@ -244,6 +244,10 @@ app.get("/api/sync", requireAuth, async (req, res) => {
         loanRepayments: db.loanRepayments?.filter((l) => l.memberId === memberId) || [],
         memberLedgers: db.memberLedgers?.filter((l) => l.memberId === memberId) || [],
         users: db.users?.filter((u) => u.userId === req.user.userId) || [],
+        notifications: (db.notifications || []).filter((n: any) => n.status === "PUBLISHED"),
+        notificationAcknowledgements: (db.notificationAcknowledgements || []).filter(
+          (a: any) => a.memberId === memberId || a.userId === req.user.userId
+        ),
         // Empty out protected subsystems
         accounts: [],
         cashTransactions: [],
@@ -2419,8 +2423,482 @@ app.all([
     res.status(500).json({ error: error.message || "Server error" });
   }
 });
+
+// ============================================================================
+// NOTIFICATIONS SUBSYSTEM (MEMBER LOGIN POPUP & ADMIN MANAGEMENT)
+// ============================================================================
+
+// GET all notifications (Admin gets all, Member gets published audience-targeted)
+app.get("/api/notifications", requireAuth, async (req: any, res: any) => {
+  try {
+    const data = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(data);
+    db.notifications = db.notifications || [];
+    db.notificationAcknowledgements = db.notificationAcknowledgements || [];
+
+    if (req.user.role === "MEMBER") {
+      const memberId = req.user.linkedMemberId;
+      const member = (db.members || []).find((m: any) => m.memberId === memberId);
+      const isMemberActive = member ? member.status === "ACTIVE" : true;
+
+      const memberNotifications = db.notifications.filter((n: any) => {
+        if (n.status !== "PUBLISHED") return false;
+        if (n.audience === "ACTIVE_MEMBERS" && !isMemberActive) return false;
+        return true;
+      }).map((n: any) => {
+        const ack = db.notificationAcknowledgements.find(
+          (a: any) => a.notificationId === n.id && (a.memberId === memberId || a.userId === req.user.userId)
+        );
+        return {
+          ...n,
+          isAcknowledged: !!ack,
+          acknowledgedAt: ack?.acknowledgedAt || null,
+          viewedAt: ack?.viewedAt || null
+        };
+      });
+
+      return res.json({ success: true, notifications: memberNotifications });
+    }
+
+    // Admin / Staff view: Attach stats
+    const notificationsWithStats = db.notifications.map((n: any) => {
+      const acks = db.notificationAcknowledgements.filter((a: any) => a.notificationId === n.id);
+      return {
+        ...n,
+        totalAcks: acks.length,
+        totalViews: acks.filter((a: any) => a.viewedAt).length
+      };
+    });
+
+    res.json({ success: true, notifications: notificationsWithStats });
+  } catch (error: any) {
+    console.error("Error fetching notifications:", error);
+    res.status(500).json({ error: "Failed to fetch notifications" });
+  }
+});
+
+// GET active login notifications for current member (evaluated on member login)
+app.get("/api/member/login-notifications", requireAuth, async (req: any, res: any) => {
+  try {
+    const data = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(data);
+    db.notifications = db.notifications || [];
+    db.notificationAcknowledgements = db.notificationAcknowledgements || [];
+
+    const memberId = req.user.linkedMemberId;
+    const member = (db.members || []).find((m: any) => m.memberId === memberId);
+    const isMemberActive = member ? member.status === "ACTIVE" : true;
+    const now = Date.now();
+    const sessionId = (req.query.sessionId as string) || "";
+
+    const activeLoginNotifs = db.notifications.filter((n: any) => {
+      // 1. Must be published
+      if (n.status !== "PUBLISHED") return false;
+
+      // 2. Must be configured to show on member login
+      if (!n.showOnMemberLogin) return false;
+
+      // 3. Audience check
+      if (n.audience === "ACTIVE_MEMBERS" && !isMemberActive) return false;
+
+      // 4. Date / Time window check
+      if (n.startDateTime && new Date(n.startDateTime).getTime() > now) return false;
+      if (n.endDateTime && new Date(n.endDateTime).getTime() < now) return false;
+
+      // 5. Acknowledgement & Display Mode check
+      const ack = db.notificationAcknowledgements.find(
+        (a: any) => a.notificationId === n.id && (a.memberId === memberId || a.userId === req.user.userId)
+      );
+
+      if (ack) {
+        // If mode is SHOW_ONCE and already acknowledged, do not show again
+        if (n.displayMode !== "SHOW_EVERY_LOGIN") {
+          return false;
+        }
+        // If mode is SHOW_EVERY_LOGIN, do not show again in the SAME login session
+        if (sessionId && ack.loginSessionId === sessionId) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    // Priority rank: HIGH (3) > MEDIUM (2) > LOW (1)
+    const priorityWeight: Record<string, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+
+    activeLoginNotifs.sort((a: any, b: any) => {
+      const weightA = priorityWeight[a.priority] || 2;
+      const weightB = priorityWeight[b.priority] || 2;
+      if (weightB !== weightA) {
+        return weightB - weightA;
+      }
+      // Then newest date / startDateTime
+      const dateA = new Date(a.meetingDate || a.startDateTime || a.createdAt).getTime();
+      const dateB = new Date(b.meetingDate || b.startDateTime || b.createdAt).getTime();
+      return dateB - dateA;
+    });
+
+    res.json({ success: true, notifications: activeLoginNotifs });
+  } catch (error: any) {
+    console.error("Error fetching login notifications:", error);
+    res.status(500).json({ error: "Failed to fetch login notifications" });
+  }
+});
+
+// CREATE notification (Admin only, 403 for MEMBER)
+app.post("/api/notifications", requireAuth, async (req: any, res: any) => {
+  try {
+    if (req.user.role === "MEMBER") {
+      return res.status(403).json({ error: "Forbidden: Members cannot create notifications" });
+    }
+
+    const {
+      type = "GENERAL",
+      title,
+      titleBn,
+      message,
+      messageBn,
+      priority = "MEDIUM",
+      audience = "ALL_MEMBERS",
+      showOnMemberLogin = false,
+      displayMode = "SHOW_ONCE",
+      startDateTime,
+      endDateTime,
+      meetingDate,
+      meetingTime,
+      meetingLocation,
+      meetingLocationBn,
+      meetingDescription,
+      instructions,
+      instructionsBn,
+      issuedBy,
+      status = "PUBLISHED"
+    } = req.body;
+
+    if (!title || !message) {
+      return res.status(400).json({ error: "Title and message are required" });
+    }
+
+    const data = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(data);
+    db.notifications = db.notifications || [];
+    db.notificationAcknowledgements = db.notificationAcknowledgements || [];
+
+    const notifId = `NOTIF-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+    const newNotif = {
+      id: notifId,
+      type,
+      title,
+      titleBn: titleBn || title,
+      message,
+      messageBn: messageBn || message,
+      priority: ["HIGH", "MEDIUM", "LOW"].includes(priority) ? priority : "MEDIUM",
+      audience: ["ALL_MEMBERS", "ACTIVE_MEMBERS"].includes(audience) ? audience : "ALL_MEMBERS",
+      showOnMemberLogin: Boolean(showOnMemberLogin),
+      displayMode: displayMode === "SHOW_EVERY_LOGIN" ? "SHOW_EVERY_LOGIN" : "SHOW_ONCE",
+      startDateTime: startDateTime || new Date().toISOString(),
+      endDateTime: endDateTime || null,
+      meetingDate: meetingDate || null,
+      meetingTime: meetingTime || null,
+      meetingLocation: meetingLocation || null,
+      meetingLocationBn: meetingLocationBn || null,
+      meetingDescription: meetingDescription || null,
+      instructions: instructions || null,
+      instructionsBn: instructionsBn || null,
+      issuedBy: issuedBy || "কার্যনির্বাহী কমিটি",
+      status: ["PUBLISHED", "DRAFT", "UNPUBLISHED"].includes(status) ? status : "PUBLISHED",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: req.user.username
+    };
+
+    db.notifications.unshift(newNotif);
+
+    logAudit(
+      db,
+      req,
+      "NOTIFICATION_CREATED",
+      "NOTIFICATIONS",
+      `Notification created: "${newNotif.title}" (${newNotif.type}, Priority: ${newNotif.priority})`,
+      newNotif.id
+    );
+
+    await writeDbFile(db);
+    res.status(201).json({ success: true, notification: newNotif });
+  } catch (error: any) {
+    console.error("Error creating notification:", error);
+    res.status(500).json({ error: "Failed to create notification" });
+  }
+});
+
+// UPDATE notification (Admin only, 403 for MEMBER)
+app.put("/api/notifications/:id", requireAuth, async (req: any, res: any) => {
+  try {
+    if (req.user.role === "MEMBER") {
+      return res.status(403).json({ error: "Forbidden: Members cannot modify notifications" });
+    }
+
+    const data = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(data);
+    db.notifications = db.notifications || [];
+
+    const index = db.notifications.findIndex((n: any) => n.id === req.params.id);
+    if (index === -1) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+
+    const existing = db.notifications[index];
+    const updatedNotif = {
+      ...existing,
+      ...req.body,
+      id: existing.id, // Immutable ID
+      updatedAt: new Date().toISOString()
+    };
+
+    db.notifications[index] = updatedNotif;
+
+    logAudit(
+      db,
+      req,
+      "NOTIFICATION_UPDATED",
+      "NOTIFICATIONS",
+      `Notification updated: "${updatedNotif.title}"`,
+      updatedNotif.id
+    );
+
+    await writeDbFile(db);
+    res.json({ success: true, notification: updatedNotif });
+  } catch (error: any) {
+    console.error("Error updating notification:", error);
+    res.status(500).json({ error: "Failed to update notification" });
+  }
+});
+
+// PUBLISH notification (Admin only, 403 for MEMBER)
+app.post("/api/notifications/:id/publish", requireAuth, async (req: any, res: any) => {
+  try {
+    if (req.user.role === "MEMBER") {
+      return res.status(403).json({ error: "Forbidden: Members cannot publish notifications" });
+    }
+
+    const data = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(data);
+    db.notifications = db.notifications || [];
+
+    const notif = db.notifications.find((n: any) => n.id === req.params.id);
+    if (!notif) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+
+    notif.status = "PUBLISHED";
+    notif.updatedAt = new Date().toISOString();
+
+    logAudit(
+      db,
+      req,
+      "NOTIFICATION_PUBLISHED",
+      "NOTIFICATIONS",
+      `Notification published: "${notif.title}"`,
+      notif.id
+    );
+
+    await writeDbFile(db);
+    res.json({ success: true, notification: notif });
+  } catch (error: any) {
+    console.error("Error publishing notification:", error);
+    res.status(500).json({ error: "Failed to publish notification" });
+  }
+});
+
+// UNPUBLISH notification (Admin only, 403 for MEMBER)
+app.post("/api/notifications/:id/unpublish", requireAuth, async (req: any, res: any) => {
+  try {
+    if (req.user.role === "MEMBER") {
+      return res.status(403).json({ error: "Forbidden: Members cannot unpublish notifications" });
+    }
+
+    const data = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(data);
+    db.notifications = db.notifications || [];
+
+    const notif = db.notifications.find((n: any) => n.id === req.params.id);
+    if (!notif) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+
+    notif.status = "UNPUBLISHED";
+    notif.updatedAt = new Date().toISOString();
+
+    logAudit(
+      db,
+      req,
+      "NOTIFICATION_UNPUBLISHED",
+      "NOTIFICATIONS",
+      `Notification unpublished: "${notif.title}"`,
+      notif.id
+    );
+
+    await writeDbFile(db);
+    res.json({ success: true, notification: notif });
+  } catch (error: any) {
+    console.error("Error unpublishing notification:", error);
+    res.status(500).json({ error: "Failed to unpublish notification" });
+  }
+});
+
+// DELETE notification (Admin only, 403 for MEMBER)
+app.delete("/api/notifications/:id", requireAuth, async (req: any, res: any) => {
+  try {
+    if (req.user.role === "MEMBER") {
+      return res.status(403).json({ error: "Forbidden: Members cannot delete notifications" });
+    }
+
+    const data = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(data);
+    db.notifications = db.notifications || [];
+    db.notificationAcknowledgements = db.notificationAcknowledgements || [];
+
+    const initialLen = db.notifications.length;
+    db.notifications = db.notifications.filter((n: any) => n.id !== req.params.id);
+    if (db.notifications.length === initialLen) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+
+    // Clean up related acknowledgements
+    db.notificationAcknowledgements = db.notificationAcknowledgements.filter(
+      (a: any) => a.notificationId !== req.params.id
+    );
+
+    logAudit(
+      db,
+      req,
+      "NOTIFICATION_DELETED",
+      "NOTIFICATIONS",
+      `Notification deleted: ${req.params.id}`,
+      req.params.id
+    );
+
+    await writeDbFile(db);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Error deleting notification:", error);
+    res.status(500).json({ error: "Failed to delete notification" });
+  }
+});
+
+// ACKNOWLEDGE notification (Member or authorized user)
+app.post("/api/notifications/:id/acknowledge", requireAuth, async (req: any, res: any) => {
+  try {
+    const data = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(data);
+    db.notifications = db.notifications || [];
+    db.notificationAcknowledgements = db.notificationAcknowledgements || [];
+
+    const notif = db.notifications.find((n: any) => n.id === req.params.id);
+    if (!notif) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+
+    // Server-authoritative: Do NOT trust frontend-provided memberId
+    const memberId = req.user.linkedMemberId || req.user.userId;
+    const userId = req.user.userId;
+    const sessionId = req.body?.sessionId || "";
+
+    let ack = db.notificationAcknowledgements.find(
+      (a: any) => a.notificationId === req.params.id && (a.memberId === memberId || a.userId === userId)
+    );
+
+    if (ack) {
+      ack.status = "ACKNOWLEDGED";
+      ack.acknowledgedAt = new Date().toISOString();
+      if (sessionId) ack.loginSessionId = sessionId;
+    } else {
+      ack = {
+        id: `ACK-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        notificationId: req.params.id,
+        memberId,
+        userId,
+        status: "ACKNOWLEDGED",
+        viewedAt: new Date().toISOString(),
+        acknowledgedAt: new Date().toISOString(),
+        loginSessionId: sessionId
+      };
+      db.notificationAcknowledgements.push(ack);
+    }
+
+    logAudit(
+      db,
+      req,
+      "NOTIFICATION_ACKNOWLEDGED",
+      "NOTIFICATIONS",
+      `Notification "${notif.title}" acknowledged by member ${memberId}`,
+      notif.id
+    );
+
+    await writeDbFile(db);
+    res.json({ success: true, acknowledgement: ack });
+  } catch (error: any) {
+    console.error("Error acknowledging notification:", error);
+    res.status(500).json({ error: "Failed to acknowledge notification" });
+  }
+});
+
+// VIEW record (Member or authorized user)
+app.post("/api/notifications/:id/view", requireAuth, async (req: any, res: any) => {
+  try {
+    const data = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(data);
+    db.notifications = db.notifications || [];
+    db.notificationAcknowledgements = db.notificationAcknowledgements || [];
+
+    const notif = db.notifications.find((n: any) => n.id === req.params.id);
+    if (!notif) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+
+    const memberId = req.user.linkedMemberId || req.user.userId;
+    const userId = req.user.userId;
+
+    let ack = db.notificationAcknowledgements.find(
+      (a: any) => a.notificationId === req.params.id && (a.memberId === memberId || a.userId === userId)
+    );
+
+    if (!ack) {
+      ack = {
+        id: `VIEW-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        notificationId: req.params.id,
+        memberId,
+        userId,
+        status: "VIEWED",
+        viewedAt: new Date().toISOString(),
+        acknowledgedAt: null
+      };
+      db.notificationAcknowledgements.push(ack);
+
+      logAudit(
+        db,
+        req,
+        "NOTIFICATION_VIEWED",
+        "NOTIFICATIONS",
+        `Notification "${notif.title}" viewed by member ${memberId}`,
+        notif.id
+      );
+
+      await writeDbFile(db);
+    }
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Error recording notification view:", error);
+    res.status(500).json({ error: "Failed to record view" });
+  }
+});
+
 function computeDetailedCounts(db) {
   return {
+    notifications: Array.isArray(db.notifications) ? db.notifications.length : 0,
+    notificationAcknowledgements: Array.isArray(db.notificationAcknowledgements) ? db.notificationAcknowledgements.length : 0,
     members: Array.isArray(db.members) ? db.members.length : 0,
     admissions: Array.isArray(db.admissions) ? db.admissions.length : 0,
     capitalDeposits: Array.isArray(db.capitalDeposits) ? db.capitalDeposits.length : 0,

@@ -33,7 +33,8 @@ import {
   JournalEntryLine,
   LateFeeWaiver,
   HistoricalMigrationLogEntry,
-  CashReconciliation, BankReconciliation, BankStatementTransaction, FinancialYear } from "../types";
+  CashReconciliation, BankReconciliation, BankStatementTransaction, FinancialYear,
+  AppNotification, NotificationAcknowledgement } from "../types";
 
 export const DEFAULT_SETTINGS: AppSetting = {
   orgName: "Atorgao Jagoroni Club Business Fund & Welfare Society",
@@ -256,6 +257,8 @@ export interface AppDatabaseState {
   memberExits: MemberExitRequest[];
   lateFeeWaivers: LateFeeWaiver[];
   historicalMigrationLog?: HistoricalMigrationLogEntry[];
+  notifications?: AppNotification[];
+  notificationAcknowledgements?: NotificationAcknowledgement[];
   activeUserId: string | null;
 }
 
@@ -599,6 +602,8 @@ committees: [
     memberExits: [],
     lateFeeWaivers: [],
     historicalMigrationLog: [],
+    notifications: [],
+    notificationAcknowledgements: [],
     activeUserId: "USR-0001",
   };
 

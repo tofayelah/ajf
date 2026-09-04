@@ -61,6 +61,8 @@ import { IntegrityCheckView } from './components/audit/IntegrityCheckView';
 import { MemberProfileView } from './components/member-portal/MemberProfileView';
 import { MemberLedgerView } from './components/member-portal/MemberLedgerView';
 import { MemberNotificationsView } from './components/member-portal/MemberNotificationsView';
+import { MemberLoginNotificationModal } from './components/notifications/MemberLoginNotificationModal';
+import { NotificationManagementView } from './components/notifications/NotificationManagementView';
 import { MemberFinancialSummaryView } from './components/member-portal/MemberFinancialSummaryView';
 import { MemberChandaPaymentView } from './components/member-portal/MemberChandaPaymentView';
 import { MemberMoreView } from './components/member-portal/MemberMoreView';
@@ -154,7 +156,10 @@ const ScreenRenderer = ({ onQuickAction }: { onQuickAction: (action: string) => 
     case 'MEMBER_LEDGER':
     case 'LEDGER': 
       return <MemberLedgerView initialMemberId={selectedMemberId || undefined} />;
-    case 'NOTIFICATIONS': return <MemberNotificationsView />;
+    case 'NOTIFICATIONS': 
+      return (activeUser?.role === 'ADMIN' || activeUser?.role === 'ACCOUNTANT')
+        ? <NotificationManagementView />
+        : <MemberNotificationsView />;
 
     case 'MEMBER_SETTLEMENT':
     case 'SETTLEMENT_DASHBOARD':
@@ -211,7 +216,15 @@ const RoleGuard = ({ children }: { children: React.ReactNode }) => {
 };
 
 const MainLayout = () => {
-  const { notificationMessage, navigateTo, isAuthenticated, isDbLoading } = useApp() as any;
+  const { 
+    notificationMessage, 
+    navigateTo, 
+    isAuthenticated, 
+    isDbLoading,
+    activeLoginNotifications,
+    setActiveLoginNotifications,
+    loginSessionId
+  } = useApp() as any;
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const handleQuickAction = (action: string) => {
@@ -244,6 +257,15 @@ const MainLayout = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans overflow-hidden">
+      {/* Member Login Notification Popup Modal - Blocks Background View & Navigation Until Dismissed */}
+      {activeLoginNotifications && activeLoginNotifications.length > 0 && (
+        <MemberLoginNotificationModal
+          notifications={activeLoginNotifications}
+          loginSessionId={loginSessionId}
+          onComplete={() => setActiveLoginNotifications([])}
+        />
+      )}
+
       <AppDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
       
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
