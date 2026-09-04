@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { User, KeyRound, LogIn, Eye, EyeOff, ShieldCheck } from 'lucide-react';
-import { AJFLogo } from '../common/AJFLogo';
+import ajfOfficialLogo from '../../assets/AJF-Official-Logo-Final-2026.png';
 
 export const LoginView: React.FC = () => {
   const { login, language, db } = useApp();
@@ -38,7 +38,12 @@ export const LoginView: React.FC = () => {
           <div className="flex flex-col items-center justify-center text-center mb-6">
             {/* Official AJF Logo */}
             <div className="mb-3 flex justify-center">
-              <AJFLogo variant="login" />
+              <img 
+                src={ajfOfficialLogo} 
+                alt={isBangla ? 'আতরগাঁও জাগরণী ক্লাব লোগো' : 'AJF Management System Logo'}
+                className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 object-contain drop-shadow-xs select-none"
+                loading="eager"
+              />
             </div>
 
             {/* Application Branding */}

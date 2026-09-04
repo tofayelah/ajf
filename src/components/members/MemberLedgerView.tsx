@@ -1650,7 +1650,11 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
         {/* Institutional Header */}
         <div className="text-center border-b-2 border-slate-800 pb-4 space-y-1">
           <div className="flex justify-center mb-2">
-            <AJFLogo variant="print" className="w-14 h-14" />
+            <AJFLogo 
+              variant="print" 
+              alt={db.settings?.orgNameBangla || 'আতরগাঁও জাগরণী ক্লাব লোগো'} 
+              className="w-14 h-14 shrink-0" 
+            />
           </div>
           <h1 className="text-2xl font-black tracking-wide text-slate-950 uppercase">
             {db.settings?.orgName || 'AJ Welfare Society'}

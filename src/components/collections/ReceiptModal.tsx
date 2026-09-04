@@ -162,7 +162,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receiptNo, isOpen, o
             {/* Receipt Header */}
             <div className="text-center border-b-2 border-emerald-800 pb-3 mb-3">
               <div className="flex items-center justify-center gap-2 mb-1">
-                <AJFLogo variant="receipt" className="w-8 h-8" />
+                <AJFLogo 
+                  variant="receipt" 
+                  alt={db.settings.orgNameBangla || 'আতরগাঁও জাগরণী ক্লাব লোগো'} 
+                  className="w-8 h-8 shrink-0" 
+                />
                 <h2 className="font-black text-sm sm:text-base tracking-tight text-emerald-900">
                   {db.settings.orgNameBangla}
                 </h2>

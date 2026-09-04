@@ -144,7 +144,11 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ isOpen = false, onClose })
         <div className={`flex items-center p-4 border-b border-slate-700/50 bg-slate-900/50 overflow-hidden h-16 shrink-0 ${!isDesktopExpanded ? 'lg:justify-center lg:px-2' : 'justify-between'}`}>
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-8 h-8 flex items-center justify-center shrink-0">
-              <AJFLogo variant="sidebar" className="w-8 h-8" />
+              <AJFLogo 
+                variant="sidebar" 
+                alt={isBangla ? 'আতরগাঁও জাগরণী ক্লাব লোগো' : 'AJF Management System Logo'} 
+                className="w-8 h-8" 
+              />
             </div>
             <div className={`transition-opacity duration-200 overflow-hidden ${!isDesktopExpanded ? 'lg:opacity-0 lg:w-0' : 'opacity-100 w-auto'}`}>
               <h1 className="font-bold text-lg leading-tight tracking-tight whitespace-nowrap">AJF</h1>

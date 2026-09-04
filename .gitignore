@@ -7,3 +7,10 @@ coverage/
 .env*
 !.env.example
 database.json
+
+# Production data and backups
+database.json
+database.backup.*
+database.snapshot.*
+*.zip
+uploads/

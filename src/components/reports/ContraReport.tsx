@@ -1241,7 +1241,11 @@ export const ContraReport: React.FC = () => {
               {/* Org Header */}
               <div className="text-center border-b pb-4 space-y-1">
                 <div className="flex justify-center mb-1">
-                  <AJFLogo variant="receipt" className="w-10 h-10" />
+                  <AJFLogo 
+                    variant="receipt" 
+                    alt={db.settings?.orgNameBangla || 'আতরগাঁও জাগরণী ক্লাব লোগো'} 
+                    className="w-10 h-10 shrink-0" 
+                  />
                 </div>
                 <h2 className="text-lg font-black text-emerald-900 tracking-wide">
                   {db.settings?.orgNameBangla || db.settings?.orgName || 'তাতরগাঁও জাগরণী ক্লাব ব্যবসায়িক তহবিল ও কল্যাণ সমিতি'}

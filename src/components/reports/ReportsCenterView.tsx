@@ -1236,7 +1236,11 @@ export const ReportsCenterView: React.FC = () => {
         {/* Official Society Header */}
         <div className="text-center border-b-2 border-emerald-900 pb-4 space-y-1 relative">
           <div className="absolute left-0 top-0">
-            <AJFLogo variant="print" className="w-14 h-14 sm:w-16 sm:h-16" />
+            <AJFLogo 
+              variant="print" 
+              alt={db.settings.orgNameBangla || 'আতরগাঁও জাগরণী ক্লাব লোগো'} 
+              className="w-14 h-14 sm:w-16 sm:h-16 shrink-0" 
+            />
           </div>
           <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-900 bg-emerald-50 px-2.5 py-0.5 rounded">
             {db.settings.slogan || 'সামাজিক উন্নয়ন ও কল্যাণ'}

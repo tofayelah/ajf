@@ -1,4 +1,6 @@
-import React from 'react';
+const fs = require('fs');
+
+const content = `import React from 'react';
 import ajfOfficialLogo from '../../assets/AJF-Official-Logo-Final-2026.png';
 
 export interface AJFLogoProps {
@@ -47,11 +49,11 @@ export const AJFLogo: React.FC<AJFLogoProps> = ({
     }
   };
 
-  const style = size ? { width: `${size}px`, height: `${size}px` } : undefined;
+  const style = size ? { width: \`\${size}px\`, height: \`\${size}px\` } : undefined;
 
   return (
     <div 
-      className={`inline-flex items-center justify-center shrink-0 select-none aspect-square ${!size ? getSizeClasses() : ''} ${className}`}
+      className={\`inline-flex items-center justify-center shrink-0 select-none aspect-square \${!size ? getSizeClasses() : ''} \${className}\`}
       style={style}
       role="img"
       aria-label={alt}
@@ -65,3 +67,7 @@ export const AJFLogo: React.FC<AJFLogoProps> = ({
     </div>
   );
 };
+`;
+
+fs.writeFileSync('src/components/common/AJFLogo.tsx', content, 'utf8');
+console.log('Patched AJFLogo.tsx for Vite asset import');

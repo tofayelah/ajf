@@ -40,7 +40,7 @@ export const DEFAULT_SETTINGS: AppSetting = {
   orgName: "Atorgao Jagoroni Club Business Fund & Welfare Society",
   orgNameBangla: "আতরগাঁও জাগরণী ক্লাব ব্যবসায়িক তহবিল ও কল্যাণ সমিতি",
   orgShortName: "AJ Welfare Society",
-  orgLogoUrl: "/logo.png",
+  orgLogoUrl: "/AJF-Official-Logo-Final-2026.png?v=3.0",
   slogan: "উন্নয়নের পথে, মানবতার সাথে",
   sloganEnglish: "Towards Development, With Humanity",
   address: "Atargaon, Bajitpur, Kishoreganj, Bangladesh",
@@ -689,6 +689,12 @@ export async function saveDatabaseToStorage(db: AppDatabaseState): Promise<{ suc
 
 // Generate Realistic Seed/Demo Data
 export function populateDemoData(db: AppDatabaseState): AppDatabaseState {
+  
+  const isProduction = (typeof process !== 'undefined' && process.env && process.env.VITE_APP_MODE === "production") || (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_APP_MODE === "production");
+  if (isProduction) {
+    console.warn("BLOCKED: Cannot populate demo data in production.");
+    return db;
+  }
   db.committees = [
       {
         committeeId: "COM-001",

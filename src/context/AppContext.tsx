@@ -1176,10 +1176,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
   const loadDemoData = async () => {
+    if (import.meta.env.VITE_APP_MODE === "production") {
+      console.warn("BLOCKED: Cannot load demo data in production.");
+      showNotification("Demo data disabled in production mode.", "error");
+      return;
+    }
     setDb(populateDemoData(createFreshDatabase(true)));
     showNotification("Demo data loaded", "success");
   };
   const resetTestData = async (): Promise<boolean> => {
+    if (import.meta.env.VITE_APP_MODE === "production") {
+      console.warn("BLOCKED: Cannot reset test data in production.");
+      showNotification("Test reset disabled in production mode.", "error");
+      return false;
+    }
     const newDb = {
       ...db,
       members: [],
@@ -1254,7 +1264,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const clearDatabase = async (): Promise<boolean> => {
-    const res = await executeFactoryReset("DELETE ALL MEMBER DATA", "Factory reset initiated");
+    const res = await executeFactoryReset("FACTORY RESET AJF PRODUCTION DATA", "Factory reset initiated");
     return res.success;
   };
 

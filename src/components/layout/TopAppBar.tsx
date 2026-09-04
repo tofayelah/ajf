@@ -87,7 +87,11 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenDrawer }) => {
             onClick={() => navigateTo('DASHBOARD')}
             className="cursor-pointer select-none flex items-center gap-2 sm:gap-2.5 min-w-0"
           >
-            <AJFLogo variant="header" className="w-8 h-8 sm:w-9 sm:h-9 shrink-0" />
+            <AJFLogo 
+              variant="header" 
+              alt={isBangla ? 'আতরগাঁও জাগরণী ক্লাব লোগো' : 'AJF Management System Logo'} 
+              className="w-8 h-8 sm:w-9 sm:h-9 shrink-0" 
+            />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <h1 className="font-bold text-xs sm:text-sm md:text-base leading-tight tracking-tight whitespace-nowrap">

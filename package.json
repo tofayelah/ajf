@@ -31,6 +31,7 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "multer": "^2.3.0",
+    "node-schedule": "^2.1.1",
     "puppeteer": "^25.9.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",

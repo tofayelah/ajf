@@ -435,11 +435,7 @@ export const SettingsView: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             <div className="md:col-span-2 flex flex-col sm:flex-row items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
               <div className="relative w-24 h-24 rounded-2xl border-4 border-white shadow-md overflow-hidden bg-white flex-shrink-0 flex items-center justify-center p-2">
-                {formData.orgLogoUrl ? (
-                  <img src={formData.orgLogoUrl} alt="Logo" className="w-full h-full object-contain bg-white" />
-                ) : (
-                  <AJFLogo variant="md" className="w-20 h-20" />
-                )}
+                <AJFLogo variant="md" className="w-20 h-20" alt="Organization Logo" />
               </div>
               <div className="flex-1 w-full space-y-2">
                 <label className="block text-xs font-bold text-slate-700">Organization Logo</label>
@@ -1112,7 +1108,7 @@ export const SettingsView: React.FC = () => {
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
                       {isBangla ? 'নিশ্চিত করতে নিচে হুবহু টাইপ করুন:' : 'Please type exactly to confirm:'}
                       <span className="block mt-1 font-mono font-bold text-rose-600 bg-rose-100 px-2 py-1 rounded text-center text-xs tracking-wider select-all">
-                        {resetModalState.type === 'factory' ? 'DELETE ALL MEMBER DATA' : 'RESET TEST DATA'}
+                        {resetModalState.type === 'factory' ? 'FACTORY RESET AJF PRODUCTION DATA' : 'RESET TEST DATA'}
                       </span>
                     </label>
                     <input
@@ -1120,7 +1116,7 @@ export const SettingsView: React.FC = () => {
                       value={resetModalState.inputText}
                       onChange={(e) => setResetModalState(prev => ({ ...prev, inputText: e.target.value, error: null }))}
                       disabled={resetModalState.isProcessing}
-                      placeholder={resetModalState.type === 'factory' ? 'DELETE ALL MEMBER DATA' : 'RESET TEST DATA'}
+                      placeholder={resetModalState.type === 'factory' ? 'FACTORY RESET AJF PRODUCTION DATA' : 'RESET TEST DATA'}
                       className="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-xs font-mono font-bold focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all disabled:opacity-50 disabled:bg-slate-50"
                       autoComplete="off"
                     />
@@ -1139,7 +1135,7 @@ export const SettingsView: React.FC = () => {
                     onClick={handleResetConfirm}
                     disabled={
                       resetModalState.isProcessing || 
-                      (resetModalState.type === 'factory' && resetModalState.inputText !== 'DELETE ALL MEMBER DATA') ||
+                      (resetModalState.type === 'factory' && resetModalState.inputText !== 'FACTORY RESET AJF PRODUCTION DATA') ||
                       (resetModalState.type === 'test_data' && resetModalState.inputText !== 'RESET TEST DATA')
                     }
                     className="px-5 py-2 bg-rose-600 text-white font-bold rounded-xl text-xs shadow-md shadow-rose-200 hover:bg-rose-700 transition-all disabled:opacity-50 disabled:shadow-none flex items-center gap-2"

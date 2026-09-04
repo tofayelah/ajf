@@ -1,5 +1,5 @@
-import React from 'react';
-import ajfOfficialLogo from '../../assets/AJF-Official-Logo-Final-2026.png';
+const fs = require('fs');
+let content = `import React from 'react';
 
 export interface AJFLogoProps {
   variant?: 'login' | 'sidebar' | 'header' | 'dashboard' | 'receipt' | 'print' | 'compact' | 'xs' | 'sm' | 'md' | 'lg' | 'xl';
@@ -8,7 +8,7 @@ export interface AJFLogoProps {
   size?: number; // Optional explicit size in pixels
 }
 
-export const OFFICIAL_AJF_LOGO_URL = ajfOfficialLogo;
+export const OFFICIAL_AJF_LOGO_URL = '/AJF-Official-Logo-Final-2026.png?v=3.0';
 
 export const AJFLogo: React.FC<AJFLogoProps> = ({
   variant = 'md',
@@ -47,17 +47,17 @@ export const AJFLogo: React.FC<AJFLogoProps> = ({
     }
   };
 
-  const style = size ? { width: `${size}px`, height: `${size}px` } : undefined;
+  const style = size ? { width: \`\${size}px\`, height: \`\${size}px\` } : undefined;
 
   return (
     <div 
-      className={`inline-flex items-center justify-center shrink-0 select-none aspect-square ${!size ? getSizeClasses() : ''} ${className}`}
+      className={\`inline-flex items-center justify-center shrink-0 select-none aspect-square \${!size ? getSizeClasses() : ''} \${className}\`}
       style={style}
       role="img"
       aria-label={alt}
     >
       <img
-        src={ajfOfficialLogo}
+        src={OFFICIAL_AJF_LOGO_URL}
         alt={alt}
         className="w-full h-full object-contain aspect-square drop-shadow-xs"
         loading="eager"
@@ -65,3 +65,6 @@ export const AJFLogo: React.FC<AJFLogoProps> = ({
     </div>
   );
 };
+`;
+fs.writeFileSync('src/components/common/AJFLogo.tsx', content, 'utf8');
+console.log('Patched AJFLogo.tsx');
