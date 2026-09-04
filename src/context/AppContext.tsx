@@ -81,9 +81,10 @@ export type ActiveScreen =
   | "SETTLEMENT_REPORTS"
   | "COMMITTEE_MANAGEMENT"
   | "PAYMENT_REQUESTS"
-  | "MEMBER_CHANDA_PAYMENT";
+  | "MEMBER_CHANDA_PAYMENT"
+  | "MORE";
 
-export type MainNavTab = "HOME" | "MEMBERS" | "COLLECTION" | "FINANCE" | "MORE";
+export type MainNavTab = "HOME" | "PROFILE" | "MEMBERS" | "COLLECTION" | "LEDGER" | "FINANCE" | "MORE";
 
 interface AppContextType {
   isAuthenticated: boolean;
@@ -710,38 +711,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     setActiveScreen(screen);
 
     // Map screen to bottom tab
-    if (screen === "DASHBOARD") setActiveNavTab("HOME");
-    else if (["MEMBERS", "MEMBER_DETAIL", "ADMISSION", "MEMBER_LEDGER"].includes(screen))
-      setActiveNavTab("MEMBERS");
-    else if (["COLLECTIONS", "DUE_MANAGEMENT"].includes(screen))
+    if (screen === "DASHBOARD") {
+      setActiveNavTab("HOME");
+    } else if (["PROFILE", "MEMBER_PROFILE", "MEMBERS", "MEMBER_DETAIL", "ADMISSION"].includes(screen)) {
+      setActiveNavTab("PROFILE");
+    } else if (["COLLECTION", "COLLECTIONS", "MEMBER_CHANDA_PAYMENT", "DUE_MANAGEMENT", "PAYMENT_REQUESTS"].includes(screen)) {
       setActiveNavTab("COLLECTION");
-    else if (
+    } else if (
       [
+        "LEDGER",
+        "MEMBER_LEDGER",
+        "FINANCE",
         "CAPITAL",
         "LOANS",
         "INVESTMENTS",
         "ACCOUNTS",
         "CASH_BOOK",
         "BANK_BOOK",
+        "CASH_RECONCILIATION",
+        "BANK_RECONCILIATION",
         "INCOME_EXPENSE",
         "WELFARE",
         "PROFIT",
       ].includes(screen)
-    )
-      setActiveNavTab("FINANCE");
-    else setActiveNavTab("MORE");
+    ) {
+      setActiveNavTab("LEDGER");
+    } else {
+      setActiveNavTab("MORE");
+    }
   };
 
   const setNavTab = (tab: MainNavTab) => {
     setActiveNavTab(tab);
     const isMember = activeUser?.role === "MEMBER";
-    if (tab === "HOME") setActiveScreen("DASHBOARD");
-    else if (tab === "MEMBERS")
-      setActiveScreen(isMember ? "PROFILE" : "MEMBERS");
-    else if (tab === "COLLECTION") setActiveScreen("COLLECTIONS");
-    else if (tab === "FINANCE")
-      setActiveScreen(isMember ? "LEDGER" : "CASH_BOOK");
-    else if (tab === "MORE") setActiveScreen(isMember ? "SETTINGS" : "REPORTS");
+    if (tab === "HOME") {
+      setActiveScreen("DASHBOARD");
+    } else if (tab === "PROFILE" || tab === "MEMBERS") {
+      setActiveScreen(isMember ? "MEMBER_PROFILE" : "MEMBERS");
+    } else if (tab === "COLLECTION") {
+      setActiveScreen(isMember ? "MEMBER_CHANDA_PAYMENT" : "COLLECTIONS");
+    } else if (tab === "LEDGER" || tab === "FINANCE") {
+      setActiveScreen(isMember ? "MEMBER_LEDGER" : "MEMBER_LEDGER");
+    } else if (tab === "MORE") {
+      setActiveScreen(isMember ? "MORE" : "REPORTS");
+    }
   };
 
   const toggleMobileDeviceView = () => {

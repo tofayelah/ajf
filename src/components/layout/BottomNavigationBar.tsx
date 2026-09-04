@@ -1,48 +1,46 @@
 import React from 'react';
 import { useApp, MainNavTab } from '../../context/AppContext';
-import { LayoutDashboard, Users, Receipt, Landmark, MoreHorizontal } from 'lucide-react';
-import { AccountingService } from '../../services/accounting';
+import { Home, User, Receipt, BookOpen, MoreHorizontal } from 'lucide-react';
 
 export const BottomNavigationBar: React.FC = () => {
-  const { activeNavTab, setNavTab, db, language, activeUser } = useApp();
+  const { activeNavTab, activeScreen, setNavTab, language } = useApp();
   const isBangla = language === 'bn';
 
-  // Compute live due count badge
-  const dueSummary = AccountingService.calculateFinancialSummary(db);
-  const dueCount = dueSummary.membersWithDueCount;
-
+  // EXACT FIXED ORDER:
+  // 1. Home
+  // 2. Profile
+  // 3. Collection
+  // 4. Ledger
+  // 5. More
   const navItems: {
     id: MainNavTab;
     labelBn: string;
     labelEn: string;
     icon: React.ElementType;
-    badge?: number;
   }[] = [
     {
       id: 'HOME',
-      labelBn: 'ড্যাশবোর্ড',
+      labelBn: 'হোম',
       labelEn: 'Home',
-      icon: LayoutDashboard
+      icon: Home
     },
     {
-      id: 'MEMBERS',
-      labelBn: activeUser?.role === 'MEMBER' ? 'প্রোফাইল' : 'সদস্য',
-      labelEn: activeUser?.role === 'MEMBER' ? 'Profile' : 'Members',
-      icon: Users,
-      badge: activeUser?.role === 'MEMBER' ? undefined : (db.members || []).length
+      id: 'PROFILE',
+      labelBn: 'প্রোফাইল',
+      labelEn: 'Profile',
+      icon: User
     },
     {
       id: 'COLLECTION',
-      labelBn: 'চাঁদা আদায়',
+      labelBn: 'চাঁদা',
       labelEn: 'Collection',
-      icon: Receipt,
-      badge: dueCount > 0 ? dueCount : undefined
+      icon: Receipt
     },
     {
-      id: 'FINANCE',
-      labelBn: activeUser?.role === 'MEMBER' ? 'লেজার' : 'হিসাব বই',
-      labelEn: activeUser?.role === 'MEMBER' ? 'Ledger' : 'Finance',
-      icon: Landmark
+      id: 'LEDGER',
+      labelBn: 'খতিয়ান',
+      labelEn: 'Ledger',
+      icon: BookOpen
     },
     {
       id: 'MORE',
@@ -52,49 +50,82 @@ export const BottomNavigationBar: React.FC = () => {
     }
   ];
 
+  const isItemActive = (id: MainNavTab): boolean => {
+    if (id === 'HOME') {
+      return activeNavTab === 'HOME' || activeScreen === 'DASHBOARD';
+    }
+    if (id === 'PROFILE') {
+      return (
+        activeNavTab === 'PROFILE' ||
+        activeNavTab === 'MEMBERS' ||
+        ['PROFILE', 'MEMBER_PROFILE', 'MEMBERS', 'MEMBER_DETAIL', 'ADMISSION'].includes(activeScreen as string)
+      );
+    }
+    if (id === 'COLLECTION') {
+      return (
+        activeNavTab === 'COLLECTION' ||
+        ['COLLECTION', 'COLLECTIONS', 'MEMBER_CHANDA_PAYMENT', 'DUE_MANAGEMENT', 'PAYMENT_REQUESTS'].includes(activeScreen as string)
+      );
+    }
+    if (id === 'LEDGER') {
+      return (
+        activeNavTab === 'LEDGER' ||
+        activeNavTab === 'FINANCE' ||
+        ['LEDGER', 'MEMBER_LEDGER', 'FINANCE', 'CAPITAL', 'LOANS', 'INVESTMENTS', 'ACCOUNTS', 'CASH_BOOK', 'BANK_BOOK', 'INCOME_EXPENSE', 'WELFARE', 'PROFIT'].includes(activeScreen as string)
+      );
+    }
+    if (id === 'MORE') {
+      return (
+        activeNavTab === 'MORE' ||
+        ['MORE', 'MEMBER_FINANCIAL_SUMMARY', 'FINANCIAL_SUMMARY', 'SOCIETY_FINANCIAL_STATUS', 'FINANCIAL_STATUS', 'NOTIFICATIONS', 'SETTINGS', 'REPORTS', 'USERS', 'AUDIT_LOG', 'INTEGRITY_CHECK', 'BACKUP_RESTORE'].includes(activeScreen as string)
+      );
+    }
+    return false;
+  };
+
   return (
     <nav
       id="bottom-navigation-bar"
-      className="bg-white border-t border-slate-200 px-2 py-1.5 flex items-center justify-around select-none sticky bottom-0 z-30 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]"
+      aria-label="Mobile Bottom Navigation"
+      className="fixed bottom-0 left-0 right-0 w-full z-40 md:hidden bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-1 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom,0px))]"
     >
-      {navItems.map(item => {
-        const isActive = activeNavTab === item.id;
-        const Icon = item.icon;
-        return (
-          <button
-            key={item.id}
-            id={`btn-nav-${(item.id || "").toLowerCase()}`}
-            onClick={() => setNavTab(item.id)}
-            className={`flex flex-col items-center justify-center flex-1 py-1 transition-all relative ${
-              isActive ? 'text-emerald-800 font-bold' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            {/* Material 3 active pill indicator background */}
-            <div
-              className={`px-4 py-1 rounded-full flex items-center justify-center transition-all ${
-                isActive ? 'bg-emerald-100 text-emerald-800 scale-105' : 'bg-transparent text-slate-600'
+      <div className="grid grid-cols-5 items-center w-full max-w-lg mx-auto">
+        {navItems.map(item => {
+          const isActive = isItemActive(item.id);
+          const Icon = item.icon;
+          const buttonId = `btn-nav-${item.labelEn.toLowerCase()}`;
+
+          return (
+            <button
+              key={item.id}
+              id={buttonId}
+              type="button"
+              onClick={() => setNavTab(item.id)}
+              className={`flex flex-col items-center justify-center py-1 transition-all relative cursor-pointer select-none ${
+                isActive ? 'text-emerald-800 font-bold' : 'text-slate-500 hover:text-slate-800 font-medium'
               }`}
             >
-              <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5px]' : 'stroke-2'}`} />
-            </div>
-
-            {/* Badge Indicator */}
-            {item.badge !== undefined && item.badge > 0 && (
-              <span
-                className={`absolute top-0.5 right-[24%] min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center text-white ${
-                  item.id === 'COLLECTION' ? 'bg-rose-500' : 'bg-emerald-600'
+              {/* Material 3 / AJF active pill indicator background */}
+              <div
+                className={`px-3 sm:px-4 py-1 rounded-full flex items-center justify-center transition-all ${
+                  isActive
+                    ? 'bg-emerald-100 text-emerald-800 scale-105 shadow-xs'
+                    : 'bg-transparent text-slate-500 hover:bg-slate-100'
                 }`}
               >
-                {item.badge > 99 ? '99+' : item.badge}
-              </span>
-            )}
+                <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+              </div>
 
-            <span className="text-[11px] mt-0.5 tracking-tight">
-              {isBangla ? item.labelBn : item.labelEn}
-            </span>
-          </button>
-        );
-      })}
+              {/* Label */}
+              <span className={`text-[10px] sm:text-[11px] mt-0.5 tracking-tight truncate max-w-full px-0.5 leading-tight ${
+                isActive ? 'font-bold text-emerald-800' : 'text-slate-500'
+              }`}>
+                {isBangla ? item.labelBn : item.labelEn}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 };

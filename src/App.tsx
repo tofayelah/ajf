@@ -63,12 +63,13 @@ import { MemberLedgerView } from './components/member-portal/MemberLedgerView';
 import { MemberNotificationsView } from './components/member-portal/MemberNotificationsView';
 import { MemberFinancialSummaryView } from './components/member-portal/MemberFinancialSummaryView';
 import { MemberChandaPaymentView } from './components/member-portal/MemberChandaPaymentView';
+import { MemberMoreView } from './components/member-portal/MemberMoreView';
 import { PaymentRequestsAdminView } from './components/admin/PaymentRequestsAdminView';
 import { BackupRestoreView } from './components/settings/BackupRestoreView';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 const ScreenRenderer = ({ onQuickAction }: { onQuickAction: (action: string) => void }) => {
-  const { activeScreen, selectedMemberId, navigateTo } = useApp();
+  const { activeScreen, selectedMemberId, navigateTo, activeUser } = useApp();
   const [collectionMemberId, setCollectionMemberId] = useState<string | null>(null);
 
   const handleOpenCollection = (memberId: string) => {
@@ -169,6 +170,7 @@ const ScreenRenderer = ({ onQuickAction }: { onQuickAction: (action: string) => 
     case 'COMMITTEE_MANAGEMENT': return <CommitteeManagementView />;
     case 'PAYMENT_REQUESTS': return <PaymentRequestsAdminView />;
     case 'MEMBER_CHANDA_PAYMENT': return <MemberChandaPaymentView />;
+    case 'MORE': return activeUser?.role === 'MEMBER' ? <MemberMoreView /> : <ReportsCenterView />;
 
     default:
       return <DashboardView onQuickAction={onQuickAction} />;
@@ -181,9 +183,9 @@ const RoleGuard = ({ children }: { children: React.ReactNode }) => {
 
   if (activeUser?.role === 'MEMBER') {
     const allowedScreens = [
-      'DASHBOARD', 'PROFILE', 'MEMBER_PROFILE', 'MEMBER_LEDGER', 'NOTIFICATIONS',
+      'DASHBOARD', 'PROFILE', 'MEMBER_PROFILE', 'MEMBER_LEDGER', 'LEDGER', 'NOTIFICATIONS',
       'MEMBER_FINANCIAL_SUMMARY', 'FINANCIAL_SUMMARY', 'SOCIETY_FINANCIAL_STATUS', 'FINANCIAL_STATUS',
-      'MEMBER_CHANDA_PAYMENT'
+      'MEMBER_CHANDA_PAYMENT', 'MORE'
     ];
 
     if (!allowedScreens.includes(activeScreen as string)) {
@@ -247,19 +249,17 @@ const MainLayout = () => {
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
         <TopAppBar onOpenDrawer={() => setIsDrawerOpen(true)} />
         <BackupPromptAlert />
-        <main className="flex-1 relative pb-16 md:pb-0">
+        <main className="flex-1 relative pb-[calc(5rem+env(safe-area-inset-bottom,0px))] md:pb-0">
           <RoleGuard>
             <ErrorBoundary>
               <ScreenRenderer onQuickAction={handleQuickAction} />
             </ErrorBoundary>
           </RoleGuard>
         </main>
-
-        {/* Mobile-only bottom nav */}
-        <div className="md:hidden">
-          <BottomNavigationBar />
-        </div>
       </div>
+
+      {/* Viewport-fixed mobile-only bottom nav */}
+      <BottomNavigationBar />
 
       <SpeedDialFab onQuickAction={handleQuickAction} />
       
@@ -267,7 +267,7 @@ const MainLayout = () => {
       
       {/* Global Notification Toast */}
       {notificationMessage && (
-        <div className={`fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-bottom-4
+        <div className={`fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-bottom-4
           ${notificationMessage.type === 'success' ? 'bg-emerald-800 text-white' : 
             notificationMessage.type === 'error' ? 'bg-red-600 text-white' : 
             'bg-slate-800 text-white'}`}

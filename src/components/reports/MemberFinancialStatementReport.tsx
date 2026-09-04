@@ -40,7 +40,10 @@ export const MemberFinancialStatementReport: React.FC<MemberFinancialStatementRe
 
   // Member summaries
   const memberSummaries = useMemo(() => {
-    return members.map(m => {
+    const sortedMembers = [...members].sort((a, b) => 
+      (a.memberId || '').localeCompare(b.memberId || '', undefined, { numeric: true })
+    );
+    return sortedMembers.map(m => {
       const memberCollections = collections.filter(c => c.memberId === m.memberId);
       const totalCollections = memberCollections.reduce((s, c) => s + (c.paidAmount || c.totalPayable || 0), 0);
       const monthlyFees = memberCollections.reduce((s, c) => s + (c.monthlyAmount || 0), 0);
@@ -225,7 +228,8 @@ export const MemberFinancialStatementReport: React.FC<MemberFinancialStatementRe
         <table className="w-full text-left text-xs border-collapse">
           <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
             <tr>
-              <th className="p-3 w-20">{isBangla ? 'সদস্য নং' : 'Member ID'}</th>
+              <th className="p-3 w-16 text-center">{isBangla ? 'ক্রমিক' : 'Serial'}</th>
+              <th className="p-3 w-24">{isBangla ? 'সদস্য নং' : 'Member ID'}</th>
               <th className="p-3">{isBangla ? 'সদস্যের নাম ও মোবাইল' : 'Member Name & Mobile'}</th>
               <th className="p-3 text-right">{isBangla ? 'শেয়ার মূলধন (৳)' : 'Share Capital'}</th>
               <th className="p-3 text-right">{isBangla ? 'সরাসরি মূলধন (৳)' : 'Direct Capital'}</th>
@@ -236,8 +240,9 @@ export const MemberFinancialStatementReport: React.FC<MemberFinancialStatementRe
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filteredMembers.map(m => (
+            {filteredMembers.map((m, index) => (
               <tr key={m.memberId} className="hover:bg-slate-50 transition-colors">
+                <td className="p-3 text-center font-mono font-bold text-slate-500 bg-slate-50/50">{index + 1}</td>
                 <td className="p-3 font-mono font-bold text-indigo-700">{m.memberId}</td>
                 <td className="p-3">
                   <div className="font-semibold text-slate-900">{m.fullName}</div>
@@ -275,7 +280,7 @@ export const MemberFinancialStatementReport: React.FC<MemberFinancialStatementRe
             ))}
             {filteredMembers.length === 0 && (
               <tr>
-                <td colSpan={8} className="p-8 text-center text-slate-400">
+                <td colSpan={9} className="p-8 text-center text-slate-400">
                   {isBangla ? 'কোনো সদস্য রেকর্ড পাওয়া যায়নি।' : 'No member records found.'}
                 </td>
               </tr>
@@ -283,7 +288,7 @@ export const MemberFinancialStatementReport: React.FC<MemberFinancialStatementRe
           </tbody>
           <tfoot className="bg-slate-50 font-black border-t-2 border-slate-200 text-slate-900 text-xs">
             <tr>
-              <td colSpan={2} className="p-3 text-right uppercase">
+              <td colSpan={3} className="p-3 text-right uppercase">
                 {isBangla ? 'সর্বমোট:' : 'Total:'}
               </td>
               <td className="p-3 text-right font-mono text-emerald-950">
