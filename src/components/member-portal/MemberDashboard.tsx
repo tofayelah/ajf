@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { ShieldCheck, TrendingUp, HandCoins, Building, Calendar, ArrowRight, LineChart } from 'lucide-react';
+import { ShieldCheck, TrendingUp, HandCoins, Building, Calendar, ArrowRight, LineChart, CreditCard, CheckCircle2, AlertCircle } from 'lucide-react';
 import { AccountingService } from '../../services/accounting';
 import { KeyFinancialIndicators } from '../dashboard/KeyFinancialIndicators';
+import { PaymentRequestsList } from './PaymentRequestsList';
 
 export const MemberDashboard: React.FC = () => {
+  const [hideDuePrompt, setHideDuePrompt] = useState(false);
   const { db, activeUser, language, navigateTo } = useApp();
   const isBangla = language === 'bn';
 
@@ -19,8 +21,31 @@ export const MemberDashboard: React.FC = () => {
   const admissionFee = ledgerData?.totalAdmissionFee || 0;
   const balance = ledgerData?.currentMemberBalance || 0;
 
-  const totalDue = (db.collections || []).filter(c => c?.memberId === member.memberId && (c?.status === 'ACTIVE' || !c?.status)).reduce((sum, c) => sum + (c?.currentDue || 0), 0);
-  
+  // Authoritative Member Due calculation from AccountingService
+  const dueInfo = AccountingService.calculateMemberDue(
+    member,
+    db.collections || [],
+    db.settings?.monthlyContribution || 1000,
+    db.settings?.lateFine || 0,
+    db.settings?.latePaymentDay || 10
+  );
+  const totalDue = dueInfo.totalDueAmount || 0;
+
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const currentMonthDueDetail = dueInfo.unpaidMonthDetails?.find(d => d.month === currentMonthStr);
+  const currentMonthDueAmount = currentMonthDueDetail 
+    ? currentMonthDueDetail.totalDue 
+    : (dueInfo.unpaidMonthDetails?.[0]?.totalDue || 0);
+
+  const currentMonthNameEn = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const currentMonthNameBn = now.toLocaleDateString('bn-BD', { month: 'long', year: 'numeric' });
+
+  const previousUnpaidMonths = (dueInfo.unpaidMonths || []).filter(m => m !== currentMonthStr);
+  const previousUnpaidDue = (dueInfo.unpaidMonthDetails || [])
+    .filter(d => d.month !== currentMonthStr)
+    .reduce((sum, d) => sum + d.totalDue, 0);
+
   const totalLoanDisbursed = (db.loans || []).filter(l => l.memberId === member.memberId && (l.status === 'ACTIVE' || l.status === 'COMPLETED')).reduce((sum, l) => sum + (l.approvedAmount ?? l.appliedAmount ?? l.requestedAmount ?? 0), 0);
   const totalLoanRepaid = (db.loanRepayments || []).filter(r => r.memberId === member.memberId && r.status === 'ACTIVE').reduce((sum, r) => sum + r.principalAmount, 0);
   const outstandingLoan = (db.loans || []).filter(l => l.memberId === member.memberId && l.status === 'ACTIVE').reduce((sum, l) => sum + (l.totalOutstanding || 0), 0);
@@ -87,10 +112,95 @@ export const MemberDashboard: React.FC = () => {
         </div>
       </div>
       
+      {/* AUTHORITATIVE MONTHLY CHANDA DUE & PAYMENT WORKFLOW PROMPT */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+        <div className="p-5 sm:p-6 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                {isBangla ? 'মাসিক চাঁদার হিসাব' : 'Monthly Chanda Due Status'}
+              </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-white">
+              {isBangla ? currentMonthNameBn : currentMonthNameEn}
+            </h3>
+            <p className="text-xs text-slate-300">
+              {isBangla 
+                ? 'অফিসিয়াল একাউন্টিং সার্ভিস দ্বারা নির্ধারিত মাসিক চাঁদা ও বকেয়া স্থিতি' 
+                : 'Authoritative monthly Chanda due computed by AJF Accounting Service'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-4 bg-slate-800/80 p-4 rounded-xl border border-slate-700/60">
+            <div>
+              <p className="text-xs text-slate-400 font-medium">{isBangla ? 'চলতি মাস' : 'Current Month'}</p>
+              <p className="text-xl font-black text-emerald-400">৳{currentMonthDueAmount.toLocaleString()}</p>
+            </div>
+            <div className="h-8 w-px bg-slate-700 hidden sm:block" />
+            <div>
+              <p className="text-xs text-slate-400 font-medium">{isBangla ? 'মোট বকেয়া' : 'Total Due'}</p>
+              <p className="text-xl font-black text-rose-400">৳{totalDue.toLocaleString()}</p>
+            </div>
+            <div className="h-8 w-px bg-slate-700 hidden sm:block" />
+            <div>
+              <p className="text-xs text-slate-400 font-medium">{isBangla ? 'স্থিতি' : 'Status'}</p>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold mt-1 ${
+                totalDue > 0 
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' 
+                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+              }`}>
+                {totalDue > 0 ? (isBangla ? 'বকেয়া' : 'DUE') : (isBangla ? 'পরিশোধিত' : 'PAID')}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Previous unpaid breakdown if any */}
+        {previousUnpaidMonths.length > 0 && (
+          <div className="px-5 py-3 bg-amber-50 border-b border-amber-200/60 text-xs text-amber-900 flex items-center justify-between">
+            <span>
+              <strong>{isBangla ? 'পূর্ববর্তী বকেয়া:' : 'Previous Unpaid:'}</strong> ৳{previousUnpaidDue.toLocaleString()} ({previousUnpaidMonths.length} {isBangla ? 'মাস' : 'months'})
+            </span>
+            <span className="text-[11px] text-amber-700 font-medium">
+              {isBangla ? 'পুরনো বকেয়া আগে সমন্বয় হবে' : 'Chronologically prioritized'}
+            </span>
+          </div>
+        )}
+
+        {/* WORKFLOW PROMPT: "Do you want to make payment?" */}
+        <div className="p-5 sm:p-6 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="space-y-1 text-center sm:text-left">
+            <h4 className="text-sm sm:text-base font-bold text-slate-800 flex items-center justify-center sm:justify-start gap-2">
+              <CreditCard className="w-4 h-4 text-emerald-600" />
+              <span>{isBangla ? 'আপনি কি চাঁদা পরিশোধ করতে চান?' : 'Do you want to make payment?'}</span>
+            </h4>
+            <p className="text-xs text-slate-500">
+              {isBangla 
+                ? 'অফিসিয়াল বিকাশ নম্বরে পেমেন্ট করে TrxID দিয়ে পেমেন্ট অনুরোধ পাঠান।' 
+                : 'Submit payment request via official AJF bKash account for admin verification.'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-center">
+            <button
+              type="button"
+              onClick={() => navigateTo('MEMBER_CHANDA_PAYMENT')}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-all transform active:scale-95 cursor-pointer flex items-center gap-2"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{isBangla ? 'হ্যাঁ, পরিশোধ করতে চাই' : 'YES, Make Payment'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
       
       <div className="mt-8">
         <KeyFinancialIndicators showTitle={true} compact={false} />
       </div>
+
+      <PaymentRequestsList memberId={member.memberId} />
+      
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-6">
         <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
           <h3 className="font-bold text-slate-800">{isBangla ? 'সাম্প্রতিক লেনদেন' : 'Recent Transactions'}</h3>

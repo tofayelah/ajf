@@ -62,6 +62,8 @@ import { MemberProfileView } from './components/member-portal/MemberProfileView'
 import { MemberLedgerView } from './components/member-portal/MemberLedgerView';
 import { MemberNotificationsView } from './components/member-portal/MemberNotificationsView';
 import { MemberFinancialSummaryView } from './components/member-portal/MemberFinancialSummaryView';
+import { MemberChandaPaymentView } from './components/member-portal/MemberChandaPaymentView';
+import { PaymentRequestsAdminView } from './components/admin/PaymentRequestsAdminView';
 import { BackupRestoreView } from './components/settings/BackupRestoreView';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
@@ -165,6 +167,8 @@ const ScreenRenderer = ({ onQuickAction }: { onQuickAction: (action: string) => 
     case 'COMPLETED_SETTLEMENTS': return <CompletedSettlementsView />;
     case 'SETTLEMENT_REPORTS': return <SettlementReportsView />;
     case 'COMMITTEE_MANAGEMENT': return <CommitteeManagementView />;
+    case 'PAYMENT_REQUESTS': return <PaymentRequestsAdminView />;
+    case 'MEMBER_CHANDA_PAYMENT': return <MemberChandaPaymentView />;
 
     default:
       return <DashboardView onQuickAction={onQuickAction} />;
@@ -178,7 +182,8 @@ const RoleGuard = ({ children }: { children: React.ReactNode }) => {
   if (activeUser?.role === 'MEMBER') {
     const allowedScreens = [
       'DASHBOARD', 'PROFILE', 'MEMBER_PROFILE', 'MEMBER_LEDGER', 'NOTIFICATIONS',
-      'MEMBER_FINANCIAL_SUMMARY', 'FINANCIAL_SUMMARY', 'SOCIETY_FINANCIAL_STATUS', 'FINANCIAL_STATUS'
+      'MEMBER_FINANCIAL_SUMMARY', 'FINANCIAL_SUMMARY', 'SOCIETY_FINANCIAL_STATUS', 'FINANCIAL_STATUS',
+      'MEMBER_CHANDA_PAYMENT'
     ];
 
     if (!allowedScreens.includes(activeScreen as string)) {

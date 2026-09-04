@@ -153,12 +153,13 @@ export const MemberProfileView: React.FC = () => {
           
 
           <button
+            id="edit-profile-btn"
             onClick={() => setIsEditing(true)}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white hover:bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl border border-emerald-300 shadow-xs transition-all active:scale-95 cursor-pointer"
             title={isBangla ? 'প্রোফাইল সম্পাদন করুন' : 'Edit Profile'}
           >
             <Edit2 className="w-3.5 h-3.5" />
-            <span>{isBangla ? 'সম্পাদন' : 'Edit'}</span>
+            <span>{isBangla ? 'প্রোফাইল সম্পাদন' : 'Edit Profile'}</span>
           </button>
           <button
             id="refresh-profile-btn"
@@ -178,12 +179,12 @@ export const MemberProfileView: React.FC = () => {
         <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
         <div>
           <p className="font-bold text-emerald-900 mb-0.5">
-            {isBangla ? '✓ প্রোফাইল তথ্য' : '✓ Profile Information'}
+            {isBangla ? '✓ সদস্য স্ব-হালনাগাদ সুরক্ষা' : '✓ Member Self-Update Protection'}
           </p>
           <p className="text-emerald-800/90 leading-relaxed">
             {isBangla
-              ? 'আপনার সদস্য প্রোফাইল থেকে ব্যক্তিগত এবং যোগাযোগের তথ্য আপডেট করতে পারবেন। আর্থিক তথ্য সুরক্ষিত এবং পরিবর্তনযোগ্য নয়।'
-              : 'You can securely update your personal and contact information. Financial and accounting records are strictly read-only and protected.'}
+              ? 'আপনি নিজের প্রোফাইল ছবি এবং বৈবাহিক অবস্থা হালনাগাদ করতে পারবেন। সদস্য আইডি, নাম, সঞ্চয়, চাদা এবং হিসাব সংক্রান্ত সকল তথ্য সুরক্ষিত ও অপরিবর্তনযোগ্য।'
+              : 'You can securely update your Profile Picture and Marital Status. All financial, identity, and membership records are strictly read-only and server-protected.'}
           </p>
         </div>
       </div>
@@ -272,6 +273,16 @@ export const MemberProfileView: React.FC = () => {
               <span className="text-slate-500 text-xs font-medium">{isBangla ? 'জন্ম তারিখ' : 'Date of Birth'}</span>
               <span className="text-slate-900 font-semibold text-right">{member.dateOfBirth || '—'}</span>
             </div>
+            {member.gender && (
+              <div className="flex justify-between items-start py-1 border-b border-slate-50">
+                <span className="text-slate-500 text-xs font-medium">{isBangla ? 'লিঙ্গ' : 'Gender'}</span>
+                <span className="text-slate-900 font-semibold text-right">
+                  {isBangla
+                    ? member.gender === 'Male' ? 'পুরুষ' : member.gender === 'Female' ? 'মহিলা' : member.gender
+                    : member.gender}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between items-start py-1 border-b border-slate-50">
               <span className="text-slate-500 text-xs font-medium">{isBangla ? 'জাতীয় পরিচয়পত্র (NID)' : 'National ID (NID)'}</span>
               <span className="text-slate-900 font-semibold text-right font-mono">{member.nid || '—'}</span>
@@ -280,14 +291,32 @@ export const MemberProfileView: React.FC = () => {
               <span className="text-slate-500 text-xs font-medium">{isBangla ? 'পেশা' : 'Occupation'}</span>
               <span className="text-slate-900 font-semibold text-right">{member.occupation || '—'}</span>
             </div>
+            {(member.education || member.educationalQualification) && (
+              <div className="flex justify-between items-start py-1 border-b border-slate-50">
+                <span className="text-slate-500 text-xs font-medium">{isBangla ? 'শিক্ষাগত যোগ্যতা' : 'Education'}</span>
+                <span className="text-slate-900 font-semibold text-right">{member.education || member.educationalQualification}</span>
+              </div>
+            )}
+            {member.nationality && (
+              <div className="flex justify-between items-start py-1 border-b border-slate-50">
+                <span className="text-slate-500 text-xs font-medium">{isBangla ? 'জাতীয়তা' : 'Nationality'}</span>
+                <span className="text-slate-900 font-semibold text-right">{member.nationality}</span>
+              </div>
+            )}
             <div className="flex justify-between items-start py-1 border-b border-slate-50">
               <span className="text-slate-500 text-xs font-medium">{isBangla ? 'রক্তের গ্রুপ' : 'Blood Group'}</span>
               <span className="text-emerald-700 font-bold text-right">{member.bloodGroup || '—'}</span>
             </div>
-            <div className="flex justify-between items-start py-1">
+            <div className="flex justify-between items-start py-1 border-b border-slate-50">
               <span className="text-slate-500 text-xs font-medium">{isBangla ? 'বৈবাহিক অবস্থা' : 'Marital Status'}</span>
               <span className="text-slate-900 font-semibold text-right">{member.maritalStatus || '—'}</span>
             </div>
+            {member.spouseName && (
+              <div className="flex justify-between items-start py-1">
+                <span className="text-slate-500 text-xs font-medium">{isBangla ? 'স্বামী / স্ত্রীর নাম' : 'Spouse Name'}</span>
+                <span className="text-slate-900 font-semibold text-right">{member.spouseName}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -306,6 +335,15 @@ export const MemberProfileView: React.FC = () => {
               </span>
               <span className="text-slate-900 font-bold text-right">{member.mobile || '—'}</span>
             </div>
+            {member.alternateMobile && (
+              <div className="flex justify-between items-start py-1 border-b border-slate-50">
+                <span className="text-slate-500 text-xs font-medium flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  {isBangla ? 'বিকল্প মোবাইল' : 'Alternate Mobile'}
+                </span>
+                <span className="text-slate-900 font-medium text-right">{member.alternateMobile}</span>
+              </div>
+            )}
             <div className="flex justify-between items-start py-1 border-b border-slate-50">
               <span className="text-slate-500 text-xs font-medium flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5 text-slate-400" />
@@ -322,7 +360,7 @@ export const MemberProfileView: React.FC = () => {
                 {member.presentAddress || '—'}
               </span>
             </div>
-            <div className="flex flex-col py-1 gap-1">
+            <div className="flex flex-col py-1 border-b border-slate-50 gap-1">
               <span className="text-slate-500 text-xs font-medium flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-slate-400" />
                 {isBangla ? 'স্থায়ী ঠিকানা' : 'Permanent Address'}
@@ -331,6 +369,17 @@ export const MemberProfileView: React.FC = () => {
                 {member.permanentAddress || '—'}
               </span>
             </div>
+            {(member.emergencyContactName || member.emergencyContactMobile) && (
+              <div className="flex justify-between items-start py-1">
+                <span className="text-slate-500 text-xs font-medium flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                  {isBangla ? 'জরুরী যোগাযোগ' : 'Emergency Contact'}
+                </span>
+                <span className="text-slate-900 font-medium text-right text-xs">
+                  {member.emergencyContactName || ''} {member.emergencyContactMobile ? `(${member.emergencyContactMobile})` : ''}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

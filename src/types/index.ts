@@ -235,11 +235,19 @@ export interface Member {
   nid: string;
   occupation: string;
   maritalStatus: string;
+  gender?: string;
+  spouseName?: string;
   mobile: string;
+  alternateMobile?: string;
   email?: string;
   presentAddress: string;
   permanentAddress: string;
+  nationality?: string;
+  education?: string;
+  educationalQualification?: string;
   bloodGroup: string;
+  emergencyContactName?: string;
+  emergencyContactMobile?: string;
   joiningDate: string;
   admissionDate?: string;
   photoPath?: string;
@@ -849,6 +857,9 @@ export interface AppSetting {
   contactPerson?: string;
   contactPhone?: string;
   remarks?: string;
+  // Official bKash account details for member payments
+  companyBkashNumber?: string;
+  companyBkashType?: string;
 }
 
 export interface UserAccount {
@@ -1375,3 +1386,28 @@ export interface MigrationExecutionResult {
   isRollback?: boolean;
 }
 
+
+export interface MemberPaymentRequest {
+  id: string;
+  memberId: string;
+  memberNameSnapshot: string;
+  month: string;
+  year: number;
+  financialYearId: string;
+  dueAmount: number;
+  requestedAmount: number;
+  paymentMethod: string;
+  companyPaymentAccountId?: string;
+  senderMobile: string;
+  transactionId: string;
+  paymentDate: string;
+  paymentTime?: string;
+  note?: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+  submittedAt: string;
+  verifiedAt?: string;
+  verifiedBy?: string;
+  rejectionReason?: string;
+  approvedReceiptNo?: string;
+  approvedCollectionId?: string;
+}

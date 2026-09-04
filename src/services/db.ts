@@ -80,6 +80,8 @@ export const DEFAULT_SETTINGS: AppSetting = {
   contactPerson: "",
   contactPhone: "",
   remarks: "",
+  companyBkashNumber: "01711-234567",
+  companyBkashType: "Merchant",
 
   loanInterestRate: 10,
   notificationSettings: {
@@ -248,6 +250,7 @@ export interface AppDatabaseState {
   bankStatementTransactions: BankStatementTransaction[];
   financialYears: FinancialYear[];
   committees: Committee[];
+  memberPaymentRequests?: any[];
   committeeMembers: CommitteeMember[];
   committeeHistory: CommitteeHistory[];
   memberExits: MemberExitRequest[];

@@ -352,7 +352,33 @@ export async function executeRestoreBackupAPI(confirmationPhrase: string, backup
 
 
 
-export async function updateMemberProfileAPI(updates: any) {
+export interface MemberPersonalProfileUpdates {
+  profilePicture?: string | null;
+  photo?: string | null;
+  fullName?: string;
+  name?: string;
+  fatherName?: string;
+  motherName?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  maritalStatus?: string;
+  spouseName?: string;
+  mobile?: string;
+  alternateMobile?: string;
+  email?: string;
+  presentAddress?: string;
+  permanentAddress?: string;
+  occupation?: string;
+  nationality?: string;
+  education?: string;
+  educationalQualification?: string;
+  bloodGroup?: string;
+  emergencyContactName?: string;
+  emergencyContactMobile?: string;
+  memberId?: string;
+}
+
+export async function updateMemberProfileAPI(updates: MemberPersonalProfileUpdates) {
   const response = await authenticatedFetch(`/member/profile`, {
     method: 'PUT',
     body: JSON.stringify(updates),
@@ -360,6 +386,74 @@ export async function updateMemberProfileAPI(updates: any) {
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new ApiError(err.error || 'Failed to update member profile', response.status, err);
+  }
+  return response.json();
+}
+
+export async function uploadMemberProfilePhotoAPI(file: File) {
+  const formData = new FormData();
+  formData.append('photo', file);
+  const response = await authenticatedFetch(`/member/profile/photo`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to upload photo', response.status, err);
+  }
+  return response.json();
+}
+
+export async function getMemberPaymentRequestsAPI() {
+  const response = await authenticatedFetch(`/member/payment-requests`);
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to fetch payment requests', response.status, err);
+  }
+  return response.json();
+}
+
+export async function submitMemberPaymentRequestAPI(payload: any) {
+  const response = await authenticatedFetch(`/member/payment-requests`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to submit payment request', response.status, err);
+  }
+  return response.json();
+}
+
+export async function getAdminPaymentRequestsAPI() {
+  const response = await authenticatedFetch(`/admin/payment-requests`);
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to fetch payment requests', response.status, err);
+  }
+  return response.json();
+}
+
+export async function approvePaymentRequestAPI(id: string, payload: any) {
+  const response = await authenticatedFetch(`/admin/payment-requests/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to approve payment request', response.status, err);
+  }
+  return response.json();
+}
+
+export async function rejectPaymentRequestAPI(id: string, reason: string) {
+  const response = await authenticatedFetch(`/admin/payment-requests/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to reject payment request', response.status, err);
   }
   return response.json();
 }

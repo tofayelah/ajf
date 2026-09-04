@@ -37,6 +37,7 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ isOpen = false, onClose })
       roles: ['MEMBER'],
       items: [
         { id: 'DASHBOARD', icon: BarChart3, label: isBangla ? 'আমার ড্যাশবোর্ড' : 'Dashboard', roles: ['MEMBER'] },
+        { id: 'MEMBER_CHANDA_PAYMENT', icon: CreditCard, label: isBangla ? 'চাঁদা পরিশোধ অনুরোধ' : 'Chanda Payment', roles: ['MEMBER'] },
         { id: 'MEMBER_FINANCIAL_SUMMARY', icon: LineChart, label: isBangla ? 'সমিতির আর্থিক অবস্থা' : 'Financial Summary', roles: ['MEMBER'] },
         { id: 'MEMBER_PROFILE', icon: Users, label: isBangla ? 'আমার প্রোফাইল' : 'My Profile', roles: ['MEMBER'] },
         { id: 'MEMBER_LEDGER', icon: BookOpen, label: isBangla ? 'আমার খতিয়ান' : 'My Ledger', roles: ['MEMBER'] },
@@ -49,6 +50,7 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({ isOpen = false, onClose })
         { id: 'MEMBERS', icon: Users, label: isBangla ? 'সদস্য তালিকা ও রেজিস্টার' : 'Member Master / Register', roles: ['ADMIN', 'ACCOUNTANT'] },
         { id: 'MEMBER_LEDGER', icon: BookOpen, label: isBangla ? 'সদস্য খতিয়ান' : 'Member Ledger', roles: ['ADMIN', 'ACCOUNTANT'] },
         { id: 'COLLECTIONS', icon: CreditCard, label: isBangla ? 'সদস্য চাঁদা ও আদায়' : 'Member Collections', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'PAYMENT_REQUESTS', icon: Receipt, label: isBangla ? 'পেমেন্ট অনুরোধ ভেরিফিকেশন' : 'Payment Requests', roles: ['ADMIN', 'ACCOUNTANT'] },
         { id: 'CAPITAL', icon: PiggyBank, label: isBangla ? 'সদস্য মূলধন' : 'Member Capital', roles: ['ADMIN', 'ACCOUNTANT'] },
         { id: 'SETTLEMENT_DASHBOARD', icon: Briefcase, label: isBangla ? 'সদস্য নিষ্পত্তি' : 'Member Settlement', roles: ['ADMIN', 'ACCOUNTANT'] },
         { id: 'ADMISSION', icon: UserPlus, label: isBangla ? 'নতুন সদস্য নিবন্ধন' : 'Member Registration', roles: ['ADMIN', 'ACCOUNTANT'] },

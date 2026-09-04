@@ -893,6 +893,85 @@ app.get("/api/members", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Server error fetching member list" });
   }
 });
+// Allowed fields for Member self-update (Whitelisted strictly according to security requirements)
+const ALLOWED_MEMBER_SELF_UPDATE_FIELDS = new Set([
+  "profilePicture",
+  "photo",
+  "photoUrl",
+  "photoPath",
+  "fullName",
+  "name",
+  "fatherName",
+  "motherName",
+  "dateOfBirth",
+  "gender",
+  "maritalStatus",
+  "spouseName",
+  "mobile",
+  "alternateMobile",
+  "email",
+  "presentAddress",
+  "permanentAddress",
+  "occupation",
+  "nationality",
+  "education",
+  "educationalQualification",
+  "bloodGroup",
+  "emergencyContactName",
+  "emergencyContactMobile",
+  "memberId" // only acceptable if it matches the authenticated user's linkedMemberId
+]);
+
+const ALLOWED_MARITAL_STATUSES = [
+  "Single", "Married", "Divorced", "Widowed", "Other",
+  "অবিবাহিত", "বিবাহিত", "তালাকপ্রাপ্ত", "বিধবা", "বিপত্নীক", "অন্যান্য"
+];
+
+const ALLOWED_GENDERS = [
+  "Male", "Female", "Other",
+  "পুরুষ", "মহিলা", "অন্যান্য"
+];
+
+const ALLOWED_BLOOD_GROUPS = [
+  "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", ""
+];
+
+function validateImageBuffer(buffer: Buffer): { valid: boolean; ext?: string; mime?: string; error?: string } {
+  if (!buffer || buffer.length === 0) {
+    return { valid: false, error: "Empty file" };
+  }
+  if (buffer.length > 5 * 1024 * 1024) {
+    return { valid: false, error: "File size exceeds 5MB limit" };
+  }
+  // JPEG: FF D8 FF
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return { valid: true, ext: 'jpg', mime: 'image/jpeg' };
+  }
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47 &&
+      buffer[4] === 0x0d && buffer[5] === 0x0a && buffer[6] === 0x1a && buffer[7] === 0x0a) {
+    return { valid: true, ext: 'png', mime: 'image/png' };
+  }
+  // WEBP: RIFF...WEBP
+  if (buffer.length >= 12 &&
+      buffer.toString('ascii', 0, 4) === 'RIFF' &&
+      buffer.toString('ascii', 8, 12) === 'WEBP') {
+    return { valid: true, ext: 'webp', mime: 'image/webp' };
+  }
+  // GIF: GIF8
+  if (buffer.length >= 6 && buffer.toString('ascii', 0, 4) === 'GIF8') {
+    return { valid: true, ext: 'gif', mime: 'image/gif' };
+  }
+  return { valid: false, error: "Invalid image format. Only JPG, PNG, and WEBP image files are allowed." };
+}
+
+// Phone validator helper (supports BD 11-digit format, international with +, 7-15 digits)
+function isValidPhone(phone: string): boolean {
+  const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+  return /^\+?\d{7,15}$/.test(cleaned);
+}
+
+// MEMBER PROFILE SELF-UPDATE
 app.put("/api/member/profile", requireAuth, async (req, res) => {
   try {
     const role = req.user?.role;
@@ -905,38 +984,350 @@ app.put("/api/member/profile", requireAuth, async (req, res) => {
       return res.status(403).json({ error: "Forbidden: No linked member profile" });
     }
 
+    // Protection against cross-member tampering:
+    // If request contains target memberId belonging to another member, DENY immediately
+    if (req.body.memberId && String(req.body.memberId).trim() !== linkedMemberId) {
+      return res.status(403).json({ error: "Forbidden: Cannot update another member's profile" });
+    }
+    if (req.query.memberId && String(req.query.memberId).trim() !== linkedMemberId) {
+      return res.status(403).json({ error: "Forbidden: Cannot update another member's profile" });
+    }
+
+    // STRICT WHITELIST: Reject any attempt to submit unapproved fields (e.g. capital, balance, chanda, loan, etc.)
+    const submittedKeys = Object.keys(req.body || {});
+    const disallowedKeys = submittedKeys.filter(k => !ALLOWED_MEMBER_SELF_UPDATE_FIELDS.has(k));
+    if (disallowedKeys.length > 0) {
+      return res.status(400).json({ 
+        error: `Disallowed field(s) detected: ${disallowedKeys.join(', ')}. Members can only update approved personal profile fields.` 
+      });
+    }
+
     const dbData = await fs.readFile(DB_FILE, "utf8");
     const db = JSON.parse(dbData);
     
     const memberIndex = (db.members || []).findIndex(m => m.memberId === linkedMemberId);
     if (memberIndex === -1) {
-      return res.status(404).json({ error: "Member not found" });
+      return res.status(404).json({ error: "Member profile not found" });
     }
     
     const currentMember = db.members[memberIndex];
-    const updates = req.body;
-    
-    // Explicit allowlist of profile fields
-    const allowedFields = [
-      "fullName", "fullNameEn", "fatherName", "motherName", 
-      "dateOfBirth", "mobile", "email", "nid", "bloodGroup",
-      "presentAddress", "permanentAddress", "occupation", 
-      "nominees", 
-      "photoPath", "nomineePhotoPath"
-    ];
-    
     let hasChanges = false;
-    for (const field of allowedFields) {
-      if (updates[field] !== undefined) {
-        currentMember[field] = updates[field];
+    const changeLog: string[] = [];
+
+    // 1. Full Name (fullName or name)
+    const newName = req.body.fullName !== undefined ? req.body.fullName : req.body.name;
+    if (newName !== undefined) {
+      const trimmedName = String(newName).trim();
+      if (!trimmedName || trimmedName.length < 2 || trimmedName.length > 100) {
+        return res.status(400).json({ error: "Full Name must be between 2 and 100 characters" });
+      }
+      if (currentMember.fullName !== trimmedName) {
+        const oldVal = currentMember.fullName || 'N/A';
+        currentMember.fullName = trimmedName;
         hasChanges = true;
+        changeLog.push(`fullName ('${oldVal}' -> '${trimmedName}')`);
       }
     }
-    
+
+    // 2. Father's Name
+    if (req.body.fatherName !== undefined) {
+      const val = String(req.body.fatherName).trim();
+      if (val.length > 100) {
+        return res.status(400).json({ error: "Father's name cannot exceed 100 characters" });
+      }
+      if ((currentMember.fatherName || '') !== val) {
+        currentMember.fatherName = val;
+        hasChanges = true;
+        changeLog.push(`fatherName ('${val}')`);
+      }
+    }
+
+    // 3. Mother's Name
+    if (req.body.motherName !== undefined) {
+      const val = String(req.body.motherName).trim();
+      if (val.length > 100) {
+        return res.status(400).json({ error: "Mother's name cannot exceed 100 characters" });
+      }
+      if ((currentMember.motherName || '') !== val) {
+        currentMember.motherName = val;
+        hasChanges = true;
+        changeLog.push(`motherName ('${val}')`);
+      }
+    }
+
+    // 4. Date of Birth
+    if (req.body.dateOfBirth !== undefined) {
+      const val = String(req.body.dateOfBirth).trim();
+      if (val) {
+        const parsedDate = new Date(val);
+        if (isNaN(parsedDate.getTime()) || parsedDate > new Date() || parsedDate.getFullYear() < 1900) {
+          return res.status(400).json({ error: "Invalid date of birth" });
+        }
+      }
+      if ((currentMember.dateOfBirth || '') !== val) {
+        currentMember.dateOfBirth = val;
+        hasChanges = true;
+        changeLog.push(`dateOfBirth ('${val}')`);
+      }
+    }
+
+    // 5. Gender
+    if (req.body.gender !== undefined) {
+      const val = String(req.body.gender).trim();
+      if (val) {
+        const isValid = ALLOWED_GENDERS.some(g => g.toLowerCase() === val.toLowerCase());
+        if (!isValid) {
+          return res.status(400).json({ error: "Invalid gender. Allowed options: Male, Female, Other." });
+        }
+      }
+      if ((currentMember.gender || '') !== val) {
+        currentMember.gender = val;
+        hasChanges = true;
+        changeLog.push(`gender ('${val}')`);
+      }
+    }
+
+    // 6. Marital Status update
+    if (req.body.maritalStatus !== undefined) {
+      const statusVal = String(req.body.maritalStatus).trim();
+      const isValid = ALLOWED_MARITAL_STATUSES.some(s => s.toLowerCase() === statusVal.toLowerCase());
+      if (!isValid) {
+        return res.status(400).json({ 
+          error: "Invalid maritalStatus. Allowed options: Single, Married, Divorced, Widowed (or standard Bengali terms)." 
+        });
+      }
+      if (currentMember.maritalStatus !== statusVal) {
+        const oldVal = currentMember.maritalStatus || 'N/A';
+        currentMember.maritalStatus = statusVal;
+        hasChanges = true;
+        changeLog.push(`maritalStatus ('${oldVal}' -> '${statusVal}')`);
+      }
+    }
+
+    // 7. Spouse Name
+    if (req.body.spouseName !== undefined) {
+      const val = String(req.body.spouseName).trim();
+      if (val.length > 100) {
+        return res.status(400).json({ error: "Spouse name cannot exceed 100 characters" });
+      }
+      if ((currentMember.spouseName || '') !== val) {
+        currentMember.spouseName = val;
+        hasChanges = true;
+        changeLog.push(`spouseName ('${val}')`);
+      }
+    }
+
+    // 8. Mobile Number
+    if (req.body.mobile !== undefined) {
+      const val = String(req.body.mobile).trim();
+      if (!val || !isValidPhone(val)) {
+        return res.status(400).json({ error: "Invalid mobile number format. Must contain 7 to 15 digits." });
+      }
+      if (currentMember.mobile !== val) {
+        const oldVal = currentMember.mobile || 'N/A';
+        currentMember.mobile = val;
+        hasChanges = true;
+        changeLog.push(`mobile ('${oldVal}' -> '${val}')`);
+      }
+    }
+
+    // 9. Alternate Mobile
+    if (req.body.alternateMobile !== undefined) {
+      const val = String(req.body.alternateMobile).trim();
+      if (val && !isValidPhone(val)) {
+        return res.status(400).json({ error: "Invalid alternate mobile number format. Must contain 7 to 15 digits." });
+      }
+      if ((currentMember.alternateMobile || '') !== val) {
+        currentMember.alternateMobile = val;
+        hasChanges = true;
+        changeLog.push(`alternateMobile ('${val}')`);
+      }
+    }
+
+    // 10. Email Address
+    if (req.body.email !== undefined) {
+      const val = String(req.body.email).trim();
+      if (val) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) || val.length > 100) {
+          return res.status(400).json({ error: "Invalid email address format" });
+        }
+      }
+      if ((currentMember.email || '') !== val) {
+        currentMember.email = val || undefined;
+        hasChanges = true;
+        changeLog.push(`email ('${val}')`);
+      }
+    }
+
+    // 11. Present Address
+    if (req.body.presentAddress !== undefined) {
+      const val = String(req.body.presentAddress).trim();
+      if (val.length > 300) {
+        return res.status(400).json({ error: "Present address cannot exceed 300 characters" });
+      }
+      if ((currentMember.presentAddress || '') !== val) {
+        currentMember.presentAddress = val;
+        hasChanges = true;
+        changeLog.push("presentAddress updated");
+      }
+    }
+
+    // 12. Permanent Address
+    if (req.body.permanentAddress !== undefined) {
+      const val = String(req.body.permanentAddress).trim();
+      if (val.length > 300) {
+        return res.status(400).json({ error: "Permanent address cannot exceed 300 characters" });
+      }
+      if ((currentMember.permanentAddress || '') !== val) {
+        currentMember.permanentAddress = val;
+        hasChanges = true;
+        changeLog.push("permanentAddress updated");
+      }
+    }
+
+    // 13. Occupation
+    if (req.body.occupation !== undefined) {
+      const val = String(req.body.occupation).trim();
+      if (val.length > 100) {
+        return res.status(400).json({ error: "Occupation cannot exceed 100 characters" });
+      }
+      if ((currentMember.occupation || '') !== val) {
+        currentMember.occupation = val;
+        hasChanges = true;
+        changeLog.push(`occupation ('${val}')`);
+      }
+    }
+
+    // 14. Nationality
+    if (req.body.nationality !== undefined) {
+      const val = String(req.body.nationality).trim();
+      if (val.length > 50) {
+        return res.status(400).json({ error: "Nationality cannot exceed 50 characters" });
+      }
+      if ((currentMember.nationality || '') !== val) {
+        currentMember.nationality = val;
+        hasChanges = true;
+        changeLog.push(`nationality ('${val}')`);
+      }
+    }
+
+    // 15. Education (education or educationalQualification)
+    const newEdu = req.body.education !== undefined ? req.body.education : req.body.educationalQualification;
+    if (newEdu !== undefined) {
+      const val = String(newEdu).trim();
+      if (val.length > 100) {
+        return res.status(400).json({ error: "Educational qualification cannot exceed 100 characters" });
+      }
+      if ((currentMember.education || '') !== val) {
+        currentMember.education = val;
+        hasChanges = true;
+        changeLog.push(`education ('${val}')`);
+      }
+    }
+
+    // 16. Blood Group
+    if (req.body.bloodGroup !== undefined) {
+      const val = String(req.body.bloodGroup).trim().toUpperCase();
+      if (val && !ALLOWED_BLOOD_GROUPS.includes(val)) {
+        return res.status(400).json({ error: "Invalid blood group. Allowed: A+, A-, B+, B-, AB+, AB-, O+, O-." });
+      }
+      if ((currentMember.bloodGroup || '') !== val) {
+        currentMember.bloodGroup = val;
+        hasChanges = true;
+        changeLog.push(`bloodGroup ('${val}')`);
+      }
+    }
+
+    // 17. Emergency Contact Name
+    if (req.body.emergencyContactName !== undefined) {
+      const val = String(req.body.emergencyContactName).trim();
+      if (val.length > 100) {
+        return res.status(400).json({ error: "Emergency contact name cannot exceed 100 characters" });
+      }
+      if ((currentMember.emergencyContactName || '') !== val) {
+        currentMember.emergencyContactName = val;
+        hasChanges = true;
+        changeLog.push(`emergencyContactName ('${val}')`);
+      }
+    }
+
+    // 18. Emergency Contact Mobile
+    if (req.body.emergencyContactMobile !== undefined) {
+      const val = String(req.body.emergencyContactMobile).trim();
+      if (val && !isValidPhone(val)) {
+        return res.status(400).json({ error: "Invalid emergency contact mobile format" });
+      }
+      if ((currentMember.emergencyContactMobile || '') !== val) {
+        currentMember.emergencyContactMobile = val;
+        hasChanges = true;
+        changeLog.push(`emergencyContactMobile ('${val}')`);
+      }
+    }
+
+    // 19. Profile Picture update
+    const photoInput = req.body.profilePicture !== undefined ? req.body.profilePicture :
+                       req.body.photo !== undefined ? req.body.photo :
+                       req.body.photoUrl !== undefined ? req.body.photoUrl :
+                       req.body.photoPath;
+
+    if (photoInput !== undefined) {
+      if (photoInput === null || photoInput === "") {
+        // Remove picture
+        if (currentMember.photo || currentMember.photoUrl || currentMember.photoPath) {
+          delete currentMember.photo;
+          delete currentMember.photoUrl;
+          delete currentMember.photoPath;
+          hasChanges = true;
+          changeLog.push("profilePicture removed");
+        }
+      } else if (typeof photoInput === "string") {
+        if (photoInput.startsWith("data:image/")) {
+          // Base64 image submitted - validate and store in uploads/avatars/ to keep database.json clean
+          const matches = photoInput.match(/^data:(image\/(jpeg|png|webp|gif));base64,(.+)$/);
+          if (!matches) {
+            return res.status(400).json({ error: "Invalid image format. Only JPG, PNG, and WEBP base64 are accepted." });
+          }
+          const buffer = Buffer.from(matches[3], 'base64');
+          const validation = validateImageBuffer(buffer);
+          if (!validation.valid) {
+            return res.status(400).json({ error: validation.error || "Invalid image file" });
+          }
+          const safeFilename = `avatar-${linkedMemberId.replace(/[^a-zA-Z0-9_-]/g, '')}-${Date.now()}.${validation.ext}`;
+          const avatarDir = path.join(process.cwd(), "uploads", "avatars");
+          await fs.mkdir(avatarDir, { recursive: true });
+          await fs.writeFile(path.join(avatarDir, safeFilename), buffer);
+          const safePhotoUrl = `/uploads/avatars/${safeFilename}`;
+          currentMember.photo = safePhotoUrl;
+          currentMember.photoUrl = safePhotoUrl;
+          currentMember.photoPath = safePhotoUrl;
+          hasChanges = true;
+          changeLog.push("profilePicture updated via upload");
+        } else if (photoInput.startsWith("/uploads/avatars/") || photoInput.startsWith("/logo") || photoInput.startsWith("http://") || photoInput.startsWith("https://")) {
+          currentMember.photo = photoInput;
+          currentMember.photoUrl = photoInput;
+          currentMember.photoPath = photoInput;
+          hasChanges = true;
+          changeLog.push("profilePicture updated");
+        } else {
+          return res.status(400).json({ error: "Invalid image URL or format" });
+        }
+      } else {
+        return res.status(400).json({ error: "profilePicture must be a valid image string or null" });
+      }
+    }
+
     if (hasChanges) {
+      currentMember.updatedAt = new Date().toISOString();
       db.members[memberIndex] = currentMember;
       
-      logAudit(db, req, "MEMBER_UPDATED", "MEMBER_PORTAL", "Member self-updated profile details", linkedMemberId);
+      logAudit(
+        db, 
+        req, 
+        "MEMBER_PROFILE_UPDATE", 
+        "MEMBER_PORTAL", 
+        `Member ${currentMember.fullName} (${linkedMemberId}) self-updated profile: ${changeLog.join(', ')}`, 
+        linkedMemberId
+      );
       
       await writeDbFile(db);
     }
@@ -945,6 +1336,74 @@ app.put("/api/member/profile", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("Error updating member profile:", error);
     res.status(500).json({ error: error.message || "Server error updating profile" });
+  }
+});
+
+// MEMBER PROFILE PHOTO UPLOAD (Multipart upload)
+app.post("/api/member/profile/photo", requireAuth, (req, res, next) => {
+  upload.single("photo")(req, res, (err) => {
+    if (err) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ error: "File size exceeds 5MB limit" });
+      }
+      return res.status(400).json({ error: err.message || "File upload error" });
+    }
+    next();
+  });
+}, async (req, res) => {
+  try {
+    const role = req.user?.role;
+    if (role !== "MEMBER") {
+      return res.status(403).json({ error: "Forbidden: Endpoint specific to MEMBER role" });
+    }
+    const linkedMemberId = req.user?.linkedMemberId;
+    if (!linkedMemberId) {
+      return res.status(403).json({ error: "Forbidden: No linked member profile" });
+    }
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: "No image file provided" });
+    }
+
+    // Validate image format and magic bytes
+    const validation = validateImageBuffer(req.file.buffer);
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.error || "Invalid image file" });
+    }
+
+    const safeFilename = `avatar-${linkedMemberId.replace(/[^a-zA-Z0-9_-]/g, '')}-${Date.now()}.${validation.ext}`;
+    const avatarDir = path.join(process.cwd(), "uploads", "avatars");
+    await fs.mkdir(avatarDir, { recursive: true });
+    await fs.writeFile(path.join(avatarDir, safeFilename), req.file.buffer);
+
+    const safePhotoUrl = `/uploads/avatars/${safeFilename}`;
+
+    const dbData = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(dbData);
+    const memberIndex = (db.members || []).findIndex(m => m.memberId === linkedMemberId);
+    if (memberIndex === -1) {
+      return res.status(404).json({ error: "Member profile not found" });
+    }
+    const currentMember = db.members[memberIndex];
+    currentMember.photo = safePhotoUrl;
+    currentMember.photoUrl = safePhotoUrl;
+    currentMember.photoPath = safePhotoUrl;
+    db.members[memberIndex] = currentMember;
+
+    logAudit(
+      db,
+      req,
+      "MEMBER_PROFILE_UPDATE",
+      "MEMBER_PORTAL",
+      `Member ${currentMember.fullName} (${linkedMemberId}) self-updated profile picture`,
+      linkedMemberId
+    );
+
+    await writeDbFile(db);
+    res.json({ success: true, photoUrl: safePhotoUrl, member: currentMember });
+  } catch (error) {
+    console.error("Error uploading profile photo:", error);
+    res.status(500).json({ error: error.message || "Server error uploading photo" });
   }
 });
 
@@ -1192,6 +1651,315 @@ app.all("/api/member/financial-summary", (req, res) => {
 });
 var VALID_ROLES = ["ADMIN", "ACCOUNTANT", "COLLECTION_OFFICER", "AUDITOR", "MEMBER"];
 var VALID_STATUSES = ["ACTIVE", "INACTIVE", "LOCKED", "DISABLED"];
+
+// ==========================================
+// MEMBER PAYMENT REQUESTS (SECURE WORKFLOW)
+// ==========================================
+
+// Get Member Payment Requests (Member view - strictly own requests)
+app.get("/api/member/payment-requests", requireAuth, async (req, res) => {
+  try {
+    const role = req.user?.role;
+    if (role !== "MEMBER") {
+      return res.status(403).json({ error: "Forbidden: Endpoint specific to MEMBER role" });
+    }
+    const linkedMemberId = req.user?.linkedMemberId;
+    if (!linkedMemberId) return res.status(403).json({ error: "Forbidden: No linked member profile" });
+
+    const dbData = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(dbData);
+    
+    const requests = (db.memberPaymentRequests || []).filter(r => r.memberId === linkedMemberId);
+    requests.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+    
+    res.json({ requests });
+  } catch (error) {
+    console.error("Error fetching payment requests:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Submit Member Payment Request
+app.post("/api/member/payment-requests", requireAuth, async (req, res) => {
+  try {
+    const role = req.user?.role;
+    if (role !== "MEMBER") {
+      return res.status(403).json({ error: "Forbidden: Only active members can submit payment requests" });
+    }
+    const linkedMemberId = req.user?.linkedMemberId;
+    if (!linkedMemberId) {
+      return res.status(403).json({ error: "Forbidden: No linked member identity found" });
+    }
+
+    const {
+      memberId: requestedMemberId,
+      month,
+      year,
+      dueAmount,
+      requestedAmount,
+      paymentMethod = "bKash",
+      senderMobile,
+      transactionId,
+      paymentDate,
+      paymentTime,
+      note
+    } = req.body;
+
+    // Member ID Tampering Prevention: Member can only submit for their own linked ID
+    if (requestedMemberId && requestedMemberId !== linkedMemberId) {
+      return res.status(403).json({ error: "Security violation: You cannot submit payment for another member" });
+    }
+
+    // Mandatory Transaction ID / TrxID validation
+    if (!transactionId || typeof transactionId !== 'string' || !transactionId.trim()) {
+      return res.status(400).json({ error: "Transaction ID (TrxID) is mandatory. Please provide a valid bKash TrxID." });
+    }
+    const cleanTrxId = transactionId.trim().toUpperCase();
+
+    // Mandatory Sender Mobile validation
+    if (!senderMobile || typeof senderMobile !== 'string' || !senderMobile.trim()) {
+      return res.status(400).json({ error: "Sender mobile number is mandatory." });
+    }
+
+    const cleanAmount = Number(requestedAmount);
+    if (isNaN(cleanAmount) || cleanAmount <= 0) {
+      return res.status(400).json({ error: "Valid payment amount greater than zero is required." });
+    }
+
+    const dbData = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(dbData);
+
+    const member = (db.members || []).find(m => m.memberId === linkedMemberId);
+    if (!member) {
+      return res.status(404).json({ error: "Member profile not found." });
+    }
+
+    // Authoritative Due check from AccountingService
+    const dueInfo = AccountingService.calculateMemberDue(
+      member,
+      db.collections || [],
+      db.settings?.monthlyContribution || 1000,
+      db.settings?.lateFine || 0,
+      db.settings?.latePaymentDay || 10
+    );
+
+    // Amount tampering validation: requested amount cannot exceed authorized total due
+    const authorizedDue = dueInfo.totalDueAmount || dueInfo.totalContributionDue || 0;
+    if (authorizedDue > 0 && cleanAmount > authorizedDue) {
+      return res.status(400).json({ 
+        error: `Payment amount (BDT ${cleanAmount}) cannot exceed authorized outstanding due (BDT ${authorizedDue}).` 
+      });
+    }
+
+    // Duplicate TrxID validation across pending/approved requests and official collections
+    const allRequests = db.memberPaymentRequests || [];
+    const isDuplicateInRequests = allRequests.some(
+      r => (r.status === 'PENDING' || r.status === 'APPROVED') && 
+           r.transactionId && r.transactionId.toUpperCase() === cleanTrxId
+    );
+    const isDuplicateInCollections = (db.collections || []).some(
+      c => (c.status === 'ACTIVE' || c.status === 'POSTED' || !c.status) &&
+           c.transactionNo && c.transactionNo.toUpperCase() === cleanTrxId
+    );
+
+    if (isDuplicateInRequests || isDuplicateInCollections) {
+      return res.status(400).json({ 
+        error: `Duplicate Transaction ID (${cleanTrxId}). This bKash transaction has already been submitted or processed.` 
+      });
+    }
+
+    // Generate clean unique Request ID: e.g. PAYREQ-2026-000001
+    const reqYear = year || new Date().getFullYear();
+    const reqSeq = String(allRequests.length + 1).padStart(6, '0');
+    const newRequestId = `PAYREQ-${reqYear}-${reqSeq}`;
+
+    const newRequest = {
+      id: newRequestId,
+      memberId: linkedMemberId,
+      memberNameSnapshot: member.fullName,
+      month: month || String(new Date().getMonth() + 1).padStart(2, '0'),
+      year: Number(reqYear),
+      financialYearId: db.settings?.currentFinancialYear || "2026-2027",
+      dueAmount: Number(dueAmount || authorizedDue),
+      requestedAmount: cleanAmount,
+      paymentMethod: paymentMethod || "bKash",
+      senderMobile: senderMobile.trim(),
+      transactionId: cleanTrxId,
+      paymentDate: paymentDate || new Date().toISOString().split('T')[0],
+      paymentTime: paymentTime || new Date().toLocaleTimeString(),
+      note: note ? String(note).trim() : undefined,
+      status: "PENDING",
+      submittedAt: new Date().toISOString()
+    };
+
+    if (!db.memberPaymentRequests) db.memberPaymentRequests = [];
+    db.memberPaymentRequests.push(newRequest);
+
+    logAudit(db, req, "PAYMENT_REQUEST_SUBMITTED", "MEMBER_PORTAL", 
+      `Member ${member.fullName} (${linkedMemberId}) submitted bKash payment request ${newRequestId} for BDT ${cleanAmount} (TrxID: ${cleanTrxId})`, 
+      newRequestId
+    );
+
+    await writeDbFile(db);
+    res.json({ success: true, request: newRequest });
+  } catch (error) {
+    console.error("Error submitting payment request:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all payment requests (Admin view)
+app.get("/api/admin/payment-requests", requireAuth, requireRole(["ADMIN", "ACCOUNTANT", "COLLECTION_OFFICER"]), async (req, res) => {
+  try {
+    const dbData = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(dbData);
+    
+    const requests = db.memberPaymentRequests || [];
+    requests.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+    
+    res.json({ requests });
+  } catch (error) {
+    console.error("Error fetching payment requests:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin verification (Approve) - Atomic execution via AccountingService.postCollection
+app.post("/api/admin/payment-requests/:id/approve", requireAuth, requireRole(["ADMIN", "ACCOUNTANT", "COLLECTION_OFFICER"]), async (req, res) => {
+  try {
+    const requestId = req.params.id;
+    const dbData = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(dbData);
+
+    const reqIndex = (db.memberPaymentRequests || []).findIndex(r => r.id === requestId);
+    if (reqIndex === -1) {
+      return res.status(404).json({ error: "Payment request not found" });
+    }
+
+    const paymentReq = db.memberPaymentRequests[reqIndex];
+    if (paymentReq.status !== "PENDING") {
+      return res.status(400).json({ error: `Cannot approve: Request is already ${paymentReq.status}` });
+    }
+
+    const member = (db.members || []).find(m => m.memberId === paymentReq.memberId);
+    if (!member) {
+      return res.status(404).json({ error: "Applicable member profile not found" });
+    }
+
+    // Determine collectionMonth format YYYY-MM
+    let collectionMonth = "";
+    if (paymentReq.month && paymentReq.month.includes('-')) {
+      collectionMonth = paymentReq.month;
+    } else {
+      const monthNum = !isNaN(Number(paymentReq.month)) 
+        ? String(Number(paymentReq.month)).padStart(2, '0')
+        : "09";
+      collectionMonth = `${paymentReq.year}-${monthNum}`;
+    }
+
+    // Execute authoritative collection posting through AccountingService
+    const postParams = {
+      memberId: paymentReq.memberId,
+      collectionMonth,
+      paidAmount: paymentReq.requestedAmount,
+      discount: 0,
+      paymentMethod: "Mobile Banking",
+      transactionNo: paymentReq.transactionId,
+      collectionDate: paymentReq.paymentDate || new Date().toISOString().split('T')[0],
+      receivedBy: req.user?.username || req.user?.fullName || "Admin",
+      remarks: `bKash Payment Verified (TrxID: ${paymentReq.transactionId}, Req: ${requestId})`,
+      lateFeeWaived: false,
+      isLateFineOnly: false
+    };
+
+    const postResult = AccountingService.postCollection(db, postParams);
+
+    if (!postResult || !postResult.success || !postResult.updatedDb) {
+      return res.status(400).json({ 
+        error: postResult?.message || "Accounting posting failed. Payment request remains PENDING." 
+      });
+    }
+
+    const finalDb = postResult.updatedDb;
+    const updatedReqIndex = (finalDb.memberPaymentRequests || []).findIndex(r => r.id === requestId);
+    if (updatedReqIndex !== -1) {
+      finalDb.memberPaymentRequests[updatedReqIndex].status = "APPROVED";
+      finalDb.memberPaymentRequests[updatedReqIndex].verifiedAt = new Date().toISOString();
+      finalDb.memberPaymentRequests[updatedReqIndex].verifiedBy = req.user?.username || req.user?.userId;
+      finalDb.memberPaymentRequests[updatedReqIndex].approvedReceiptNo = postResult.receiptNo;
+      
+      const matchedCol = (finalDb.collections || []).find(c => c.receiptNo === postResult.receiptNo);
+      if (matchedCol) {
+        finalDb.memberPaymentRequests[updatedReqIndex].approvedCollectionId = matchedCol.collectionId;
+      }
+    }
+
+    logAudit(
+      finalDb, 
+      req, 
+      "PAYMENT_REQUEST_APPROVED", 
+      "COLLECTIONS", 
+      `Approved bKash payment request ${requestId} for ${paymentReq.memberNameSnapshot}. Official Receipt: ${postResult.receiptNo}`, 
+      requestId
+    );
+
+    await writeDbFile(finalDb);
+    res.json({ 
+      success: true, 
+      receiptNo: postResult.receiptNo, 
+      request: finalDb.memberPaymentRequests[updatedReqIndex] 
+    });
+  } catch (error) {
+    console.error("Error approving payment request:", error);
+    res.status(500).json({ error: error.message || "Internal server error during approval" });
+  }
+});
+
+// Admin verification (Reject)
+app.post("/api/admin/payment-requests/:id/reject", requireAuth, requireRole(["ADMIN", "ACCOUNTANT", "COLLECTION_OFFICER"]), async (req, res) => {
+  try {
+    const requestId = req.params.id;
+    const { reason } = req.body;
+
+    if (!reason || !String(reason).trim()) {
+      return res.status(400).json({ error: "Rejection reason is required" });
+    }
+
+    const dbData = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(dbData);
+
+    const reqIndex = (db.memberPaymentRequests || []).findIndex(r => r.id === requestId);
+    if (reqIndex === -1) {
+      return res.status(404).json({ error: "Payment request not found" });
+    }
+
+    const paymentReq = db.memberPaymentRequests[reqIndex];
+    if (paymentReq.status !== "PENDING") {
+      return res.status(400).json({ error: `Cannot reject: Request is already ${paymentReq.status}` });
+    }
+
+    paymentReq.status = "REJECTED";
+    paymentReq.rejectionReason = String(reason).trim();
+    paymentReq.rejectedAt = new Date().toISOString();
+    paymentReq.rejectedBy = req.user?.username || req.user?.userId;
+
+    logAudit(
+      db, 
+      req, 
+      "PAYMENT_REQUEST_REJECTED", 
+      "COLLECTIONS", 
+      `Rejected payment request ${requestId} for ${paymentReq.memberNameSnapshot}. Reason: ${reason}`, 
+      requestId
+    );
+
+    await writeDbFile(db);
+    res.json({ success: true, request: paymentReq });
+  } catch (error) {
+    console.error("Error rejecting payment request:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get("/api/users", requireAuth, requirePermission("users.view"), async (req, res) => {
   try {
     const data = await fs.readFile(DB_FILE, "utf8");
@@ -2485,6 +3253,22 @@ async function startServer() {
     }
   }
   await migrateAdminPassword();
+
+  // Static serving for user uploads (profile pictures, etc.) with security headers
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fsSync.existsSync(uploadsDir)) {
+    fsSync.mkdirSync(uploadsDir, { recursive: true });
+  }
+  const avatarsDir = path.join(uploadsDir, "avatars");
+  if (!fsSync.existsSync(avatarsDir)) {
+    fsSync.mkdirSync(avatarsDir, { recursive: true });
+  }
+  app.use("/uploads", express.static(uploadsDir, {
+    setHeaders: (res) => {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+    }
+  }));
+
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
