@@ -351,3 +351,15 @@ export async function executeRestoreBackupAPI(confirmationPhrase: string, backup
 
 
 
+
+export async function updateMemberProfileAPI(updates: any) {
+  const response = await authenticatedFetch(`/member/profile`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to update member profile', response.status, err);
+  }
+  return response.json();
+}

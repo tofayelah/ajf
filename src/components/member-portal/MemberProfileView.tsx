@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { fetchMemberProfileAPI } from '../../services/api';
 import { Member } from '../../types';
+import { MemberProfileEditForm } from './MemberProfileEditForm';
+import { Edit2 } from 'lucide-react';
 import {
   User,
   Phone,
@@ -31,6 +33,7 @@ export const MemberProfileView: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(!initialCachedMember && !!linkedMemberId);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
 
   const loadProfile = async (isManual = false) => {
     if (!linkedMemberId) return;
@@ -147,11 +150,16 @@ export const MemberProfileView: React.FC = () => {
 
         <div className="flex items-center gap-2.5">
           {/* Read-Only Badge */}
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl border border-slate-200 text-xs font-semibold">
-            <Lock className="w-3.5 h-3.5 text-slate-500" />
-            <span>{isBangla ? 'শুধুমাত্র পাঠযোগ্য' : 'Read-Only'}</span>
-          </div>
+          
 
+          <button
+            onClick={() => setIsEditing(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white hover:bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl border border-emerald-300 shadow-xs transition-all active:scale-95 cursor-pointer"
+            title={isBangla ? 'প্রোফাইল সম্পাদন করুন' : 'Edit Profile'}
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+            <span>{isBangla ? 'সম্পাদন' : 'Edit'}</span>
+          </button>
           <button
             id="refresh-profile-btn"
             onClick={() => loadProfile(true)}
@@ -165,21 +173,32 @@ export const MemberProfileView: React.FC = () => {
         </div>
       </div>
 
-      {/* Read-Only Informational Notice */}
+      {/* Informational Notice */}
       <div className="flex items-start gap-3 bg-emerald-50/80 border border-emerald-200 p-4 rounded-2xl text-emerald-950 text-xs sm:text-sm shadow-xs">
         <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
         <div>
           <p className="font-bold text-emerald-900 mb-0.5">
-            {isBangla ? '🔒 সদস্য প্রোফাইল নিরাপত্তা ও তথ্যের অপরিবর্তনশীলতা' : '🔒 Secure Read-Only Member Profile'}
+            {isBangla ? '✓ প্রোফাইল তথ্য' : '✓ Profile Information'}
           </p>
           <p className="text-emerald-800/90 leading-relaxed">
             {isBangla
-              ? 'আপনার সদস্য প্রোফাইল শুধুমাত্র দেখার জন্য সংরক্ষিত। নাম, মোবাইল, ঠিকানা বা নমিনী তথ্যে কোন পরিবর্তনের প্রয়োজন হলে সরাসরি সমিতির কেন্দ্রীয় কার্যালয়ে যোগাযোগ করুন।'
-              : 'Your member profile is strictly read-only for security and audit integrity. To update any personal or nominee information, please contact the society management office.'}
+              ? 'আপনার সদস্য প্রোফাইল থেকে ব্যক্তিগত এবং যোগাযোগের তথ্য আপডেট করতে পারবেন। আর্থিক তথ্য সুরক্ষিত এবং পরিবর্তনযোগ্য নয়।'
+              : 'You can securely update your personal and contact information. Financial and accounting records are strictly read-only and protected.'}
           </p>
         </div>
       </div>
 
+      {isEditing ? (
+        <MemberProfileEditForm 
+          member={member} 
+          onSave={(updatedMember) => {
+             setMember(updatedMember);
+             setIsEditing(false);
+          }} 
+          onCancel={() => setIsEditing(false)} 
+        />
+      ) : (
+        <>
       {/* Profile Overview Card */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row items-center md:items-start gap-6">
         {/* Photo Container */}
@@ -398,6 +417,8 @@ export const MemberProfileView: React.FC = () => {
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

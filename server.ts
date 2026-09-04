@@ -893,6 +893,61 @@ app.get("/api/members", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Server error fetching member list" });
   }
 });
+app.put("/api/member/profile", requireAuth, async (req, res) => {
+  try {
+    const role = req.user?.role;
+    if (role !== "MEMBER") {
+      return res.status(403).json({ error: "Forbidden: Endpoint specific to MEMBER role" });
+    }
+    
+    const linkedMemberId = req.user?.linkedMemberId;
+    if (!linkedMemberId) {
+      return res.status(403).json({ error: "Forbidden: No linked member profile" });
+    }
+
+    const dbData = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(dbData);
+    
+    const memberIndex = (db.members || []).findIndex(m => m.memberId === linkedMemberId);
+    if (memberIndex === -1) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+    
+    const currentMember = db.members[memberIndex];
+    const updates = req.body;
+    
+    // Explicit allowlist of profile fields
+    const allowedFields = [
+      "fullName", "fullNameEn", "fatherName", "motherName", 
+      "dateOfBirth", "mobile", "email", "nid", "bloodGroup",
+      "presentAddress", "permanentAddress", "occupation", 
+      "nominees", 
+      "photoPath", "nomineePhotoPath"
+    ];
+    
+    let hasChanges = false;
+    for (const field of allowedFields) {
+      if (updates[field] !== undefined) {
+        currentMember[field] = updates[field];
+        hasChanges = true;
+      }
+    }
+    
+    if (hasChanges) {
+      db.members[memberIndex] = currentMember;
+      
+      logAudit(db, req, "MEMBER_UPDATED", "MEMBER_PORTAL", "Member self-updated profile details", linkedMemberId);
+      
+      await writeDbFile(db);
+    }
+    
+    res.json({ success: true, member: currentMember });
+  } catch (error) {
+    console.error("Error updating member profile:", error);
+    res.status(500).json({ error: error.message || "Server error updating profile" });
+  }
+});
+
 app.get("/api/members/:memberId", requireAuth, requireMemberOwnership("memberId"), async (req, res) => {
   try {
     const role = req.user?.role;
