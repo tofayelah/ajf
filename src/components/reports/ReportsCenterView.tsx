@@ -565,7 +565,7 @@ export const ReportsCenterView: React.FC = () => {
   const [selectedReport, setSelectedReport] = useState<string>('BALANCE_SHEET');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [selectedFy, setSelectedFy] = useState<string>(db.settings.currentFinancialYear || '2026-2027');
+  const [selectedFy, setSelectedFy] = useState<string>(db.settings.currentFinancialYear || '2026');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [accountFilter, setAccountFilter] = useState<string>('ALL');
@@ -643,7 +643,7 @@ export const ReportsCenterView: React.FC = () => {
         break;
       case 'COLLECTION_REPORT': {
         const fyObj = db.financialYears?.find(fy => fy.status === 'ACTIVE') || db.financialYears?.[0];
-        const activeFyStr = fyObj?.yearCode || '2026-2027';
+        const activeFyStr = fyObj?.yearCode || '2026';
         
         let colls = (db.collections || []).filter(c => c.status === 'ACTIVE' || c.status === 'POSTED' || !c.status);
         let caps = (db.capitalDeposits || []).filter(c => c.status === 'ACTIVE' || c.status === 'POSTED' || !c.status);
@@ -1224,7 +1224,7 @@ export const ReportsCenterView: React.FC = () => {
                 </option>
               ))}
               {(!db.financialYears || db.financialYears.length === 0) && (
-                <option value="2026-2027">2026-2027 (Active)</option>
+                <option value="2026">2026 (Active)</option>
               )}
             </select>
           </div>

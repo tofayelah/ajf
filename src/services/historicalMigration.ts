@@ -504,12 +504,12 @@ export function runHistoricalMigrationDiagnostic(
     const parentEntry = entryMap.get(line.journalEntryId) || {
       id: line.journalEntryId,
       journalNo: line.journalEntryId,
-      date: '2026-07-01',
+      date: '2026-01-01',
       description: line.description || '',
       sourceType: 'UNKNOWN',
       sourceId: '',
       createdBy: 'SYSTEM',
-      createdAt: '2026-07-01T00:00:00.000Z'
+      createdAt: '2026-01-01T00:00:00.000Z'
     };
 
     const currentCode = String(line.accountId || '').trim();

@@ -45,6 +45,28 @@ export const AccountingDiagnosticView: React.FC<AccountingDiagnosticViewProps> =
     return getAccountingDiagnosticReport(db);
   }, [db]);
 
+  const netTrialBalanceDebit = useMemo(() => {
+    return report.accounts.reduce((sum, acc) => {
+      const diff = acc.journalDebit - acc.journalCredit;
+      return sum + (diff > 0 ? diff : 0);
+    }, 0);
+  }, [report.accounts]);
+
+  const netTrialBalanceCredit = useMemo(() => {
+    return report.accounts.reduce((sum, acc) => {
+      const diff = acc.journalCredit - acc.journalDebit;
+      return sum + (diff > 0 ? diff : 0);
+    }, 0);
+  }, [report.accounts]);
+
+  const grossJournalDebitVolume = useMemo(() => {
+    return report.accounts.reduce((sum, acc) => sum + acc.journalDebit, 0);
+  }, [report.accounts]);
+
+  const grossJournalCreditVolume = useMemo(() => {
+    return report.accounts.reduce((sum, acc) => sum + acc.journalCredit, 0);
+  }, [report.accounts]);
+
   const filteredAccounts = useMemo(() => {
     return report.accounts.filter(item => {
       const matchesSearch =
@@ -119,8 +141,28 @@ export const AccountingDiagnosticView: React.FC<AccountingDiagnosticViewProps> =
       </div>
 
       {/* Primary KPI Status Banners */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-        {/* Card 1: Trial Balance Equilibrium */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+        {/* Card 1: Gross Journal Debit Volume */}
+        <div
+          className={`p-4 rounded-xl border flex flex-col justify-between bg-slate-50 border-slate-200`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-600 uppercase">
+              {isBangla ? 'গ্রস জার্নাল ভলিউম' : 'Gross Journal Volume'}
+            </span>
+            <CheckCircle2 className="w-4 h-4 text-slate-400" />
+          </div>
+          <div className="mt-2">
+            <div className="text-lg font-bold font-mono text-slate-900">
+              ৳{grossJournalDebitVolume.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+            <div className="text-[10px] text-slate-500 mt-0.5">
+              <span className="text-slate-600 font-bold">DR ৳{grossJournalDebitVolume.toLocaleString()} = CR ৳{grossJournalCreditVolume.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 1.5: Net Trial Balance Equilibrium */}
         <div
           className={`p-4 rounded-xl border flex flex-col justify-between ${
             report.isBalanced ? 'bg-emerald-50/80 border-emerald-300' : 'bg-rose-50/90 border-rose-300'
@@ -128,7 +170,7 @@ export const AccountingDiagnosticView: React.FC<AccountingDiagnosticViewProps> =
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-600 uppercase">
-              {isBangla ? 'ট্রায়াল ব্যালেন্স জের' : 'Trial Balance DR = CR'}
+              {isBangla ? 'নিট ট্রায়াল ব্যালেন্স' : 'Net Trial Balance'}
             </span>
             {report.isBalanced ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -138,11 +180,11 @@ export const AccountingDiagnosticView: React.FC<AccountingDiagnosticViewProps> =
           </div>
           <div className="mt-2">
             <div className="text-lg font-bold font-mono text-slate-900">
-              ৳{report.totalJournalDebits.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              ৳{netTrialBalanceDebit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
             <div className="text-[10px] text-slate-500 mt-0.5">
               {report.isBalanced ? (
-                <span className="text-emerald-700 font-bold">DR ৳{report.totalJournalDebits.toLocaleString()} = CR ৳{report.totalJournalCredits.toLocaleString()}</span>
+                <span className="text-emerald-700 font-bold">DR ৳{netTrialBalanceDebit.toLocaleString()} = CR ৳{netTrialBalanceCredit.toLocaleString()}</span>
               ) : (
                 <span className="text-rose-700 font-bold">Diff: ৳{report.trialBalanceVariance.toLocaleString()}</span>
               )}

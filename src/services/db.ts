@@ -47,7 +47,7 @@ export const DEFAULT_SETTINGS: AppSetting = {
   location: "আতরগাঁও, বাজিতপুর, কিশোরগঞ্জ",
   phone: "+880 1711-000000",
   email: "ajwelfare.society@gmail.com",
-  currentFinancialYear: "2026-2027",
+  currentFinancialYear: "2026",
   admissionFee: 500,
   capitalDeposit: 5000,
   monthlyContribution: 1000,
@@ -152,7 +152,7 @@ export const DEFAULT_BANK_ACCOUNTS: BankAccount[] = [
     accountNumber: "SB-0192837465678",
     routingNumber: "200260481",
     accountType: "CURRENT",
-    financialYearId: "FY-2026-2027",
+    financialYearId: "FY-2026",
     openingDate: "2026-07-01",
     status: "ACTIVE",
     openingBalance: 0,
@@ -167,7 +167,7 @@ export const DEFAULT_BANK_ACCOUNTS: BankAccount[] = [
     accountNumber: "IB-2050182736450",
     routingNumber: "125260192",
     accountType: "SAVINGS",
-    financialYearId: "FY-2026-2027",
+    financialYearId: "FY-2026",
     openingDate: "2026-07-01",
     status: "ACTIVE",
     openingBalance: 0,
@@ -182,7 +182,7 @@ export const DEFAULT_BANK_ACCOUNTS: BankAccount[] = [
     accountNumber: "DB-1181203948571",
     routingNumber: "090260334",
     accountType: "CURRENT",
-    financialYearId: "FY-2026-2027",
+    financialYearId: "FY-2026",
     openingDate: "2026-07-01",
     status: "ACTIVE",
     openingBalance: 0,
@@ -191,31 +191,34 @@ export const DEFAULT_BANK_ACCOUNTS: BankAccount[] = [
   },
 ];
 
-export const DEFAULT_FINANCIAL_YEARS: FinancialYear[] = [
-  {
-    id: "FY-2026-2027",
-    yearCode: "2026-2027",
-    startDate: "2026-07-01",
-    endDate: "2027-06-30",
-    status: "ACTIVE",
-    openingBalances: {
-      cash: 0,
-      bank: 0,
-      memberCapital: 0,
-      loanReceivable: 0,
-      investment: 0,
-      welfareFund: 0,
-      emergencyFund: 0,
-      reserveFund: 0,
-      retainedProfit: 0,
-    },
-    openedAt: "2026-07-01T00:00:00.000Z",
-    openedBy: "USR-0001",
-    createdAt: "2026-07-01T00:00:00.000Z",
-    createdBy: "USR-0001",
-    remarks: "Approved Initial Production Financial Year 2026-2027"
-  }
-];
+export const getDefaultFinancialYears = (): FinancialYear[] => {
+  const currentYear = new Date().getFullYear().toString();
+  return [
+    {
+      id: `FY-${currentYear}`,
+      yearCode: currentYear,
+      startDate: `${currentYear}-01-01`,
+      endDate: `${currentYear}-12-31`,
+      status: "ACTIVE",
+      openingBalances: {
+        cash: 0,
+        bank: 0,
+        memberCapital: 0,
+        loanReceivable: 0,
+        investment: 0,
+        welfareFund: 0,
+        emergencyFund: 0,
+        reserveFund: 0,
+        retainedProfit: 0,
+      },
+      openedAt: `${currentYear}-01-01T00:00:00.000Z`,
+      openedBy: "USR-0001",
+      createdAt: `${currentYear}-01-01T00:00:00.000Z`,
+      createdBy: "USR-0001",
+      remarks: `Approved Initial Production Financial Year ${currentYear}`
+    }
+  ];
+};
 
 export interface AppDatabaseState {
   settings: AppSetting;
@@ -408,7 +411,7 @@ export function repairLateFeeWaivers(db: AppDatabaseState): void {
           approvedByUserId: db.activeUserId || 'USR-0001',
           remarks: c.remarks || 'বিলম্ব ফি মওকুফকৃত',
           status: (c.status === 'REVERSED' || c.status === 'CANCELLED') ? 'REVERSED' : 'ACTIVE',
-          financialYearId: db.settings?.currentFinancialYear || '2026-2027',
+          financialYearId: db.settings?.currentFinancialYear || '2026',
           createdAt: c.createdAt || new Date().toISOString(),
           sourceType: 'COLLECTION',
           sourceId: c.collectionId || c.receiptNo,
@@ -554,7 +557,7 @@ export function createFreshDatabase(withDemoData = false): AppDatabaseState {
     cashReconciliations: [],
     bankReconciliations: [],
     bankStatementTransactions: [],
-    financialYears: [...DEFAULT_FINANCIAL_YEARS],
+    financialYears: getDefaultFinancialYears(),
     attachments: [],
     reserveUtilizations: [],
     historicalProfits: [],

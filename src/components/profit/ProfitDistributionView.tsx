@@ -45,7 +45,7 @@ export const ProfitDistributionView: React.FC = () => {
   const isBangla = language === 'bn';
 
   // Dynamic Financial Year Selection (Reporting Filter)
-  const defaultFY = db.settings.currentFinancialYear || '2026-2027';
+  const defaultFY = db.settings.currentFinancialYear || '2026';
   const [selectedFY, setSelectedFY] = useState<string>(defaultFY);
 
   // Search & Filter State
@@ -70,7 +70,7 @@ export const ProfitDistributionView: React.FC = () => {
       if (hp.financialYear) set.add(hp.financialYear);
     });
     if (set.size === 0) {
-      set.add('2026-2027');
+      set.add('2026');
       set.add('2025-2026');
       set.add('2024-2025');
     }

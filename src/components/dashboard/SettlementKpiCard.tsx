@@ -24,7 +24,7 @@ export const SettlementKpiCard: React.FC<SettlementKpiCardProps> = ({ onNavigate
   const [showTooltip, setShowTooltip] = useState(false);
 
   const kpiData = useMemo(() => {
-    const currentFY = db.settings.currentFinancialYear || '2026-2027';
+    const currentFY = db.settings.currentFinancialYear || '2026';
     const activeFYObj = (db.financialYears || []).find(
       fy => fy.yearCode === currentFY || fy.id === currentFY || fy.id === `FY-${currentFY}`
     );
@@ -37,11 +37,10 @@ export const SettlementKpiCard: React.FC<SettlementKpiCardProps> = ({ onNavigate
       if (activeFYObj && activeFYObj.startDate && activeFYObj.endDate && recordDate) {
         return recordDate >= activeFYObj.startDate && recordDate <= activeFYObj.endDate;
       }
-      // Fallback: If currentFY is "2026-2027", check if record date year matches
-      if (currentFY.includes('-') && recordDate) {
-        const [startYear, endYear] = currentFY.split('-');
+      // Fallback: Check if record date year matches currentFY
+      if (recordDate) {
         const recYear = recordDate.split('-')[0];
-        return recYear === startYear || recYear === endYear;
+        return recYear === currentFY;
       }
       return true;
     });

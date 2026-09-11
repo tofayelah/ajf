@@ -1920,7 +1920,7 @@ export class AccountingService {
         approvedByUserId: db.activeUserId || 'USR-0001',
         remarks: params.remarks || 'বিলম্ব ফি মওকুফকৃত',
         status: 'ACTIVE',
-        financialYearId: db.settings?.currentFinancialYear || '2026-2027',
+        financialYearId: db.settings?.currentFinancialYear || '2026',
         createdAt: new Date().toISOString(),
         sourceType: 'COLLECTION',
         sourceId: collectionId
@@ -2352,7 +2352,7 @@ export class AccountingService {
             approvedByUserId: db.activeUserId || 'USR-0001',
             remarks: params.remarks || 'একসাথে বকেয়া আদায়কালীন বিলম্ব ফি মওকুফ',
             status: 'ACTIVE',
-            financialYearId: db.settings?.currentFinancialYear || '2026-2027',
+            financialYearId: db.settings?.currentFinancialYear || '2026',
             createdAt: new Date().toISOString(),
             sourceType: 'BULK_COLLECTION',
             sourceId: receiptNo
@@ -4941,7 +4941,7 @@ export class AccountingService {
     }
 
     const activeYear = (db.financialYears || []).find(fy => fy.status === 'ACTIVE');
-    const fyCode = activeYear ? activeYear.yearCode : (db.settings?.currentFinancialYear || '2026-2027');
+    const fyCode = activeYear ? activeYear.yearCode : (db.settings?.currentFinancialYear || '2026');
 
     const contraId = isDraft ? `DRF-CON-${Date.now()}` : `CON-${Date.now()}`;
     const voucherNo = isDraft ? this.generateVoucherNo(db, 'DRF') : this.generateVoucherNo(db, 'CON');
@@ -5561,7 +5561,7 @@ export class AccountingService {
 
     let currentCash = this.getCashBalance(db.cashTransactions);
     const activeYear = (db.financialYears || []).find(fy => fy.status === 'ACTIVE');
-    const fyCode = activeYear ? activeYear.yearCode : (db.settings?.currentFinancialYear || '2026-2027');
+    const fyCode = activeYear ? activeYear.yearCode : (db.settings?.currentFinancialYear || '2026');
 
     const journalEntryId = `JNL-${Date.now()}`;
     const jnlVoucherNo = this.generateVoucherNo(db, 'JNL');
@@ -6046,7 +6046,7 @@ export class AccountingService {
 
     // 6. Create Separate Reversal Transaction & Postings
     const activeYear = (db.financialYears || []).find(fy => fy.status === 'ACTIVE');
-    const fyCode = activeYear ? activeYear.yearCode : (db.settings?.currentFinancialYear || '2026-2027');
+    const fyCode = activeYear ? activeYear.yearCode : (db.settings?.currentFinancialYear || '2026');
 
     const reversalTxnId = `CON-REV-${Date.now()}`;
     const revVoucherNo = this.generateVoucherNo(db, 'REV-CON');

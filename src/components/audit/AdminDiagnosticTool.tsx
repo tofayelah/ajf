@@ -94,9 +94,8 @@ export const AdminDiagnosticTool: React.FC<AdminDiagnosticToolProps> = ({ onClos
       setStartDate(format(firstDay, 'yyyy-MM-dd'));
       setEndDate(todayStr);
     } else if (preset === 'CURRENT_FY') {
-      // AJ Welfare Society fiscal year begins July 1
-      const currentYear = today.getMonth() >= 6 ? today.getFullYear() : today.getFullYear() - 1;
-      setStartDate(`${currentYear}-07-01`);
+      const currentYear = today.getFullYear();
+      setStartDate(`${currentYear}-01-01`);
       setEndDate(todayStr);
     } else if (preset === 'ALL_TIME') {
       setStartDate('');

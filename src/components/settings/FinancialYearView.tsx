@@ -495,7 +495,7 @@ export const FinancialYearView: React.FC = () => {
                   value={yearCode}
                   onChange={(e) => setYearCode(e.target.value)}
                   className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm"
-                  placeholder="e.g. 2026-2027"
+                  placeholder="e.g. 2026"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">

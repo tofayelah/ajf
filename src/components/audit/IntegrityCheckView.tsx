@@ -165,12 +165,8 @@ export const IntegrityCheckView: React.FC<IntegrityCheckViewProps> = ({ onClose 
       setStartDate('');
       setEndDate('');
     } else if (preset === 'THIS_YEAR') {
-      // Fiscal year: usually July 1 to June 30 or Jan 1 to Dec 31
-      const isPostJuly = now.getMonth() >= 6;
-      const startYear = isPostJuly ? currentYear : currentYear - 1;
-      const endYear = startYear + 1;
-      setStartDate(`${startYear}-07-01`);
-      setEndDate(`${endYear}-06-30`);
+      setStartDate(`${currentYear}-01-01`);
+      setEndDate(`${currentYear}-12-31`);
     } else if (preset === 'THIS_MONTH') {
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const start = `${currentYear}-${month}-01`;

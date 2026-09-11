@@ -78,7 +78,7 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
   // Filters for single member transaction view
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
-  const [financialYear, setFinancialYear] = useState<string>('2026-2027');
+  const [financialYear, setFinancialYear] = useState<string>('2026');
   const [transactionType, setTransactionType] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
@@ -475,7 +475,7 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
   const handleResetFilters = () => {
     setDateFrom('');
     setDateTo('');
-    setFinancialYear('2026-2027');
+    setFinancialYear('2026');
     setTransactionType('ALL');
     setStatusFilter('ALL');
     setCurrentPage(1);
@@ -1684,7 +1684,7 @@ export const MemberLedgerView: React.FC<MemberLedgerViewProps> = ({ initialMembe
             <div className="space-y-1 text-right">
               <p><strong>অর্থবছর (FY):</strong> {financialYear}</p>
               <p><strong>যোগদানের তারিখ (Joining Date):</strong> {formatDate(selectedMember?.joiningDate)}</p>
-              <p><strong>বিবরণীর সময়কাল (Period):</strong> {dateFrom ? formatDate(dateFrom) : '2026-07-01'} to {dateTo ? formatDate(dateTo) : '2027-06-30'}</p>
+              <p><strong>বিবরণীর সময়কাল (Period):</strong> {dateFrom ? formatDate(dateFrom) : '2026-01-01'} to {dateTo ? formatDate(dateTo) : '2026-12-31'}</p>
               <p><strong>প্রিন্টের তারিখ (Date):</strong> {new Date().toLocaleDateString('bn-BD')}</p>
             </div>
           </div>

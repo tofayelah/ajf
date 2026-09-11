@@ -569,7 +569,7 @@ app.get("/api/sync", requireAuth, async (req, res) => {
       const memberId = req.user.linkedMemberId;
       const safeDb = {
         settings: db.settings || {
-          currentFinancialYear: "2026-2027",
+          currentFinancialYear: "2026",
           monthlyContribution: 1e3,
           lateFine: 0,
           latePaymentDay: 10
@@ -2140,7 +2140,7 @@ app.post("/api/member/payment-requests", requireAuth, async (req, res) => {
       memberNameSnapshot: member.fullName,
       month: month || String(new Date().getMonth() + 1).padStart(2, '0'),
       year: Number(reqYear),
-      financialYearId: db.settings?.currentFinancialYear || "2026-2027",
+      financialYearId: db.settings?.currentFinancialYear || "2026",
       dueAmount: Number(dueAmount || authorizedDue),
       requestedAmount: cleanAmount,
       paymentMethod: paymentMethod || "bKash",

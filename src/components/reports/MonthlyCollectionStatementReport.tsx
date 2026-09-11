@@ -46,10 +46,10 @@ export const MonthlyCollectionStatementReport: React.FC<MonthlyCollectionStateme
     return (
       db.financialYears?.find(fy => fy.status === 'ACTIVE') ||
       db.financialYears?.[0] || {
-        id: 'FY-2026-2027',
-        yearCode: '2026-2027',
-        startDate: '2026-07-01',
-        endDate: '2027-06-30',
+        id: 'FY-2026',
+        yearCode: '2026',
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
         status: 'ACTIVE' as const
       }
     );
@@ -94,8 +94,8 @@ export const MonthlyCollectionStatementReport: React.FC<MonthlyCollectionStateme
     setSelectedMonth(newMonth);
     if (newMonth === 'ALL') {
       const fyObj = db.financialYears?.find(fy => fy.id === selectedFyId) || activeFy;
-      setFromDate(fyObj.startDate || '2026-07-01');
-      setToDate(fyObj.endDate || '2027-06-30');
+      setFromDate(fyObj.startDate || '2026-01-01');
+      setToDate(fyObj.endDate || '2026-12-31');
     } else {
       const [y, m] = newMonth.split('-').map(Number);
       const lastDay = new Date(y, m, 0).getDate();
@@ -109,8 +109,8 @@ export const MonthlyCollectionStatementReport: React.FC<MonthlyCollectionStateme
     setSelectedFyId(fyId);
     const fyObj = db.financialYears?.find(fy => fy.id === fyId) || activeFy;
     if (selectedMonth === 'ALL') {
-      setFromDate(fyObj.startDate || '2026-07-01');
-      setToDate(fyObj.endDate || '2027-06-30');
+      setFromDate(fyObj.startDate || '2026-01-01');
+      setToDate(fyObj.endDate || '2026-12-31');
     }
   };
 
@@ -628,6 +628,25 @@ export const MonthlyCollectionStatementReport: React.FC<MonthlyCollectionStateme
     });
   };
 
+  const currentFyObj = db.financialYears?.find(fy => fy.id === selectedFyId) || activeFy;
+  const targetYearStr = currentFyObj?.yearCode || '2026';
+  const bnYear = targetYearStr.split('').map(d => ['০','১','২','৩','৪','৫','৬','৭','৮','৯'][parseInt(d)]).join('');
+  
+  const monthOptions = [
+    { value: `${targetYearStr}-01`, label: `January ${targetYearStr} (জানুয়ারি ${bnYear})` },
+    { value: `${targetYearStr}-02`, label: `February ${targetYearStr} (ফেব্রুয়ারি ${bnYear})` },
+    { value: `${targetYearStr}-03`, label: `March ${targetYearStr} (মার্চ ${bnYear})` },
+    { value: `${targetYearStr}-04`, label: `April ${targetYearStr} (এপ্রিল ${bnYear})` },
+    { value: `${targetYearStr}-05`, label: `May ${targetYearStr} (মে ${bnYear})` },
+    { value: `${targetYearStr}-06`, label: `June ${targetYearStr} (জুন ${bnYear})` },
+    { value: `${targetYearStr}-07`, label: `July ${targetYearStr} (জুলাই ${bnYear})` },
+    { value: `${targetYearStr}-08`, label: `August ${targetYearStr} (আগস্ট ${bnYear})` },
+    { value: `${targetYearStr}-09`, label: `September ${targetYearStr} (সেপ্টেম্বর ${bnYear})` },
+    { value: `${targetYearStr}-10`, label: `October ${targetYearStr} (অক্টোবর ${bnYear})` },
+    { value: `${targetYearStr}-11`, label: `November ${targetYearStr} (নভেম্বর ${bnYear})` },
+    { value: `${targetYearStr}-12`, label: `December ${targetYearStr} (ডিসেম্বর ${bnYear})` },
+  ];
+
   return (
     <div className="space-y-6">
       {/* 1. REPORT TITLE & ACTION BAR */}
@@ -725,18 +744,9 @@ export const MonthlyCollectionStatementReport: React.FC<MonthlyCollectionStateme
               className="w-full bg-white border border-slate-300 rounded-lg p-2 font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
             >
               <option value="ALL">{isBangla ? 'সকল মাস (সম্পূর্ণ অর্থবছর)' : 'All Months (Full Year)'}</option>
-              <option value="2026-07">July 2026 (জুলাই ২০২৬)</option>
-              <option value="2026-08">August 2026 (আগস্ট ২০২৬)</option>
-              <option value="2026-09">September 2026 (সেপ্টেম্বর ২০২৬)</option>
-              <option value="2026-10">October 2026 (অক্টোবর ২০২৬)</option>
-              <option value="2026-11">November 2026 (নভেম্বর ২০২৬)</option>
-              <option value="2026-12">December 2026 (ডিসেম্বর ২০২৬)</option>
-              <option value="2027-01">January 2027 (জানুয়ারি ২০২৭)</option>
-              <option value="2027-02">February 2027 (ফেব্রুয়ারি ২০২৭)</option>
-              <option value="2027-03">March 2027 (মার্চ ২০২৭)</option>
-              <option value="2027-04">April 2027 (এপ্রিল ২০২৭)</option>
-              <option value="2027-05">May 2027 (মে ২০২৭)</option>
-              <option value="2027-06">June 2027 (জুন ২০২৭)</option>
+              {monthOptions.map(m => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
             </select>
           </div>
 

@@ -1045,7 +1045,7 @@ export interface BankStatementTransaction {
 }
 
 export interface FinancialYear {
-  id: string; // e.g. FY-2026-2027
+  id: string; // e.g. FY-2026
   yearCode: string;
   startDate: string;
   endDate: string;
