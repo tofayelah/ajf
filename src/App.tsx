@@ -9,13 +9,14 @@ import { getInitialDatabase } from './services/db';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 
 // Layout
 import { TopAppBar } from './components/layout/TopAppBar';
 import { AppDrawer } from './components/layout/AppDrawer';
 import { LoginView } from './components/auth/LoginView';
+import { EmergencyAdminRecoveryView } from './components/auth/EmergencyAdminRecoveryView';
 import { BottomNavigationBar } from './components/layout/BottomNavigationBar';
 import { SpeedDialFab } from './components/layout/SpeedDialFab';
 import { GlobalSearchModal } from './components/layout/GlobalSearchModal';
@@ -241,6 +242,39 @@ const MainLayout = () => {
       default: navigateTo('DASHBOARD'); break;
     }
   };
+
+  const [isEmergencyRecovery, setIsEmergencyRecovery] = useState(() => {
+    return typeof window !== 'undefined' && (
+      window.location.pathname === '/emergency-admin-recovery' ||
+      window.location.hash.includes('emergency-admin-recovery')
+    );
+  });
+
+  useEffect(() => {
+    const handleRouteChange = () => {
+      setIsEmergencyRecovery(
+        window.location.pathname === '/emergency-admin-recovery' ||
+        window.location.hash.includes('emergency-admin-recovery')
+      );
+    };
+    window.addEventListener('popstate', handleRouteChange);
+    window.addEventListener('hashchange', handleRouteChange);
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+      window.removeEventListener('hashchange', handleRouteChange);
+    };
+  }, []);
+
+  if (isEmergencyRecovery) {
+    return (
+      <EmergencyAdminRecoveryView
+        onBack={() => {
+          window.history.pushState({}, '', '/');
+          setIsEmergencyRecovery(false);
+        }}
+      />
+    );
+  }
 
   if (isDbLoading) {
     return (

@@ -14,6 +14,23 @@ import { requireAuth, requireRole, requireMemberOwnership } from './src/rbac';
 import { getInitialDatabase } from './src/services/db';
 import AdmZip from 'adm-zip';
 import multer from 'multer';
+import {
+  createSession,
+  getSession,
+  touchSession,
+  isSessionExpired,
+  invalidateSession,
+  invalidateUserSessions,
+  validatePasswordStrength,
+  isRateLimited,
+  recordLoginFailure,
+  recordLoginSuccess,
+  logSecurityAudit,
+  isEmergencyRecoveryRateLimited,
+  recordEmergencyRecoveryFailure,
+  recordEmergencyRecoverySuccess,
+  EMERGENCY_RECOVERY_CONFIRMATION_PHRASE
+} from './src/security/sessionManager';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -195,7 +212,20 @@ app.get("/api/system/health", async (req, res) => {
   }
 });
 app.post("/api/auth/login", async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password } = req.body || {};
+  const clientIp = req.ip || req.socket?.remoteAddress || "unknown";
+
+  // Rate limiting check
+  if (isRateLimited(clientIp)) {
+    return res.status(429).json({ error: "Too many login attempts. Please try again later." });
+  }
+
+  const cleanUsername = String(username || "").trim();
+  if (!cleanUsername || !password) {
+    recordLoginFailure(clientIp);
+    return res.status(401).json({ error: "Your user or password is wrong" });
+  }
+
   try {
     let db = { users: [] };
     try {
@@ -204,34 +234,145 @@ app.post("/api/auth/login", async (req, res) => {
     } catch (e) {
       console.log("Database read error, using empty DB:", e.message);
     }
-    const user = db.users?.find((u) => u.username === username || u.mobile === username || u.email === username);
-    if (!user || user.status !== "ACTIVE") {
-      return res.status(401).json({ error: "Invalid username or password" });
+
+    const user = db.users?.find(
+      (u) =>
+        u.username?.toLowerCase() === cleanUsername.toLowerCase() ||
+        u.mobile === cleanUsername ||
+        u.email?.toLowerCase() === cleanUsername.toLowerCase()
+    );
+
+    // If user not found, return generic message and record failure
+    if (!user) {
+      recordLoginFailure(clientIp);
+      logSecurityAudit(db, null, "LOGIN_FAILED", `Failed login attempt: user not found (${cleanUsername})`);
+      try {
+        await writeDbFile(db);
+      } catch (err) {}
+      return res.status(401).json({ error: "Your user or password is wrong" });
     }
+
+    // If user is already LOCKED
+    if (user.status === "LOCKED") {
+      recordLoginFailure(clientIp);
+      logSecurityAudit(
+        db,
+        user,
+        "LOGIN_REJECTED",
+        `Login attempt rejected: account is locked for ${user.username}`,
+        user.userId
+      );
+      try {
+        await writeDbFile(db);
+      } catch (err) {}
+      return res.status(403).json({
+        error: "Your account is locked. Please contact an administrator.",
+        locked: true
+      });
+    }
+
+    // If user is INACTIVE or DISABLED
+    if (user.status !== "ACTIVE") {
+      recordLoginFailure(clientIp);
+      return res.status(403).json({
+        error: "Your account is inactive. Please contact an administrator.",
+        status: user.status
+      });
+    }
+
+    // Verify password with bcrypt
     const isValid = await bcrypt.compare(password, user.passwordHash || "");
     if (!isValid) {
-      return res.status(401).json({ error: "Invalid username or password" });
+      recordLoginFailure(clientIp);
+      const currentFailed = (user.failedLoginAttempts || 0) + 1;
+      user.failedLoginAttempts = currentFailed;
+
+      if (currentFailed >= 5) {
+        user.status = "LOCKED";
+        user.lockTimestamp = new Date().toISOString();
+        invalidateUserSessions(user.userId);
+        logSecurityAudit(
+          db,
+          user,
+          "ACCOUNT_LOCKED",
+          `Account locked due to 5 consecutive failed login attempts for ${user.username}`,
+          user.userId
+        );
+        await writeDbFile(db);
+        return res.status(403).json({
+          error: "Your account has been locked due to multiple failed login attempts. Please contact an administrator.",
+          locked: true
+        });
+      }
+
+      logSecurityAudit(
+        db,
+        user,
+        "LOGIN_FAILED",
+        `Failed login attempt (${currentFailed}/5) for ${user.username}`,
+        user.userId
+      );
+      await writeDbFile(db);
+      return res.status(401).json({ error: "Your user or password is wrong" });
     }
-    const tokenUser = { userId: user.userId, username: user.username, role: user.role, linkedMemberId: user.linkedMemberId };
+
+    // Successful login: reset failed login attempts and clear lock
+    recordLoginSuccess(clientIp);
+    user.failedLoginAttempts = 0;
+    user.lockTimestamp = undefined;
+    const nowIso = new Date().toISOString();
+    user.lastLoginAt = nowIso;
+    user.lastLogin = nowIso;
+
+    // Create a new session with initial 10-minute idle timer
+    const session = createSession({
+      userId: user.userId,
+      username: user.username,
+      role: user.role,
+      linkedMemberId: user.linkedMemberId
+    });
+
+    const tokenUser = {
+      userId: user.userId,
+      username: user.username,
+      role: user.role,
+      linkedMemberId: user.linkedMemberId,
+      sessionId: session.sessionId
+    };
+
     const token = jwt.sign(tokenUser, getSessionSecret2(), { expiresIn: "8h" });
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 8 * 60 * 60 * 1e3
-      // 8 hours
+      maxAge: 8 * 60 * 60 * 1000 // 8 hours absolute max, but idle timeout is 10 mins
     });
+
+    logSecurityAudit(db, user, "LOGIN_SUCCESS", `User ${user.username} logged in successfully`, user.userId);
+    await writeDbFile(db);
+
     const safeUser = { ...user };
     delete safeUser.passwordHash;
     delete safeUser.pinHash;
     delete safeUser.salt;
     res.json({ success: true, user: safeUser, token });
   } catch (err) {
+    console.error("Error in /api/auth/login:", err);
     res.status(500).json({ error: "Internal server error during login" });
   }
 });
+
 app.post("/api/auth/logout", (req, res) => {
+  const token = req.cookies?.token || req.headers?.authorization?.replace("Bearer ", "");
+  if (token) {
+    try {
+      const decoded: any = jwt.verify(token, getSessionSecret2());
+      if (decoded?.sessionId) {
+        invalidateSession(decoded.sessionId);
+      }
+    } catch (e) {}
+  }
   res.clearCookie("token", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -240,13 +381,14 @@ app.post("/api/auth/logout", (req, res) => {
   });
   res.json({ success: true });
 });
+
 app.get("/api/auth/session", async (req, res) => {
   try {
     const token = req.cookies?.token || req.headers?.authorization?.replace("Bearer ", "");
     if (!token) {
       return res.json({ authenticated: false, user: null });
     }
-    let decoded;
+    let decoded: any;
     try {
       decoded = jwt.verify(token, getSessionSecret2());
     } catch (e) {
@@ -261,6 +403,27 @@ app.get("/api/auth/session", async (req, res) => {
     if (!decoded || !decoded.userId) {
       return res.json({ authenticated: false, user: null });
     }
+
+    const sessionId = decoded.sessionId || `user_${decoded.userId}`;
+    const sessionCheck = isSessionExpired(sessionId);
+    if (sessionCheck.expired) {
+      if (sessionCheck.reason === "IDLE_TIMEOUT_EXCEEDED") {
+        res.clearCookie("token", {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/"
+        });
+        return res.status(401).json({
+          authenticated: false,
+          user: null,
+          error: "Your session has expired due to inactivity. Please login again.",
+          code: "SESSION_EXPIRED",
+          expired: true
+        });
+      }
+    }
+
     let db = { users: [] };
     try {
       const data = await fs.readFile(DB_FILE, "utf8");
@@ -270,14 +433,24 @@ app.get("/api/auth/session", async (req, res) => {
     }
     const user = db.users?.find((u) => u.userId === decoded.userId);
     if (!user || user.status !== "ACTIVE") {
+      invalidateSession(sessionId);
       res.clearCookie("token", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
         path: "/"
       });
-      return res.json({ authenticated: false, user: null });
+      return res.status(user?.status === "LOCKED" ? 403 : 401).json({
+        authenticated: false,
+        user: null,
+        error: user?.status === "LOCKED" ? "Your account is locked. Please contact an administrator." : "Account is not active",
+        code: user?.status === "LOCKED" ? "ACCOUNT_LOCKED" : "ACCOUNT_INACTIVE"
+      });
     }
+
+    // Authenticated session activity touches the session idle timer
+    touchSession(sessionId);
+
     const safeUser = { ...user };
     delete safeUser.passwordHash;
     delete safeUser.pinHash;
@@ -285,6 +458,96 @@ app.get("/api/auth/session", async (req, res) => {
     res.json({ authenticated: true, user: safeUser, token });
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Authenticated activity heartbeat endpoint to reset idle timer
+app.post("/api/auth/touch", requireAuth, (req: any, res: any) => {
+  if (req.sessionId) {
+    touchSession(req.sessionId);
+  }
+  res.json({ success: true, timestamp: Date.now() });
+});
+
+// User Password Management: Change Password with strict verification & requirements
+app.post("/api/auth/change-password", requireAuth, async (req: any, res: any) => {
+  try {
+    const { currentPassword, newPassword, confirmPassword, targetUserId } = req.body || {};
+    const effectiveUserId = targetUserId || req.user.userId;
+
+    // A normal USER/MEMBER can change ONLY their own password
+    if (effectiveUserId !== req.user.userId && req.user.role !== "ADMIN") {
+      return res.status(403).json({ error: "Forbidden: You can change only your own password" });
+    }
+
+    if (!currentPassword) {
+      return res.status(400).json({ error: "Current password is required" });
+    }
+
+    if (!newPassword || !confirmPassword) {
+      return res.status(400).json({ error: "New password and confirmation are required" });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ error: "New password and confirmation do not match" });
+    }
+
+    const valResult = validatePasswordStrength(newPassword);
+    if (!valResult.valid) {
+      return res.status(400).json({ error: valResult.error });
+    }
+
+    const data = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(data);
+    const user = db.users?.find((u: any) => u.userId === effectiveUserId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Verify current password
+    const isCurrentValid = await bcrypt.compare(currentPassword, user.passwordHash || "");
+    if (!isCurrentValid) {
+      logSecurityAudit(
+        db,
+        req.user,
+        "PASSWORD_CHANGE_REJECTED",
+        `Password change rejected: current password incorrect for ${user.username}`,
+        user.userId
+      );
+      await writeDbFile(db);
+      return res.status(400).json({ error: "Current password is incorrect." });
+    }
+
+    // Hash new password
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.lastPasswordChange = new Date().toISOString();
+
+    // Invalidate existing sessions for user (they can continue on current or re-authenticate)
+    invalidateUserSessions(user.userId);
+    // Create new session for this current client if changing own password
+    if (effectiveUserId === req.user.userId) {
+      const newSession = createSession({
+        userId: user.userId,
+        username: user.username,
+        role: user.role,
+        linkedMemberId: user.linkedMemberId
+      });
+      req.sessionId = newSession.sessionId;
+    }
+
+    logSecurityAudit(
+      db,
+      req.user,
+      "PASSWORD_CHANGED",
+      `Password changed successfully for ${user.username}`,
+      user.userId
+    );
+    await writeDbFile(db);
+
+    res.json({ success: true, message: "Password changed successfully." });
+  } catch (error: any) {
+    console.error("Error changing password:", error);
+    res.status(500).json({ error: error.message || "Failed to change password" });
   }
 });
 app.get("/api/sync", requireAuth, async (req, res) => {
@@ -2240,19 +2503,73 @@ app.post("/api/users/:id/reset-password", requireAuth, requirePermission("users.
     const data = await fs.readFile(DB_FILE, "utf8");
     const db = JSON.parse(data);
     const { password } = req.body;
-    if (!password || typeof password !== "string" || password.length < 4) {
-      return res.status(400).json({ error: "Password must be at least 4 characters long" });
+    
+    const valResult = validatePasswordStrength(password);
+    if (!valResult.valid) {
+      return res.status(400).json({ error: valResult.error });
     }
+
     const user = db.users?.find((u) => u.userId === req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
+    
     user.passwordHash = await bcrypt.hash(password, 10);
+    user.lastPasswordChange = new Date().toISOString();
+    invalidateUserSessions(user.userId);
+
     const caller = db.users.find((u) => u.userId === req.user.userId);
     if (caller) req.user.username = caller.fullName || caller.username;
-    logAudit(db, req, "PASSWORD_RESET", "USER_MANAGEMENT", `Password reset for ${user.username}`, user.userId);
+    
+    logSecurityAudit(
+      db,
+      req.user,
+      "PASSWORD_RESET",
+      `Administrative password reset for ${user.username}`,
+      user.userId
+    );
     await writeDbFile(db);
-    res.json({ success: true });
+    res.json({ success: true, message: "Password reset successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message || "Server error resetting password" });
+  }
+});
+
+// Dedicated Admin Unlock Account Endpoint
+app.post("/api/users/:id/unlock", requireAuth, async (req: any, res: any) => {
+  try {
+    // Only administrators can unlock accounts
+    if (req.user?.role !== "ADMIN") {
+      return res.status(403).json({ error: "Forbidden: Only administrators can unlock accounts" });
+    }
+
+    const data = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(data);
+    const userIndex = db.users?.findIndex((u: any) => u.userId === req.params.id);
+    if (userIndex === -1 || userIndex === undefined) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const targetUser = db.users[userIndex];
+    targetUser.status = "ACTIVE";
+    targetUser.failedLoginAttempts = 0;
+    targetUser.lockTimestamp = undefined;
+    targetUser.unlockTimestamp = new Date().toISOString();
+
+    const caller = db.users.find((u: any) => u.userId === req.user.userId);
+    const adminName = caller?.fullName || caller?.username || req.user.username;
+
+    logSecurityAudit(
+      db,
+      req.user,
+      "ACCOUNT_UNLOCKED",
+      `Administrator ${adminName} unlocked account for ${targetUser.username} (${targetUser.fullName}). Result: SUCCESS`,
+      targetUser.userId
+    );
+
+    await writeDbFile(db);
+    const { passwordHash, pinHash, salt, ...safeUser } = targetUser;
+    res.json({ success: true, message: "Account unlocked successfully", user: safeUser });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Server error unlocking account" });
   }
 });
 app.post("/api/users/:id/reset-pin", requireAuth, requirePermission("users.reset_password"), async (req, res) => {
@@ -2286,6 +2603,10 @@ app.post("/api/users/:id/role", requireAuth, requirePermission("users.assign_rol
     }
     const user = db.users?.find((u) => u.userId === req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
+    const designatedAdminUsername = process.env.AJF_EMERGENCY_RECOVERY_ADMIN_USERNAME || "tofayelah";
+    if (user.username === designatedAdminUsername && cleanRole !== "ADMIN") {
+      return res.status(400).json({ error: "Cannot demote the designated emergency recovery administrator" });
+    }
     if (user.role === "ADMIN" && cleanRole !== "ADMIN" && user.status === "ACTIVE") {
       const activeAdmins = db.users.filter((u) => u.role === "ADMIN" && u.status === "ACTIVE");
       if (activeAdmins.length <= 1) {
@@ -2330,6 +2651,10 @@ app.delete("/api/users/:id", requireAuth, requirePermission("users.disable"), as
     const userIndex = db.users?.findIndex((u) => u.userId === req.params.id);
     if (userIndex === -1 || userIndex === void 0) return res.status(404).json({ error: "User not found" });
     const user = db.users[userIndex];
+    const designatedAdminUsername = process.env.AJF_EMERGENCY_RECOVERY_ADMIN_USERNAME || "tofayelah";
+    if (user.username === designatedAdminUsername) {
+      return res.status(400).json({ error: "Cannot delete the designated emergency recovery administrator" });
+    }
     if (user.role === "ADMIN" && user.status === "ACTIVE") {
       const activeAdmins = db.users.filter((u) => u.role === "ADMIN" && u.status === "ACTIVE");
       if (activeAdmins.length <= 1) {
@@ -2355,7 +2680,8 @@ app.all([
   "/api/users/:id/activate",
   "/api/users/:id/deactivate",
   "/api/users/:id/suspend",
-  "/api/users/:id/reactivate"
+  "/api/users/:id/reactivate",
+  "/api/users/:id/lock"
 ], requireAuth, async (req, res) => {
   try {
     // CRITICAL: A MEMBER must NEVER be able to change account status
@@ -2386,8 +2712,10 @@ app.all([
     const url = req.originalUrl || req.url || '';
     if (url.includes('/disable') || url.includes('/deactivate') || url.includes('/suspend')) {
       targetStatus = 'DISABLED';
-    } else if (url.includes('/enable') || url.includes('/activate') || url.includes('/reactivate')) {
+    } else if (url.includes('/enable') || url.includes('/activate') || url.includes('/reactivate') || url.includes('/unlock')) {
       targetStatus = 'ACTIVE';
+    } else if (url.includes('/lock')) {
+      targetStatus = 'LOCKED';
     } else {
       targetStatus = req.body?.status 
         ? String(req.body.status).toUpperCase() 
@@ -2401,20 +2729,30 @@ app.all([
     if (targetUser.role === "ADMIN" && targetUser.status === "ACTIVE" && targetStatus !== "ACTIVE") {
       const activeAdmins = db.users.filter((u) => u.role === "ADMIN" && u.status === "ACTIVE");
       if (activeAdmins.length <= 1) {
-        return res.status(400).json({ error: "Cannot deactivate or disable the last active ADMIN" });
+        return res.status(400).json({ error: "Cannot deactivate, disable, or lock the last active ADMIN" });
       }
     }
 
     const oldStatus = targetUser.status;
     targetUser.status = targetStatus;
 
+    if (targetStatus === 'ACTIVE') {
+      targetUser.failedLoginAttempts = 0;
+      targetUser.lockTimestamp = undefined;
+      targetUser.unlockTimestamp = new Date().toISOString();
+    } else if (targetStatus === 'LOCKED') {
+      targetUser.lockTimestamp = new Date().toISOString();
+      invalidateUserSessions(targetUser.userId);
+    } else {
+      invalidateUserSessions(targetUser.userId);
+    }
+
     const caller = db.users.find((u) => u.userId === req.user.userId);
     if (caller) req.user.username = caller.fullName || caller.username;
-    logAudit(
+    logSecurityAudit(
       db,
-      req,
-      targetStatus === "ACTIVE" ? "USER_ENABLED" : "USER_DISABLED",
-      "USER_MANAGEMENT",
+      req.user,
+      targetStatus === "ACTIVE" ? (oldStatus === "LOCKED" ? "ACCOUNT_UNLOCKED" : "USER_ENABLED") : targetStatus === "LOCKED" ? "ACCOUNT_LOCKED" : "USER_DISABLED",
       `Status changed from ${oldStatus} to ${targetStatus} for ${targetUser.username}`,
       targetUser.userId
     );
@@ -3932,6 +4270,180 @@ var handleFactoryResetExecute = async (req, res) => {
   }
 };
 
+const handleEmergencyRecovery = async (req, res) => {
+  const clientIp = (req.headers["x-forwarded-for"])?.split(",")[0]?.trim() || req.ip || req.socket?.remoteAddress || "unknown";
+
+  // Rate Limiting Check: max 3 failed attempts in 15 minutes blocks the endpoint
+  if (isEmergencyRecoveryRateLimited(clientIp)) {
+    return res.status(429).json({ error: "Emergency recovery verification failed." });
+  }
+
+  // Caller Authorization Guard: If caller is currently authenticated as a MEMBER or non-admin, deny immediately
+  const rawToken = req.cookies?.token || (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7).trim() : null);
+  if (rawToken) {
+    let memberRoleFound = false;
+    const session = getSession(rawToken);
+    if (session && session.role === "MEMBER") {
+      memberRoleFound = true;
+    }
+    if (!memberRoleFound) {
+      try {
+        const decoded = jwt.verify(rawToken, getSessionSecret2());
+        if (decoded && decoded.role === "MEMBER") {
+          memberRoleFound = true;
+        }
+      } catch {}
+    }
+    if (memberRoleFound) {
+      recordEmergencyRecoveryFailure(clientIp);
+      return res.status(403).json({ error: "Forbidden: Members are not permitted to access emergency recovery" });
+    }
+  }
+
+  const { recoverySecret, confirmationPhrase, resetPassword, newPassword } = req.body || {};
+
+  // Verify Confirmation Phrase (exact match required)
+  const cleanPhrase = String(confirmationPhrase || "").trim();
+  if (cleanPhrase !== EMERGENCY_RECOVERY_CONFIRMATION_PHRASE) {
+    recordEmergencyRecoveryFailure(clientIp);
+    try {
+      const data = await fs.readFile(DB_FILE, "utf8");
+      const db = JSON.parse(data);
+      logSecurityAudit(db, null, "EMERGENCY_RECOVERY_FAILED", `Invalid confirmation phrase submitted from IP ${clientIp}`);
+      await writeDbFile(db);
+    } catch {}
+    return res.status(400).json({ error: "Emergency recovery verification failed." });
+  }
+
+  // Verify Emergency Recovery Secret (must match server environment variable)
+  const configuredSecret = process.env.AJF_EMERGENCY_RECOVERY_SECRET || "AJF-BREAK-GLASS-RECOVERY-SECRET-2026";
+  const cleanSecret = String(recoverySecret || "").trim();
+  if (!cleanSecret || cleanSecret !== configuredSecret) {
+    recordEmergencyRecoveryFailure(clientIp);
+    try {
+      const data = await fs.readFile(DB_FILE, "utf8");
+      const db = JSON.parse(data);
+      logSecurityAudit(db, null, "EMERGENCY_RECOVERY_FAILED", `Invalid recovery secret submitted from IP ${clientIp}`);
+      await writeDbFile(db);
+    } catch {}
+    return res.status(401).json({ error: "Emergency recovery verification failed." });
+  }
+
+  try {
+    const rawData = await fs.readFile(DB_FILE, "utf8");
+    const db = JSON.parse(rawData);
+
+    // Internal lookup of designated administrator account
+    const designatedUsername = process.env.AJF_EMERGENCY_RECOVERY_ADMIN_USERNAME || "tofayelah";
+    let targetAdmin = db.users?.find((u) => u.username === designatedUsername && u.role === "ADMIN");
+    if (!targetAdmin) {
+      targetAdmin = db.users?.find((u) => u.role === "ADMIN");
+    }
+
+    if (!targetAdmin) {
+      recordEmergencyRecoveryFailure(clientIp);
+      return res.status(500).json({ error: "No designated administrator found in system." });
+    }
+
+    // Security snapshot before modification
+    const securitySnapshotBefore = {
+      userId: targetAdmin.userId,
+      username: targetAdmin.username,
+      status: targetAdmin.status,
+      failedLoginAttempts: targetAdmin.failedLoginAttempts,
+      lockTimestamp: targetAdmin.lockTimestamp
+    };
+
+    // Financial integrity verification snapshot
+    const financialKeys = [
+      "members", "memberLedgers", "admissions", "capitalDeposits", "collections",
+      "incomes", "lateFees", "expenses", "settlements", "profitAllocations",
+      "cashTransactions", "bankTransactions", "journalEntries", "journalLines",
+      "accounts", "financialYears"
+    ];
+    const countsBefore = {};
+    for (const key of financialKeys) {
+      countsBefore[key] = Array.isArray(db[key]) ? db[key].length : 0;
+    }
+
+    // Step 7: Unlock ONLY designated administrator account
+    targetAdmin.status = "ACTIVE";
+    targetAdmin.failedLoginAttempts = 0;
+    delete targetAdmin.lockTimestamp;
+    targetAdmin.securityNotice = "Emergency administrator recovery was used. Please change your password immediately.";
+    targetAdmin.emergencyRecoveryAt = new Date().toISOString();
+
+    // Step 9: Optional password reset
+    if (resetPassword) {
+      if (!newPassword || typeof newPassword !== "string") {
+        return res.status(400).json({ error: "New password is required when password reset is requested." });
+      }
+      const validation = validatePasswordStrength(newPassword);
+      if (!validation.valid) {
+        return res.status(400).json({ error: `Password does not meet complexity requirements: ${validation.error}` });
+      }
+      targetAdmin.password = await bcrypt.hash(newPassword, 10);
+      targetAdmin.lastPasswordChange = new Date().toISOString();
+      logSecurityAudit(
+        db,
+        { userId: targetAdmin.userId, username: targetAdmin.username },
+        "EMERGENCY_PASSWORD_RESET",
+        `Emergency password reset completed for designated admin ${targetAdmin.username} from IP ${clientIp}`,
+        targetAdmin.userId
+      );
+    }
+
+    // Step 8: Revoke all existing sessions for the recovered account
+    invalidateUserSessions(targetAdmin.userId);
+
+    // Step 10: Security audit logs
+    logSecurityAudit(
+      db,
+      { userId: targetAdmin.userId, username: targetAdmin.username },
+      "EMERGENCY_ADMIN_UNLOCKED",
+      `Emergency recovery unlocked designated admin ${targetAdmin.username}. Previous status was ${securitySnapshotBefore.status}. IP: ${clientIp}`,
+      targetAdmin.userId
+    );
+    logSecurityAudit(
+      db,
+      { userId: targetAdmin.userId, username: targetAdmin.username },
+      "EMERGENCY_RECOVERY_SUCCESS",
+      `Designated administrator access recovered successfully for ${targetAdmin.username}. IP: ${clientIp}`,
+      targetAdmin.userId
+    );
+
+    // Financial integrity verification check after modification
+    for (const key of financialKeys) {
+      const currentCount = Array.isArray(db[key]) ? db[key].length : 0;
+      if (currentCount !== countsBefore[key]) {
+        throw new Error(`Financial data integrity check failed: count mismatch on ${key} (${countsBefore[key]} vs ${currentCount})`);
+      }
+    }
+
+    // Atomic disk write
+    await writeDbFile(db, { operation: "EMERGENCY_RECOVERY" });
+
+    // Clear rate limit record on success
+    recordEmergencyRecoverySuccess(clientIp);
+
+    // Response does NOT provide a session token - fresh login is strictly required
+    return res.json({
+      success: true,
+      message: "Emergency administrator recovery successful. Designated administrator account has been unlocked. Please perform a fresh login.",
+      designatedAdmin: {
+        username: targetAdmin.username,
+        status: targetAdmin.status,
+        emergencyRecoveryAt: targetAdmin.emergencyRecoveryAt
+      }
+    });
+  } catch (error) {
+    console.error("Error executing emergency admin recovery:", error);
+    return res.status(500).json({ error: error.message || "Internal server error during emergency recovery" });
+  }
+};
+
+app.post("/api/admin/emergency-recovery", handleEmergencyRecovery);
+app.all("/api/admin/emergency-recovery", (req, res) => res.status(405).json({ error: "Method not allowed. Use POST." }));
 app.get("/api/admin/backup/download", requireAuth, requireRole(["ADMIN"]), handleBackupDownload);
 app.post("/api/admin/restore/validate", requireAuth, requireRole(["ADMIN"]), upload.single("backupFile"), handleRestoreValidate);
 app.post("/api/admin/restore/execute", requireAuth, requireRole(["ADMIN"]), upload.single("backupFile"), handleRestoreExecute);

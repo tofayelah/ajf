@@ -1,11 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import fs from 'fs';
+import path from 'path';
+import { isSessionExpired, touchSession, invalidateSession, createSession, getSession } from './security/sessionManager';
 
 function getSessionSecret(): string {
   return process.env.SESSION_SECRET || 'fallback-secret-for-development-only-do-not-use-in-prod';
 }
 
-export const requireAuth = (req: any, res: any, next: any) => {
+const DB_FILE = path.join(process.cwd(), 'database.json');
+
+export const requireAuth = async (req: any, res: any, next: any) => {
   let token = req.cookies?.token;
   if (!token && req.headers?.authorization) {
     const authHeader = req.headers.authorization;
@@ -14,13 +19,71 @@ export const requireAuth = (req: any, res: any, next: any) => {
     }
   }
   if (!token) return res.status(401).json({ error: 'Unauthorized: No session token' });
+
+  let decoded: any;
   try {
-    const decoded = jwt.verify(token, getSessionSecret());
-    req.user = decoded;
-    next();
+    decoded = jwt.verify(token, getSessionSecret());
   } catch (err) {
-    res.status(401).json({ error: 'Unauthorized: Invalid or expired session' });
+    return res.status(401).json({ error: 'Unauthorized: Invalid or expired session' });
   }
+
+  if (!decoded || !decoded.userId) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid session payload' });
+  }
+
+  const sessionId = decoded.sessionId || `user_${decoded.userId}`;
+
+  // Check if this session is expired or not registered yet
+  const sessionCheck = isSessionExpired(sessionId);
+  if (sessionCheck.expired) {
+    if (sessionCheck.reason === 'IDLE_TIMEOUT_EXCEEDED') {
+      return res.status(401).json({
+        error: 'Your session has expired due to inactivity. Please login again.',
+        code: 'SESSION_EXPIRED',
+        expired: true
+      });
+    }
+    // If not found in memory (e.g. server restart or first token use), register it with current timestamp
+    createSession({
+      userId: decoded.userId,
+      username: decoded.username,
+      role: decoded.role,
+      linkedMemberId: decoded.linkedMemberId
+    });
+  }
+
+  // Ensure the account in the database is not LOCKED or DISABLED
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const dbData = fs.readFileSync(DB_FILE, 'utf8');
+      const db = JSON.parse(dbData);
+      const user = db.users?.find((u: any) => u.userId === decoded.userId);
+      if (user) {
+        if (user.status === 'LOCKED') {
+          invalidateSession(sessionId);
+          return res.status(401).json({
+            error: 'Your account is locked. Please contact an administrator.',
+            code: 'ACCOUNT_LOCKED'
+          });
+        }
+        if (user.status !== 'ACTIVE') {
+          invalidateSession(sessionId);
+          return res.status(401).json({
+            error: 'Account is inactive. Please contact an administrator.',
+            code: 'ACCOUNT_INACTIVE'
+          });
+        }
+      }
+    }
+  } catch (e) {
+    // If DB read fails, fall through safely
+  }
+
+  // Legitimate authenticated activity resets the idle timer!
+  touchSession(sessionId);
+  req.user = decoded;
+  req.sessionId = sessionId;
+  next();
 };
 
 export const requireRole = (allowedRoles: string[]) => {

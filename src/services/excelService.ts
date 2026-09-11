@@ -636,6 +636,207 @@ export class ExcelService {
     this.shareOrDownload(`AJ_Welfare_Late_Fee_Waivers_${fyStr}.xlsx`, wb);
   }
 
+  static exportMonthlyCollectionStatement(
+    db: AppDatabaseState,
+    payload: {
+      financialYear: string;
+      selectedPeriod: string;
+      summary: {
+        totalCollection: number;
+        totalReceiptsCount: number;
+        membersCollectedCount: number;
+        chandaCollection: number;
+        capitalCollection: number;
+        admissionFee: number;
+        lateFee: number;
+        otherCollection: number;
+      };
+      dailyBreakdown: Array<{
+        date: string;
+        receiptsCount: number;
+        chanda: number;
+        capital: number;
+        admissionFee: number;
+        lateFine: number;
+        other: number;
+        dailyTotal: number;
+      }>;
+      memberBreakdown: Array<{
+        serial: number;
+        memberId: string;
+        memberName: string;
+        chanda: number;
+        capital: number;
+        admissionFee: number;
+        lateFine: number;
+        other: number;
+        totalCollected: number;
+      }>;
+      receipts?: Array<{
+        receiptNo: string;
+        date: string;
+        memberId: string;
+        memberName: string;
+        type: string;
+        amount: number;
+        paymentMethod: string;
+        status: string;
+        remarks?: string;
+      }>;
+    }
+  ) {
+    const orgName = db.settings.orgNameBangla || db.settings.orgName || 'AJF Management System';
+    const fyStr = payload.financialYear || this.getActiveFyStr(db);
+    const wb = XLSX.utils.book_new();
+
+    // 1. Summary & Daily Breakdown Sheet
+    const summaryRows = [
+      ['AJF Management System'],
+      ['Monthly Collection Statement (মাসিক কালেকশন স্টেটমেন্ট)'],
+      [`Financial Year: ${fyStr}`],
+      [`Selected Period: ${payload.selectedPeriod}`],
+      [`Generated Date: ${new Date().toLocaleString()}`],
+      [],
+      ['--- EXECUTIVE SUMMARY ---', ''],
+      ['Metric', 'Value / Amount (BDT)'],
+      ['Total Collection', payload.summary.totalCollection],
+      ['Total Collection Receipts', payload.summary.totalReceiptsCount],
+      ['Members Collected', payload.summary.membersCollectedCount],
+      ['Chanda Collection', payload.summary.chandaCollection],
+      ['Capital Collection', payload.summary.capitalCollection],
+      ['Admission Fee', payload.summary.admissionFee],
+      ['Late Fee / Jorimana', payload.summary.lateFee],
+      ['Other Collection', payload.summary.otherCollection],
+      [],
+      ['--- DAILY COLLECTION BREAKDOWN ---', ''],
+    ];
+
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+
+    const dailyData = payload.dailyBreakdown.map(d => ({
+      'Date': d.date,
+      'Number of Receipts': d.receiptsCount,
+      'Chanda (BDT)': d.chanda,
+      'Capital (BDT)': d.capital,
+      'Admission Fee (BDT)': d.admissionFee,
+      'Late Fee / Jorimana (BDT)': d.lateFine,
+      'Other (BDT)': d.other,
+      'Daily Total (BDT)': d.dailyTotal
+    }));
+
+    // Add grand total row for daily breakdown
+    dailyData.push({
+      'Date': 'GRAND TOTAL',
+      'Number of Receipts': payload.summary.totalReceiptsCount,
+      'Chanda (BDT)': payload.summary.chandaCollection,
+      'Capital (BDT)': payload.summary.capitalCollection,
+      'Admission Fee (BDT)': payload.summary.admissionFee,
+      'Late Fee / Jorimana (BDT)': payload.summary.lateFee,
+      'Other (BDT)': payload.summary.otherCollection,
+      'Daily Total (BDT)': payload.summary.totalCollection
+    });
+
+    XLSX.utils.sheet_add_json(wsSummary, dailyData, { origin: "A19" });
+    wsSummary['!cols'] = [
+      { wch: 18 },
+      { wch: 20 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 20 },
+      { wch: 24 },
+      { wch: 16 },
+      { wch: 18 }
+    ];
+    XLSX.utils.book_append_sheet(wb, wsSummary, "Summary & Daily");
+
+    // 2. Member-wise Breakdown Sheet
+    const memberHeaderRows = [
+      ['AJF Management System'],
+      ['Monthly Collection Statement - Member-wise Breakdown (সদস্যভিত্তিক কালেকশন)'],
+      [`Financial Year: ${fyStr} | Period: ${payload.selectedPeriod}`],
+      [`Generated Date: ${new Date().toLocaleString()}`],
+      [],
+    ];
+    const wsMember = XLSX.utils.aoa_to_sheet(memberHeaderRows);
+
+    const memberData = payload.memberBreakdown.map(m => ({
+      'Serial': m.serial,
+      'Member ID': m.memberId,
+      'Member Name': m.memberName,
+      'Chanda (BDT)': m.chanda,
+      'Capital (BDT)': m.capital,
+      'Admission Fee (BDT)': m.admissionFee,
+      'Late Fee / Jorimana (BDT)': m.lateFine,
+      'Other (BDT)': m.other,
+      'Total Collected (BDT)': m.totalCollected
+    }));
+
+    // Grand total row for member-wise breakdown
+    memberData.push({
+      'Serial': payload.memberBreakdown.length + 1,
+      'Member ID': 'ALL',
+      'Member Name': 'GRAND TOTAL',
+      'Chanda (BDT)': payload.summary.chandaCollection,
+      'Capital (BDT)': payload.summary.capitalCollection,
+      'Admission Fee (BDT)': payload.summary.admissionFee,
+      'Late Fee / Jorimana (BDT)': payload.summary.lateFee,
+      'Other (BDT)': payload.summary.otherCollection,
+      'Total Collected (BDT)': payload.summary.totalCollection
+    });
+
+    XLSX.utils.sheet_add_json(wsMember, memberData, { origin: "A6" });
+    wsMember['!cols'] = [
+      { wch: 8 },
+      { wch: 16 },
+      { wch: 26 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 20 },
+      { wch: 24 },
+      { wch: 16 },
+      { wch: 22 }
+    ];
+    XLSX.utils.book_append_sheet(wb, wsMember, "Member Breakdown");
+
+    // 3. Receipt Details Sheet (if present)
+    if (payload.receipts && payload.receipts.length > 0) {
+      const receiptHeaders = [
+        ['AJF Management System'],
+        ['Collection Receipts & Vouchers Register'],
+        [`Financial Year: ${fyStr} | Period: ${payload.selectedPeriod}`],
+        [],
+      ];
+      const wsReceipts = XLSX.utils.aoa_to_sheet(receiptHeaders);
+      const receiptRows = payload.receipts.map(r => ({
+        'Receipt / Voucher No': r.receiptNo,
+        'Date': r.date,
+        'Member ID': r.memberId,
+        'Member Name': r.memberName,
+        'Type': r.type,
+        'Payment Method': r.paymentMethod,
+        'Amount (BDT)': r.amount,
+        'Status': r.status,
+        'Remarks': r.remarks || ''
+      }));
+      XLSX.utils.sheet_add_json(wsReceipts, receiptRows, { origin: "A5" });
+      wsReceipts['!cols'] = [
+        { wch: 20 },
+        { wch: 14 },
+        { wch: 16 },
+        { wch: 24 },
+        { wch: 18 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 14 },
+        { wch: 30 }
+      ];
+      XLSX.utils.book_append_sheet(wb, wsReceipts, "Receipts Register");
+    }
+
+    const cleanFy = fyStr.replace(/[^a-zA-Z0-9_-]/g, '_');
+    this.shareOrDownload(`AJF_Monthly_Collection_Statement_${cleanFy}.xlsx`, wb);
+  }
+
   static exportToExcel(data: any[], filename: string, sheetName = 'Sheet1') {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();

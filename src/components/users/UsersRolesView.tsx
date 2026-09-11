@@ -425,8 +425,34 @@ export const UsersRolesView: React.FC = () => {
                         {user.mobile || '-'}
                       </td>
 
-                      {/* Status */}
-                      <td className="p-4">{getStatusBadge(user.status)}</td>
+                      {/* Status & Security */}
+                      <td className="p-4">
+                        <div className="space-y-1">
+                          <div>{getStatusBadge(user.status)}</div>
+                          <div className="text-[11px] text-slate-500">
+                            <span>{isBangla ? 'ব্যর্থ চেষ্টা:' : 'Failed attempts:'} </span>
+                            <span className={`font-mono font-bold ${(user.failedLoginAttempts || 0) > 0 ? 'text-amber-700' : 'text-slate-600'}`}>
+                              {user.failedLoginAttempts || 0}
+                            </span>
+                          </div>
+                          {user.status === 'LOCKED' && user.lockTimestamp && (
+                            <div className="text-[10px] text-rose-600 font-medium">
+                              <span>{isBangla ? 'লক:' : 'Locked:'} </span>
+                              <span>{new Date(user.lockTimestamp).toLocaleDateString()} {new Date(user.lockTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                          )}
+                          {user.status === 'LOCKED' && (
+                            <button
+                              onClick={() => handleOpenConfirmAction(user, 'UNLOCK')}
+                              className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-md text-[11px] font-bold transition-colors shadow-2xs"
+                              title={isBangla ? 'অ্যাকাউন্ট আনলক করুন' : 'Unlock Account'}
+                            >
+                              <Unlock className="w-3 h-3 text-amber-700" />
+                              <span>{isBangla ? 'আনলক করুন' : 'Unlock Account'}</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
 
                       {/* Actions */}
                       <td className="p-4 text-right">

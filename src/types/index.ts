@@ -875,6 +875,11 @@ export interface UserAccount {
   permissions?: string[];
   status: "ACTIVE" | "INACTIVE" | "LOCKED" | "SUSPENDED" | "DISABLED";
   lastLoginAt?: string;
+  lastLogin?: string;
+  failedLoginAttempts?: number;
+  lockTimestamp?: string;
+  unlockTimestamp?: string;
+  lastPasswordChange?: string;
   salt?: string;
   isMigrated?: boolean;
   createdAt: string;

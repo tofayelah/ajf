@@ -45,6 +45,17 @@ export async function authenticatedFetch(
     credentials: 'same-origin'
   });
 
+  if (response.status === 401) {
+    try {
+      const clone = response.clone();
+      const body = await clone.json();
+      if (body?.code === 'SESSION_EXPIRED' || body?.expired) {
+        sessionStorage.setItem('ajf_session_expired_msg', 'Your session has expired due to inactivity. Please login again.');
+        window.dispatchEvent(new CustomEvent('ajf_session_expired', { detail: { message: 'Your session has expired due to inactivity. Please login again.' } }));
+      }
+    } catch (e) {}
+  }
+
   return response;
 }
 
@@ -151,6 +162,40 @@ export async function resetUserPinAPI(userId: string, pin: string) {
     throw new ApiError(err.error || 'Failed to reset PIN', response.status, err);
   }
   return response.json();
+}
+
+export async function unlockUserAPI(userId: string) {
+  const response = await authenticatedFetch(`/users/${encodeURIComponent(userId)}/unlock`, {
+    method: 'POST'
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to unlock user', response.status, err);
+  }
+  return response.json();
+}
+
+export async function changePasswordAPI(data: { currentPassword: string; newPassword: string; confirmPassword: string; targetUserId?: string }) {
+  const response = await authenticatedFetch('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new ApiError(err.error || 'Failed to change password', response.status, err);
+  }
+  return response.json();
+}
+
+export async function touchSessionAPI() {
+  try {
+    const response = await authenticatedFetch('/auth/touch', {
+      method: 'POST'
+    });
+    return response.ok;
+  } catch (e) {
+    return false;
+  }
 }
 
 export async function assignUserRoleAPI(userId: string, role: string) {

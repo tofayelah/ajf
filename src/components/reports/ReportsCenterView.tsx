@@ -53,6 +53,7 @@ import {
   Scale,
   BookOpen,
   DollarSign,
+  Receipt,
   AlertTriangle,
   Users,
   Briefcase,
@@ -238,10 +239,11 @@ export const ALL_REPORTS: ReportDefinition[] = [
     id: 'COLLECTION_REPORT',
     category: 'MEMBER',
     nameEn: 'Monthly Collection Statement',
-    nameBn: 'মাসিক চাঁদা আদায় বিবরণী',
-    descriptionEn: 'Subscription fee collection records and payment vouchers.',
-    descriptionBn: 'মাসভিত্তিক চাঁদা ও ফি আদায়ের রশিদ এবং সদস্য জমা বিশ্লেষণ।',
-    icon: DollarSign
+    nameBn: 'মাসিক কালেকশন স্টেটমেন্ট',
+    descriptionEn: 'Subscription fee collection records, capital deposits, admission fees, and daily breakdown.',
+    descriptionBn: 'মাসিক কালেকশন স্টেটমেন্ট, দৈনিক আদায় এবং সদস্যভিত্তিক চাঁদা ও ফি এর পূর্ণাঙ্গ বিবরণী।',
+    icon: Receipt,
+    isQuickAccess: true
   },
   {
     id: 'DUE_REPORT',
@@ -639,13 +641,134 @@ export const ReportsCenterView: React.FC = () => {
           ExcelService.exportMembers(db, db.members || []);
         }
         break;
-      case 'COLLECTION_REPORT':
-        if (isMember) {
-          ExcelService.exportCollections(db, (db.collections || []).filter(c => c.memberId === currentMemberId));
-        } else {
-          ExcelService.exportCollections(db, db.collections || []);
+      case 'COLLECTION_REPORT': {
+        const fyObj = db.financialYears?.find(fy => fy.status === 'ACTIVE') || db.financialYears?.[0];
+        const activeFyStr = fyObj?.yearCode || '2026-2027';
+        
+        let colls = (db.collections || []).filter(c => c.status === 'ACTIVE' || c.status === 'POSTED' || !c.status);
+        let caps = (db.capitalDeposits || []).filter(c => c.status === 'ACTIVE' || c.status === 'POSTED' || !c.status);
+        let adms = (db.admissions || []).filter(a => a.status === 'APPROVED' || (a.status as any) === 'ACTIVE' || !a.status);
+        
+        if (isMember && currentMemberId) {
+          colls = colls.filter(c => c.memberId === currentMemberId);
+          caps = caps.filter(c => c.memberId === currentMemberId);
+          adms = adms.filter(a => a.memberId === currentMemberId);
         }
+
+        const totalChanda = colls.reduce((s, c) => s + (c.monthlyAmount || 0), 0);
+        const totalLate = colls.reduce((s, c) => s + (c.lateFine || 0), 0);
+        const totalCapital = caps.reduce((s, c) => s + (c.amount || 0), 0);
+        const totalAdmission = adms.reduce((s, a) => s + (a.admissionFee || 0), 0);
+        const totalColl = totalChanda + totalLate + totalCapital + totalAdmission;
+
+        const allReceiptSet = new Set<string>();
+        colls.forEach(c => allReceiptSet.add(c.receiptNo || c.collectionId));
+        caps.forEach(c => allReceiptSet.add(c.voucherNo || c.depositId));
+        adms.forEach(a => allReceiptSet.add(a.transactionNo || `ADM-${a.admissionId}`));
+
+        const dailyMap = new Map<string, any>();
+        const addToDaily = (d: string, receiptId: string, chanda = 0, capital = 0, adm = 0, late = 0, total = 0) => {
+          if (!dailyMap.has(d)) {
+            dailyMap.set(d, {
+              date: d,
+              receipts: new Set<string>(),
+              chanda: 0,
+              capital: 0,
+              admissionFee: 0,
+              lateFine: 0,
+              other: 0,
+              dailyTotal: 0
+            });
+          }
+          const item = dailyMap.get(d)!;
+          item.receipts.add(receiptId);
+          item.chanda += chanda;
+          item.capital += capital;
+          item.admissionFee += adm;
+          item.lateFine += late;
+          item.dailyTotal += total;
+        };
+
+        colls.forEach(c => {
+          const d = c.collectionDate || 'Unknown';
+          addToDaily(d, c.receiptNo || c.collectionId, c.monthlyAmount || 0, 0, 0, c.lateFine || 0, c.paidAmount || ((c.monthlyAmount || 0) + (c.lateFine || 0)));
+        });
+        caps.forEach(c => {
+          const d = c.date || 'Unknown';
+          addToDaily(d, c.voucherNo || c.depositId, 0, c.amount || 0, 0, 0, c.amount || 0);
+        });
+        adms.forEach(a => {
+          const d = a.approvalDate || a.applicationDate || 'Unknown';
+          addToDaily(d, a.transactionNo || `ADM-${a.admissionId}`, 0, 0, a.admissionFee || 0, 0, a.admissionFee || 0);
+        });
+
+        const memberMap = new Map<string, any>();
+        const targetMembers = (db.members || []).filter(m => !isMember || m.memberId === currentMemberId);
+        targetMembers.forEach((m, idx) => {
+          memberMap.set(m.memberId, {
+            serial: idx + 1,
+            memberId: m.memberId,
+            memberName: m.fullName,
+            chanda: 0,
+            capital: 0,
+            admissionFee: 0,
+            lateFine: 0,
+            other: 0,
+            totalCollected: 0
+          });
+        });
+        colls.forEach(c => {
+          if (memberMap.has(c.memberId)) {
+            const item = memberMap.get(c.memberId)!;
+            item.chanda += (c.monthlyAmount || 0);
+            item.lateFine += (c.lateFine || 0);
+            item.totalCollected += (c.paidAmount || (c.monthlyAmount + c.lateFine));
+          }
+        });
+        caps.forEach(c => {
+          if (memberMap.has(c.memberId)) {
+            const item = memberMap.get(c.memberId)!;
+            item.capital += (c.amount || 0);
+            item.totalCollected += (c.amount || 0);
+          }
+        });
+        adms.forEach(a => {
+          if (memberMap.has(a.memberId)) {
+            const item = memberMap.get(a.memberId)!;
+            item.admissionFee += (a.admissionFee || 0);
+            item.totalCollected += (a.admissionFee || 0);
+          }
+        });
+
+        ExcelService.exportMonthlyCollectionStatement(db, {
+          financialYear: activeFyStr,
+          selectedPeriod: 'Full Period',
+          summary: {
+            totalCollection: totalColl,
+            totalReceiptsCount: allReceiptSet.size,
+            membersCollectedCount: targetMembers.filter(m => (memberMap.get(m.memberId)?.totalCollected || 0) > 0).length,
+            chandaCollection: totalChanda,
+            capitalCollection: totalCapital,
+            admissionFee: totalAdmission,
+            lateFee: totalLate,
+            otherCollection: 0
+          },
+          dailyBreakdown: Array.from(dailyMap.values())
+            .map(item => ({
+              date: item.date,
+              receiptsCount: item.receipts.size,
+              chanda: item.chanda,
+              capital: item.capital,
+              admissionFee: item.admissionFee,
+              lateFine: item.lateFine,
+              other: item.other,
+              dailyTotal: item.dailyTotal
+            }))
+            .sort((a, b) => a.date.localeCompare(b.date)),
+          memberBreakdown: Array.from(memberMap.values())
+        });
         break;
+      }
       case 'DUE_REPORT':
         if (isMember) {
           const ageing = (db.members || [])
@@ -1028,24 +1151,35 @@ export const ReportsCenterView: React.FC = () => {
         </div>
 
         {/* Quick Access Badges Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-2.5">
           {ALL_REPORTS.filter(r => r.isQuickAccess).map(r => {
             const Icon = r.icon;
             const isSelected = selectedReport === r.id;
+            const isSpecialReport = r.id === 'COLLECTION_REPORT';
             return (
               <button
                 key={r.id}
                 onClick={() => handleSelectReport(r.id)}
-                className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all relative ${
                   isSelected
                     ? 'bg-emerald-800 text-white border-emerald-900 shadow-sm ring-2 ring-emerald-500/30'
                     : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                 }`}
               >
-                <Icon className={`w-4 h-4 mb-2 ${isSelected ? 'text-emerald-200' : 'text-slate-500'}`} />
+                <div className="flex items-center justify-between w-full mb-1.5">
+                  <Icon className={`w-4 h-4 ${isSelected ? 'text-emerald-200' : 'text-emerald-700'}`} />
+                  {isSpecialReport && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                      NEW
+                    </span>
+                  )}
+                </div>
                 <div>
-                  <span className="text-[11px] font-bold block leading-tight">
-                    {isBangla ? r.nameBn.split('(')[0].trim() : r.nameEn}
+                  <span className={`text-[11px] font-bold block leading-tight ${isSelected ? 'text-white' : 'text-slate-900'}`}>
+                    {r.nameEn}
+                  </span>
+                  <span className={`text-[10px] font-medium block leading-tight mt-0.5 ${isSelected ? 'text-emerald-200/90' : 'text-slate-500'}`}>
+                    {r.nameBn.split('(')[0].trim()}
                   </span>
                 </div>
               </button>

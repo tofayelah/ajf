@@ -3,7 +3,8 @@ import { useApp } from '../../context/AppContext';
 import { fetchMemberProfileAPI } from '../../services/api';
 import { Member } from '../../types';
 import { MemberProfileEditForm } from './MemberProfileEditForm';
-import { Edit2 } from 'lucide-react';
+import { ChangePasswordModal } from '../auth/ChangePasswordModal';
+import { Edit2, KeyRound } from 'lucide-react';
 import {
   User,
   Phone,
@@ -35,6 +36,7 @@ export const MemberProfileView: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState<boolean>(false);
 
   const loadProfile = async (isManual = false) => {
     if (!linkedMemberId) return;
@@ -467,55 +469,113 @@ export const MemberProfileView: React.FC = () => {
           )}
         </div>
 
-        {/* Card 5: Account Status (STRICTLY READ-ONLY FOR MEMBER) */}
-        <div id="member-account-status-card" className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4 md:col-span-2">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-blue-600" />
-              <span>{isBangla ? 'অ্যাকাউন্টের অবস্থা (Login Account)' : 'Account Status'}</span>
-            </h3>
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-              <Lock className="w-3.5 h-3.5 text-slate-400" />
-              <span>{isBangla ? 'শুধুমাত্র প্রদর্শনযোগ্য (View Only)' : 'View Only'}</span>
-            </span>
+        {/* Card 5: Account Security Status (STRICTLY READ-ONLY FOR MEMBER) */}
+        <div id="member-account-security-card" className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4 md:col-span-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-blue-50 text-blue-700 rounded-xl">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  {isBangla ? 'অ্যাকাউন্ট নিরাপত্তা স্থিতি (Account Security)' : 'Account Security'}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {isBangla ? 'আপনার অ্যাকাউন্টের নিরাপত্তা ও লগইন তথ্য' : 'Security details and credentials for your login account'}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                <Lock className="w-3.5 h-3.5 text-slate-400" />
+                <span>{isBangla ? 'শুধুমাত্র পাঠযোগ্য (Read Only)' : 'Read Only Status'}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsChangePasswordOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
+                id="btn-member-change-password"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>{isBangla ? 'পাসওয়ার্ড পরিবর্তন' : 'Change Password'}</span>
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+            {/* Account Status */}
             <div>
               <span className="text-slate-500 text-xs font-medium block mb-1">
-                {isBangla ? 'অ্যাকাউন্টের অবস্থা' : 'Status'}
+                {isBangla ? 'অ্যাকাউন্টের অবস্থা (Status)' : 'Account Status'}
               </span>
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
                 (userAccount?.status || 'ACTIVE') === 'ACTIVE'
                   ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  : (userAccount?.status === 'LOCKED')
+                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
                   : 'bg-rose-100 text-rose-800 border border-rose-300'
               }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${(userAccount?.status || 'ACTIVE') === 'ACTIVE' ? 'bg-emerald-600' : 'bg-rose-600'}`}></span>
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  (userAccount?.status || 'ACTIVE') === 'ACTIVE' 
+                    ? 'bg-emerald-600' 
+                    : (userAccount?.status === 'LOCKED')
+                    ? 'bg-amber-600'
+                    : 'bg-rose-600'
+                }`}></span>
                 {userAccount?.status || (member.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')}
               </span>
             </div>
 
+            {/* Failed Login Attempts */}
             <div>
               <span className="text-slate-500 text-xs font-medium block mb-1">
-                {isBangla ? 'ইউজারনেম' : 'Username'}
+                {isBangla ? 'ব্যর্থ লগইন প্রচেষ্টা' : 'Failed Login Attempts'}
               </span>
-              <span className="text-slate-900 font-bold font-mono text-sm">
-                {userAccount?.username || activeUser?.username || member.mobile || '—'}
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-mono text-xs font-bold ${
+                (userAccount?.failedLoginAttempts || 0) > 0
+                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                  : 'bg-slate-200/70 text-slate-700'
+              }`}>
+                {userAccount?.failedLoginAttempts || 0} / 5
               </span>
             </div>
 
+            {/* Last Login Date/Time */}
             <div>
               <span className="text-slate-500 text-xs font-medium block mb-1">
                 {isBangla ? 'সর্বশেষ লগইন' : 'Last Login'}
               </span>
-              <span className="text-slate-700 font-medium text-xs">
+              <span className="text-slate-700 font-medium text-xs block truncate">
                 {userAccount?.lastLoginAt 
                   ? new Date(userAccount.lastLoginAt).toLocaleString() 
                   : activeUser?.lastLoginAt
                   ? new Date(activeUser.lastLoginAt).toLocaleString()
-                  : (isBangla ? 'কখনও না (Never)' : 'Never')}
+                  : (isBangla ? 'কখনও না' : 'Never')}
               </span>
             </div>
+
+            {/* Last Password Change Date/Time */}
+            <div>
+              <span className="text-slate-500 text-xs font-medium block mb-1">
+                {isBangla ? 'পাসওয়ার্ড পরিবর্তনের তারিখ' : 'Last Password Change'}
+              </span>
+              <span className="text-slate-700 font-medium text-xs block truncate">
+                {userAccount?.lastPasswordChange
+                  ? new Date(userAccount.lastPasswordChange).toLocaleString()
+                  : (isBangla ? 'ডিফল্ট / অপরিবর্তিত' : 'Default / Unchanged')}
+              </span>
+            </div>
+          </div>
+
+          {/* Password Policy Summary */}
+          <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-xl flex items-center justify-between flex-wrap gap-2 text-xs">
+            <span className="text-blue-900 font-medium">
+              <strong>{isBangla ? 'পাসওয়ার্ড নীতি:' : 'Password Policy:'}</strong>{' '}
+              {isBangla
+                ? 'ন্যূনতম ৮ অক্ষর, বড় হাতের অক্ষর (A-Z), ছোট হাতের অক্ষর (a-z), সংখ্যা (0-9) এবং বিশেষ চিহ্ন থাকতে হবে।'
+                : 'Minimum 8 characters with uppercase, lowercase, number, and special character'}
+            </span>
           </div>
 
           <p className="text-[11px] text-slate-500 italic">
@@ -525,6 +585,14 @@ export const MemberProfileView: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      {isChangePasswordOpen && (
+        <ChangePasswordModal
+          isOpen={isChangePasswordOpen}
+          onClose={() => setIsChangePasswordOpen(false)}
+        />
+      )}
         </>
       )}
     </div>

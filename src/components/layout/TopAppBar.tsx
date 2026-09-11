@@ -10,11 +10,13 @@ import {
   ShieldAlert,
   UserCheck,
   Building2,
-  Sparkles
+  Sparkles,
+  KeyRound
 } from 'lucide-react';
 import { UserRole } from '../../types';
 import { AJFLogo } from '../common/AJFLogo';
 import { RuntimeStatus } from '../common/RuntimeStatus';
+import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 
 interface TopAppBarProps {
   onOpenDrawer: () => void;
@@ -36,6 +38,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenDrawer }) => {
   } = useApp();
 
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const isBangla = language === 'bn';
 
   const roles: { role: UserRole; labelBn: string; labelEn: string }[] = [
@@ -228,6 +231,16 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenDrawer }) => {
                   </button>
                   <button
                     onClick={() => {
+                      setIsChangePasswordOpen(true);
+                      setIsRoleDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 text-xs text-slate-700 hover:bg-slate-50 font-semibold py-1.5 rounded-lg transition-colors"
+                  >
+                    <KeyRound className="w-3.5 h-3.5 text-slate-500" />
+                    <span>{isBangla ? 'পাসওয়ার্ড পরিবর্তন' : 'Change Password'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
                       logout();
                       setIsRoleDropdownOpen(false);
                     }}
@@ -241,6 +254,13 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({ onOpenDrawer }) => {
           </div>
         </div>
       </div>
+
+      {isChangePasswordOpen && (
+        <ChangePasswordModal
+          isOpen={isChangePasswordOpen}
+          onClose={() => setIsChangePasswordOpen(false)}
+        />
+      )}
     </header>
   );
 };

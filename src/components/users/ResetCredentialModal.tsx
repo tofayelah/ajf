@@ -44,13 +44,21 @@ export const ResetCredentialModal: React.FC<ResetCredentialModalProps> = ({
       return;
     }
 
-    if (isPassword && cleanVal.length < 4) {
-      setError(
-        isBangla
-          ? 'পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে।'
-          : 'Password must be at least 4 characters.'
-      );
-      return;
+    if (isPassword) {
+      const hasLength = cleanVal.length >= 8;
+      const hasUpper = /[A-Z]/.test(cleanVal);
+      const hasLower = /[a-z]/.test(cleanVal);
+      const hasNumber = /[0-9]/.test(cleanVal);
+      const hasSpecial = /[^A-Za-z0-9]/.test(cleanVal);
+
+      if (!hasLength || !hasUpper || !hasLower || !hasNumber || !hasSpecial) {
+        setError(
+          isBangla
+            ? 'পাসওয়ার্ড অবশ্যই কমপক্ষে ৮ অক্ষর, ১টি বড় হাতের অক্ষর (A-Z), ১টি ছোট হাতের অক্ষর (a-z), ১টি সংখ্যা (0-9) এবং ১টি বিশেষ চিহ্ন থাকতে হবে।'
+            : 'Password must be at least 8 characters with at least 1 uppercase, 1 lowercase, 1 number, and 1 special character.'
+        );
+        return;
+      }
     }
 
     if (!isPassword && cleanVal.length < 4) {
@@ -185,6 +193,19 @@ export const ResetCredentialModal: React.FC<ResetCredentialModalProps> = ({
               id="reset-confirm-credential-input"
             />
           </div>
+
+          {isPassword && (
+            <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl text-xs text-blue-900">
+              <span className="font-bold block mb-1">
+                {isBangla ? 'পাসওয়ার্ড নিরাপত্তা নীতি:' : 'Password Security Policy:'}
+              </span>
+              <p className="text-[11px] text-blue-800">
+                {isBangla
+                  ? 'ন্যূনতম ৮ অক্ষর, বড় হাতের অক্ষর (A-Z), ছোট হাতের অক্ষর (a-z), সংখ্যা (0-9) এবং বিশেষ চিহ্ন থাকতে হবে।'
+                  : 'Must have at least 8 characters, 1 uppercase (A-Z), 1 lowercase (a-z), 1 number (0-9), and 1 special character.'}
+              </p>
+            </div>
+          )}
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
             <button

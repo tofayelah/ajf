@@ -89,7 +89,7 @@ export type MainNavTab = "HOME" | "PROFILE" | "MEMBERS" | "COLLECTION" | "LEDGER
 
 interface AppContextType {
   isAuthenticated: boolean;
-  login: (username: string, pin: string) => Promise<boolean>;
+  login: (username: string, pin: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   getCurrentUser: () => UserAccount | null;
   getCurrentMemberId: () => string | null;
@@ -741,6 +741,56 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [db, isDbLoading, isAuthenticated]);
 
+  // Server-authoritative session idle timeout (10 minutes = 600,000ms)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let lastActivityTime = Date.now();
+    let lastTouchTime = Date.now();
+
+    const handleUserActivity = () => {
+      lastActivityTime = Date.now();
+      // Throttle calling touch endpoint to at most once per 60 seconds of user activity
+      if (Date.now() - lastTouchTime > 60 * 1000) {
+        lastTouchTime = Date.now();
+        authService.touch().catch(() => {});
+      }
+    };
+
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    activityEvents.forEach((evt) => {
+      window.addEventListener(evt, handleUserActivity, { passive: true });
+    });
+
+    const checkInterval = setInterval(() => {
+      const idleTime = Date.now() - lastActivityTime;
+      if (idleTime >= 10 * 60 * 1000) {
+        // Expired due to 10 minutes of inactivity
+        sessionStorage.setItem("ajf_session_expired_msg", "Your session has expired due to inactivity. Please login again.");
+        logout();
+        window.dispatchEvent(new CustomEvent('ajf_session_expired', {
+          detail: { message: "Your session has expired due to inactivity. Please login again." }
+        }));
+      }
+    }, 15000);
+
+    const handleSessionExpiredEvent = (e: any) => {
+      const msg = e.detail?.message || "Your session has expired due to inactivity. Please login again.";
+      sessionStorage.setItem("ajf_session_expired_msg", msg);
+      logout();
+    };
+
+    window.addEventListener('ajf_session_expired', handleSessionExpiredEvent);
+
+    return () => {
+      clearInterval(checkInterval);
+      activityEvents.forEach((evt) => {
+        window.removeEventListener(evt, handleUserActivity);
+      });
+      window.removeEventListener('ajf_session_expired', handleSessionExpiredEvent);
+    };
+  }, [isAuthenticated]);
+
   const language = db.settings.language || "bn";
 
   const showNotification = (
@@ -820,7 +870,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     }));
   };
 
-  const login = async (username: string, pin: string): Promise<boolean> => {
+  const login = async (username: string, pin: string): Promise<{ success: boolean; error?: string }> => {
     setIsDbLoading(true);
     const result = await authService.login(username, pin);
     if (result.success && result.user) {
@@ -860,11 +910,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       }
 
       setIsDbLoading(false);
-      return true;
+      return { success: true };
     } else {
       setIsDbLoading(false);
-      showNotification(result.error || "Login failed", "error");
-      return false;
+      const errMsg = result.error || "Your user or password is wrong";
+      showNotification(errMsg, "error");
+      return { success: false, error: errMsg };
     }
   };
 

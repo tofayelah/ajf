@@ -11,15 +11,26 @@ export const LoginView: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [expiredNotice, setExpiredNotice] = useState<string | null>(() => {
+    try {
+      const msg = sessionStorage.getItem('ajf_session_expired_msg');
+      if (msg) {
+        sessionStorage.removeItem('ajf_session_expired_msg');
+        return msg;
+      }
+    } catch {}
+    return null;
+  });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setExpiredNotice(null);
     try {
-      const success = await login(username, password);
-      if (!success) {
-        setError(isBangla ? 'ভুল ইউজারনেম বা পাসওয়ার্ড' : 'Invalid username or password');
+      const res = await login(username, password);
+      if (!res.success) {
+        setError(res.error || (isBangla ? 'ভুল ইউজারনেম বা পাসওয়ার্ড' : 'Invalid username or password'));
         setIsLoading(false);
       }
     } catch {
@@ -67,6 +78,17 @@ export const LoginView: React.FC = () => {
               {isBangla ? 'সিস্টেমে প্রবেশ করতে লগইন করুন' : 'Login to access the system'}
             </p>
           </div>
+
+          {/* Session Expired Notice */}
+          {expiredNotice && (
+            <div
+              id="session-expired-alert"
+              role="alert"
+              className="mb-5 p-3.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs sm:text-sm font-medium text-center flex items-center justify-center gap-2"
+            >
+              <span>{expiredNotice}</span>
+            </div>
+          )}
 
           {/* Error Message Alert */}
           {error && (
@@ -182,6 +204,20 @@ export const LoginView: React.FC = () => {
             <div className="pt-1 text-xs text-slate-400 font-medium">
               <span>Software development by - </span>
               <span className="font-semibold text-slate-700">Tofayel Ahmed</span>
+            </div>
+
+            {/* Discreet Break-Glass Emergency Admin Recovery Access */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  window.history.pushState({}, '', '/emergency-admin-recovery');
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }}
+                className="text-[11px] text-slate-400/80 hover:text-slate-600 underline underline-offset-2 transition-colors cursor-pointer"
+              >
+                {isBangla ? 'জরুরি অ্যাডমিন রিকভারি (Break-Glass)' : 'Emergency Admin Recovery'}
+              </button>
             </div>
           </div>
         </div>
