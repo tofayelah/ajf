@@ -211,6 +211,75 @@ export const MemberProfileModal: React.FC<Props> = ({ memberId, onClose }) => {
             </div>
           </div>
 
+          {/* Admin view for Nominee Information */}
+          <div className="border-t border-slate-200 pt-6">
+            <h4 className="font-bold text-slate-900 flex items-center gap-2 mb-4">
+              <UserCheck className="w-5 h-5 text-rose-500" />
+              <span>{isBangla ? 'মনোনীত ব্যক্তি / নমিনী' : 'Nominee Information'}</span>
+            </h4>
+            
+            {member.nominees && member.nominees.length > 0 ? (
+              <div className="space-y-3">
+                {member.nominees.map((nominee, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 text-sm">{nominee.name}</span>
+                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md font-bold text-[11px]">
+                        {nominee.percentage}% {isBangla ? 'অংশ' : 'share'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-slate-600 pt-1">
+                      <div>
+                        <span className="text-slate-400">{isBangla ? 'সম্পর্ক:' : 'Relation:'}</span>{' '}
+                        <strong className="text-slate-700">{nominee.relation}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">{isBangla ? 'মোবাইল:' : 'Mobile:'}</span>{' '}
+                        <strong className="text-slate-700">{nominee.mobile || '—'}</strong>
+                      </div>
+                      {nominee.dob && (
+                        <div>
+                          <span className="text-slate-400">{isBangla ? 'জন্ম তারিখ:' : 'DOB:'}</span>{' '}
+                          <strong className="text-slate-700">{nominee.dob}</strong>
+                        </div>
+                      )}
+                      {nominee.status && (
+                        <div>
+                          <span className="text-slate-400">{isBangla ? 'স্ট্যাটাস:' : 'Status:'}</span>{' '}
+                          <strong className="text-slate-700">{nominee.status}</strong>
+                        </div>
+                      )}
+                      {nominee.nid && (
+                        <div className="col-span-2">
+                          <span className="text-slate-400">{isBangla ? 'এনআইডি:' : 'NID / Birth Reg:'}</span>{' '}
+                          <strong className="text-slate-700">{nominee.nid}</strong>
+                        </div>
+                      )}
+                      {nominee.address && (
+                        <div className="col-span-2">
+                          <span className="text-slate-400">{isBangla ? 'ঠিকানা:' : 'Address:'}</span>{' '}
+                          <strong className="text-slate-700">{nominee.address}</strong>
+                        </div>
+                      )}
+                      {nominee.updatedAt && (
+                        <div className="col-span-2 text-[10px] text-slate-400 mt-1 pt-2 border-t border-slate-200">
+                          {isBangla ? 'শেষ আপডেট:' : 'Last Updated:'} {new Date(nominee.updatedAt).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center text-slate-500 text-xs font-medium">
+                {isBangla ? 'কোন নমিনীর তথ্য অন্তর্ভুক্ত নেই' : 'No nominee information on record'}
+              </div>
+            )}
+          </div>
+
           <div className="border-t border-slate-200 pt-6">
             <h4 className="font-bold text-slate-900 flex items-center gap-2 mb-4">
               <ShieldCheck className="w-5 h-5 text-blue-600" />

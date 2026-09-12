@@ -4,7 +4,8 @@ import { fetchMemberProfileAPI } from '../../services/api';
 import { Member } from '../../types';
 import { MemberProfileEditForm } from './MemberProfileEditForm';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
-import { Edit2, KeyRound } from 'lucide-react';
+import { NomineeEditModal } from './NomineeEditModal';
+import { Edit2, KeyRound, Plus } from 'lucide-react';
 import {
   User,
   Phone,
@@ -37,6 +38,7 @@ export const MemberProfileView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState<boolean>(false);
+  const [isNomineeEditOpen, setIsNomineeEditOpen] = useState<boolean>(false);
 
   const loadProfile = async (isManual = false) => {
     if (!linkedMemberId) return;
@@ -425,17 +427,35 @@ export const MemberProfileView: React.FC = () => {
 
         {/* Card 4: Nominee Information */}
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-slate-100">
-            <Heart className="w-4 h-4 text-rose-500" />
-            <span>{isBangla ? 'মনোনীত ব্যক্তি / নমিনী' : 'Nominee Information'}</span>
-          </h3>
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-4">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+              <Heart className="w-4 h-4 text-rose-500" />
+              <span>{isBangla ? 'মনোনীত ব্যক্তি / নমিনী' : 'Nominee Information'}</span>
+            </h3>
+            <button
+              onClick={() => setIsNomineeEditOpen(true)}
+              className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors flex items-center gap-1 text-xs font-bold"
+            >
+              {member.nominees && member.nominees.length > 0 ? (
+                <>
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>{isBangla ? 'সম্পাদনা' : 'Edit Nominee'}</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isBangla ? 'নমিনী যোগ করুন' : 'Add Nominee'}</span>
+                </>
+              )}
+            </button>
+          </div>
 
           {member.nominees && member.nominees.length > 0 ? (
             <div className="space-y-3">
               {member.nominees.map((nominee, idx) => (
                 <div
                   key={idx}
-                  className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1.5"
+                  className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1.5 relative"
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-900 text-sm">{nominee.name}</span>
@@ -452,10 +472,33 @@ export const MemberProfileView: React.FC = () => {
                       <span className="text-slate-400">{isBangla ? 'মোবাইল:' : 'Mobile:'}</span>{' '}
                       <strong className="text-slate-700">{nominee.mobile || '—'}</strong>
                     </div>
+                    {nominee.dob && (
+                      <div>
+                        <span className="text-slate-400">{isBangla ? 'জন্ম তারিখ:' : 'DOB:'}</span>{' '}
+                        <strong className="text-slate-700">{nominee.dob}</strong>
+                      </div>
+                    )}
+                    {nominee.status && (
+                      <div>
+                        <span className="text-slate-400">{isBangla ? 'স্ট্যাটাস:' : 'Status:'}</span>{' '}
+                        <strong className="text-slate-700">{nominee.status}</strong>
+                      </div>
+                    )}
                     {nominee.nid && (
                       <div className="col-span-2">
-                        <span className="text-slate-400">{isBangla ? 'এনআইডি:' : 'NID:'}</span>{' '}
+                        <span className="text-slate-400">{isBangla ? 'এনআইডি:' : 'NID / Birth Reg:'}</span>{' '}
                         <strong className="text-slate-700">{nominee.nid}</strong>
+                      </div>
+                    )}
+                    {nominee.address && (
+                      <div className="col-span-2">
+                        <span className="text-slate-400">{isBangla ? 'ঠিকানা:' : 'Address:'}</span>{' '}
+                        <strong className="text-slate-700">{nominee.address}</strong>
+                      </div>
+                    )}
+                    {nominee.updatedAt && (
+                      <div className="col-span-2 text-[10px] text-slate-400 mt-1 pt-2 border-t border-slate-200">
+                        {isBangla ? 'শেষ আপডেট:' : 'Last Updated:'} {new Date(nominee.updatedAt).toLocaleDateString()}
                       </div>
                     )}
                   </div>
@@ -463,8 +506,17 @@ export const MemberProfileView: React.FC = () => {
               ))}
             </div>
           ) : (
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center text-slate-500 text-xs font-medium">
-              {isBangla ? 'কোন নমিনীর তথ্য অন্তর্ভুক্ত নেই' : 'No nominee information on record'}
+            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 text-center flex flex-col items-center justify-center gap-2">
+              <Heart className="w-8 h-8 text-slate-300" />
+              <span className="text-slate-500 text-sm font-medium">
+                {isBangla ? 'এখনও কোনো নমিনির তথ্য যোগ করা হয়নি' : 'No nominee information added'}
+              </span>
+              <button
+                onClick={() => setIsNomineeEditOpen(true)}
+                className="mt-2 px-4 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg text-xs font-bold transition-colors"
+              >
+                {isBangla ? 'নমিনি যোগ করুন' : 'Add Nominee'}
+              </button>
             </div>
           )}
         </div>
@@ -594,6 +646,19 @@ export const MemberProfileView: React.FC = () => {
         />
       )}
         </>
+      )}
+      {isNomineeEditOpen && member && (
+        <NomineeEditModal
+          isOpen={isNomineeEditOpen}
+          onClose={() => setIsNomineeEditOpen(false)}
+          memberId={member.memberId}
+          existingNominee={member.nominees?.[0]}
+          onSuccess={() => {
+            setIsNomineeEditOpen(false);
+            loadProfile(true);
+            alert(isBangla ? 'নমিনির তথ্য সফলভাবে আপডেট হয়েছে।' : 'Nominee information updated successfully.');
+          }}
+        />
       )}
     </div>
   );

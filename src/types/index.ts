@@ -222,6 +222,9 @@ export interface Nominee {
   address: string;
   percentage: number;
   remarks?: string;
+  dob?: string;
+  status?: string;
+  updatedAt?: string;
 }
 
 export interface Member {
