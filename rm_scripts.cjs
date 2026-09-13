@@ -1,0 +1,10 @@
+const fs = require('fs');
+fs.unlinkSync('dry_run.ts');
+fs.unlinkSync('dry_run2.cjs');
+fs.unlinkSync('dry_run3.cjs');
+fs.unlinkSync('find_missing_dates.cjs');
+fs.unlinkSync('test_dates.cjs');
+fs.unlinkSync('test_financials.cjs');
+fs.unlinkSync('test_journal.cjs');
+fs.unlinkSync('test_keys.cjs');
+fs.unlinkSync('test_record.cjs');

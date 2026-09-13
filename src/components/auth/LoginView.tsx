@@ -205,20 +205,6 @@ export const LoginView: React.FC = () => {
               <span>Software development by - </span>
               <span className="font-semibold text-slate-700">Tofayel Ahmed</span>
             </div>
-
-            {/* Discreet Break-Glass Emergency Admin Recovery Access */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  window.history.pushState({}, '', '/emergency-admin-recovery');
-                  window.dispatchEvent(new PopStateEvent('popstate'));
-                }}
-                className="text-[11px] text-slate-400/80 hover:text-slate-600 underline underline-offset-2 transition-colors cursor-pointer"
-              >
-                {isBangla ? 'জরুরি অ্যাডমিন রিকভারি (Break-Glass)' : 'Emergency Admin Recovery'}
-              </button>
-            </div>
           </div>
         </div>
       </div>

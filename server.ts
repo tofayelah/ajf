@@ -26,10 +26,6 @@ import {
   recordLoginFailure,
   recordLoginSuccess,
   logSecurityAudit,
-  isEmergencyRecoveryRateLimited,
-  recordEmergencyRecoveryFailure,
-  recordEmergencyRecoverySuccess,
-  EMERGENCY_RECOVERY_CONFIRMATION_PHRASE
 } from './src/security/sessionManager';
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -2678,10 +2674,7 @@ app.post("/api/users/:id/role", requireAuth, requirePermission("users.assign_rol
     }
     const user = db.users?.find((u) => u.userId === req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
-    const designatedAdminUsername = process.env.AJF_EMERGENCY_RECOVERY_ADMIN_USERNAME || "tofayelah";
-    if (user.username === designatedAdminUsername && cleanRole !== "ADMIN") {
-      return res.status(400).json({ error: "Cannot demote the designated emergency recovery administrator" });
-    }
+    
     if (user.role === "ADMIN" && cleanRole !== "ADMIN" && user.status === "ACTIVE") {
       const activeAdmins = db.users.filter((u) => u.role === "ADMIN" && u.status === "ACTIVE");
       if (activeAdmins.length <= 1) {
@@ -2726,10 +2719,7 @@ app.delete("/api/users/:id", requireAuth, requirePermission("users.disable"), as
     const userIndex = db.users?.findIndex((u) => u.userId === req.params.id);
     if (userIndex === -1 || userIndex === void 0) return res.status(404).json({ error: "User not found" });
     const user = db.users[userIndex];
-    const designatedAdminUsername = process.env.AJF_EMERGENCY_RECOVERY_ADMIN_USERNAME || "tofayelah";
-    if (user.username === designatedAdminUsername) {
-      return res.status(400).json({ error: "Cannot delete the designated emergency recovery administrator" });
-    }
+    
     if (user.role === "ADMIN" && user.status === "ACTIVE") {
       const activeAdmins = db.users.filter((u) => u.role === "ADMIN" && u.status === "ACTIVE");
       if (activeAdmins.length <= 1) {
@@ -4345,180 +4335,7 @@ var handleFactoryResetExecute = async (req, res) => {
   }
 };
 
-const handleEmergencyRecovery = async (req, res) => {
-  const clientIp = (req.headers["x-forwarded-for"])?.split(",")[0]?.trim() || req.ip || req.socket?.remoteAddress || "unknown";
 
-  // Rate Limiting Check: max 3 failed attempts in 15 minutes blocks the endpoint
-  if (isEmergencyRecoveryRateLimited(clientIp)) {
-    return res.status(429).json({ error: "Emergency recovery verification failed." });
-  }
-
-  // Caller Authorization Guard: If caller is currently authenticated as a MEMBER or non-admin, deny immediately
-  const rawToken = req.cookies?.token || (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7).trim() : null);
-  if (rawToken) {
-    let memberRoleFound = false;
-    const session = getSession(rawToken);
-    if (session && session.role === "MEMBER") {
-      memberRoleFound = true;
-    }
-    if (!memberRoleFound) {
-      try {
-        const decoded = jwt.verify(rawToken, getSessionSecret2());
-        if (decoded && decoded.role === "MEMBER") {
-          memberRoleFound = true;
-        }
-      } catch {}
-    }
-    if (memberRoleFound) {
-      recordEmergencyRecoveryFailure(clientIp);
-      return res.status(403).json({ error: "Forbidden: Members are not permitted to access emergency recovery" });
-    }
-  }
-
-  const { recoverySecret, confirmationPhrase, resetPassword, newPassword } = req.body || {};
-
-  // Verify Confirmation Phrase (exact match required)
-  const cleanPhrase = String(confirmationPhrase || "").trim();
-  if (cleanPhrase !== EMERGENCY_RECOVERY_CONFIRMATION_PHRASE) {
-    recordEmergencyRecoveryFailure(clientIp);
-    try {
-      const data = await fs.readFile(DB_FILE, "utf8");
-      const db = JSON.parse(data);
-      logSecurityAudit(db, null, "EMERGENCY_RECOVERY_FAILED", `Invalid confirmation phrase submitted from IP ${clientIp}`);
-      await writeDbFile(db);
-    } catch {}
-    return res.status(400).json({ error: "Emergency recovery verification failed." });
-  }
-
-  // Verify Emergency Recovery Secret (must match server environment variable)
-  const configuredSecret = process.env.AJF_EMERGENCY_RECOVERY_SECRET || "AJF-BREAK-GLASS-RECOVERY-SECRET-2026";
-  const cleanSecret = String(recoverySecret || "").trim();
-  if (!cleanSecret || cleanSecret !== configuredSecret) {
-    recordEmergencyRecoveryFailure(clientIp);
-    try {
-      const data = await fs.readFile(DB_FILE, "utf8");
-      const db = JSON.parse(data);
-      logSecurityAudit(db, null, "EMERGENCY_RECOVERY_FAILED", `Invalid recovery secret submitted from IP ${clientIp}`);
-      await writeDbFile(db);
-    } catch {}
-    return res.status(401).json({ error: "Emergency recovery verification failed." });
-  }
-
-  try {
-    const rawData = await fs.readFile(DB_FILE, "utf8");
-    const db = JSON.parse(rawData);
-
-    // Internal lookup of designated administrator account
-    const designatedUsername = process.env.AJF_EMERGENCY_RECOVERY_ADMIN_USERNAME || "tofayelah";
-    let targetAdmin = db.users?.find((u) => u.username === designatedUsername && u.role === "ADMIN");
-    if (!targetAdmin) {
-      targetAdmin = db.users?.find((u) => u.role === "ADMIN");
-    }
-
-    if (!targetAdmin) {
-      recordEmergencyRecoveryFailure(clientIp);
-      return res.status(500).json({ error: "No designated administrator found in system." });
-    }
-
-    // Security snapshot before modification
-    const securitySnapshotBefore = {
-      userId: targetAdmin.userId,
-      username: targetAdmin.username,
-      status: targetAdmin.status,
-      failedLoginAttempts: targetAdmin.failedLoginAttempts,
-      lockTimestamp: targetAdmin.lockTimestamp
-    };
-
-    // Financial integrity verification snapshot
-    const financialKeys = [
-      "members", "memberLedgers", "admissions", "capitalDeposits", "collections",
-      "incomes", "lateFees", "expenses", "settlements", "profitAllocations",
-      "cashTransactions", "bankTransactions", "journalEntries", "journalLines",
-      "accounts", "financialYears"
-    ];
-    const countsBefore = {};
-    for (const key of financialKeys) {
-      countsBefore[key] = Array.isArray(db[key]) ? db[key].length : 0;
-    }
-
-    // Step 7: Unlock ONLY designated administrator account
-    targetAdmin.status = "ACTIVE";
-    targetAdmin.failedLoginAttempts = 0;
-    delete targetAdmin.lockTimestamp;
-    targetAdmin.securityNotice = "Emergency administrator recovery was used. Please change your password immediately.";
-    targetAdmin.emergencyRecoveryAt = new Date().toISOString();
-
-    // Step 9: Optional password reset
-    if (resetPassword) {
-      if (!newPassword || typeof newPassword !== "string") {
-        return res.status(400).json({ error: "New password is required when password reset is requested." });
-      }
-      const validation = validatePasswordStrength(newPassword);
-      if (!validation.valid) {
-        return res.status(400).json({ error: `Password does not meet complexity requirements: ${validation.error}` });
-      }
-      targetAdmin.password = await bcrypt.hash(newPassword, 10);
-      targetAdmin.lastPasswordChange = new Date().toISOString();
-      logSecurityAudit(
-        db,
-        { userId: targetAdmin.userId, username: targetAdmin.username },
-        "EMERGENCY_PASSWORD_RESET",
-        `Emergency password reset completed for designated admin ${targetAdmin.username} from IP ${clientIp}`,
-        targetAdmin.userId
-      );
-    }
-
-    // Step 8: Revoke all existing sessions for the recovered account
-    invalidateUserSessions(targetAdmin.userId);
-
-    // Step 10: Security audit logs
-    logSecurityAudit(
-      db,
-      { userId: targetAdmin.userId, username: targetAdmin.username },
-      "EMERGENCY_ADMIN_UNLOCKED",
-      `Emergency recovery unlocked designated admin ${targetAdmin.username}. Previous status was ${securitySnapshotBefore.status}. IP: ${clientIp}`,
-      targetAdmin.userId
-    );
-    logSecurityAudit(
-      db,
-      { userId: targetAdmin.userId, username: targetAdmin.username },
-      "EMERGENCY_RECOVERY_SUCCESS",
-      `Designated administrator access recovered successfully for ${targetAdmin.username}. IP: ${clientIp}`,
-      targetAdmin.userId
-    );
-
-    // Financial integrity verification check after modification
-    for (const key of financialKeys) {
-      const currentCount = Array.isArray(db[key]) ? db[key].length : 0;
-      if (currentCount !== countsBefore[key]) {
-        throw new Error(`Financial data integrity check failed: count mismatch on ${key} (${countsBefore[key]} vs ${currentCount})`);
-      }
-    }
-
-    // Atomic disk write
-    await writeDbFile(db, { operation: "EMERGENCY_RECOVERY" });
-
-    // Clear rate limit record on success
-    recordEmergencyRecoverySuccess(clientIp);
-
-    // Response does NOT provide a session token - fresh login is strictly required
-    return res.json({
-      success: true,
-      message: "Emergency administrator recovery successful. Designated administrator account has been unlocked. Please perform a fresh login.",
-      designatedAdmin: {
-        username: targetAdmin.username,
-        status: targetAdmin.status,
-        emergencyRecoveryAt: targetAdmin.emergencyRecoveryAt
-      }
-    });
-  } catch (error) {
-    console.error("Error executing emergency admin recovery:", error);
-    return res.status(500).json({ error: error.message || "Internal server error during emergency recovery" });
-  }
-};
-
-app.post("/api/admin/emergency-recovery", handleEmergencyRecovery);
-app.all("/api/admin/emergency-recovery", (req, res) => res.status(405).json({ error: "Method not allowed. Use POST." }));
 app.get("/api/admin/backup/download", requireAuth, requireRole(["ADMIN"]), handleBackupDownload);
 app.post("/api/admin/restore/validate", requireAuth, requireRole(["ADMIN"]), upload.single("backupFile"), handleRestoreValidate);
 app.post("/api/admin/restore/execute", requireAuth, requireRole(["ADMIN"]), upload.single("backupFile"), handleRestoreExecute);

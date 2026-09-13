@@ -202,52 +202,9 @@ export function recordLoginSuccess(ip: string): void {
   ipRateLimits.delete(ip);
 }
 
-export const EMERGENCY_RECOVERY_CONFIRMATION_PHRASE = "EMERGENCY RECOVERY AJF ADMIN";
 
-// Strict rate-limiting dedicated to the Emergency Recovery endpoint
-const emergencyRecoveryRateLimits = new Map<string, { attempts: number; firstAttemptAt: number; blockedUntil?: number }>();
 
-export function isEmergencyRecoveryRateLimited(ip: string): boolean {
-  const record = emergencyRecoveryRateLimits.get(ip);
-  if (!record) return false;
-  const now = Date.now();
 
-  if (record.blockedUntil && now < record.blockedUntil) {
-    return true;
-  }
-
-  // Reset window after 15 minutes
-  if (now - record.firstAttemptAt > 15 * 60 * 1000) {
-    emergencyRecoveryRateLimits.delete(ip);
-    return false;
-  }
-
-  return false;
-}
-
-export function recordEmergencyRecoveryFailure(ip: string): void {
-  const now = Date.now();
-  const record = emergencyRecoveryRateLimits.get(ip) || { attempts: 0, firstAttemptAt: now };
-
-  if (now - record.firstAttemptAt > 15 * 60 * 1000) {
-    record.attempts = 1;
-    record.firstAttemptAt = now;
-    delete record.blockedUntil;
-  } else {
-    record.attempts += 1;
-  }
-
-  // After 3 failed recovery attempts from the same IP, block for 15 minutes
-  if (record.attempts >= 3) {
-    record.blockedUntil = now + 15 * 60 * 1000;
-  }
-
-  emergencyRecoveryRateLimits.set(ip, record);
-}
-
-export function recordEmergencyRecoverySuccess(ip: string): void {
-  emergencyRecoveryRateLimits.delete(ip);
-}
 
 /**
  * Safely appends an audit log entry to database auditLogs without exposing sensitive secrets.
